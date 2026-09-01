@@ -6,6 +6,7 @@ from src.analysis.eda import (
     rating_distribution,
     rating_extremes,
     text_length_distribution,
+    token_frequencies,
 )
 from src.data import Product, Review
 
@@ -38,3 +39,8 @@ def test_rating_extremes_include_threshold_boundaries() -> None:
     reviews = [Review(review_id=f"R{rating}", product_id="P", rating=rating, review_text="좋아요", review_date=date(2026, 1, 1), source="x") for rating in range(1, 6)]
     result = rating_extremes(reviews, low_threshold=2, high_threshold=4)
     assert result["low"]["count"] == result["high"]["count"] == 2
+
+
+def test_token_frequencies_normalize_punctuation_and_stopwords() -> None:
+    reviews = [Review(review_id="R", product_id="P", rating=5, review_text="맛있어요! 맛있어요 그리고 신선해요", review_date=date(2026, 1, 1), source="x")]
+    assert token_frequencies(reviews)["맛있어요"] == 2

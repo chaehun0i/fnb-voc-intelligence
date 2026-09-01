@@ -1,5 +1,6 @@
 """Reusable, deterministic exploratory data analysis helpers."""
 
+import re
 from collections import Counter
 from statistics import mean, median, stdev
 from typing import Any
@@ -52,3 +53,12 @@ def rating_extremes(reviews: list[Review], low_threshold: int = 2, high_threshol
     low = [review for review in reviews if review.rating <= low_threshold]
     high = [review for review in reviews if review.rating >= high_threshold]
     return {"low": {"reviews": low, "count": len(low), "ratio": len(low) / total if total else 0}, "high": {"reviews": high, "count": len(high), "ratio": len(high) / total if total else 0}}
+
+
+def token_frequencies(reviews: list[Review], min_length: int = 2, stopwords: set[str] | None = None) -> dict[str, int]:
+    """Count normalized Korean text tokens without a heavyweight NLP dependency."""
+    excluded = {"그리고", "하지만", "정말", "너무", "그냥"} | (stopwords or set())
+    tokens = []
+    for review in reviews:
+        tokens.extend(token for token in re.findall(r"[가-힣A-Za-z0-9]+", review.review_text.lower()) if len(token) >= min_length and token not in excluded)
+    return dict(sorted(Counter(tokens).items(), key=lambda item: (-item[1], item[0])))
