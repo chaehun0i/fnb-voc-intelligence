@@ -28,3 +28,13 @@ def text_length_distribution(reviews: list[Review], buckets: tuple[int, ...] = (
     result = {f"<= {limit}": sum(length <= limit for length in lengths) for limit in buckets}
     result[f"> {buckets[-1]}"] = sum(length > buckets[-1] for length in lengths)
     return {"min": min(lengths, default=None), "max": max(lengths, default=None), "mean": mean(lengths) if lengths else None, "median": median(lengths) if lengths else None, "quartiles": [sorted(lengths)[int((len(lengths) - 1) * q)] for q in (0.25, 0.5, 0.75)] if lengths else [], "buckets": result}
+
+
+def product_review_metrics(products: list[Product], reviews: list[Review]) -> list[dict[str, Any]]:
+    """Aggregate review measures while preserving zero-review products."""
+    output = []
+    for product in products:
+        items = [review for review in reviews if review.product_id == product.product_id]
+        ratings = [item.rating for item in items]
+        output.append({"product_id": product.product_id, "review_count": len(items), "average_rating": mean(ratings) if ratings else None, "rating_variance": stdev(ratings) ** 2 if len(ratings) > 1 else 0.0, "average_text_length": mean([len(item.review_text) for item in items]) if items else None})
+    return output
