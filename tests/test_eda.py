@@ -4,6 +4,7 @@ from src.analysis.eda import (
     category_review_metrics,
     dataset_summary,
     rating_distribution,
+    rating_extremes,
     text_length_distribution,
 )
 from src.data import Product, Review
@@ -31,3 +32,9 @@ def test_text_lengths_handle_empty_and_normal_input() -> None:
 def test_category_metrics_include_categories_without_reviews() -> None:
     product = Product(product_id="P", brand="b", product_name="n", category="샐러드", price=1, weight_g=1, calories_kcal=1, protein_g=1, carbohydrate_g=1, sugar_g=1, fat_g=1, sodium_mg=1, source="x")
     assert category_review_metrics([product], [])[0]["review_count"] == 0
+
+
+def test_rating_extremes_include_threshold_boundaries() -> None:
+    reviews = [Review(review_id=f"R{rating}", product_id="P", rating=rating, review_text="좋아요", review_date=date(2026, 1, 1), source="x") for rating in range(1, 6)]
+    result = rating_extremes(reviews, low_threshold=2, high_threshold=4)
+    assert result["low"]["count"] == result["high"]["count"] == 2

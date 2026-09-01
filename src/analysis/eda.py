@@ -44,3 +44,11 @@ def category_review_metrics(products: list[Product], reviews: list[Review]) -> l
     """Aggregate review metrics from product category metadata."""
     categories = sorted({product.category for product in products})
     return [{"category": category, "product_count": sum(product.category == category for product in products), "review_count": len(items := [review for review in reviews if next((product.category for product in products if product.product_id == review.product_id), None) == category]), "average_rating": mean([item.rating for item in items]) if items else None, "average_review_length": mean([len(item.review_text) for item in items]) if items else None} for category in categories]
+
+
+def rating_extremes(reviews: list[Review], low_threshold: int = 2, high_threshold: int = 4) -> dict[str, dict[str, Any]]:
+    """Return stable low/high rating subsets with counts and ratios."""
+    total = len(reviews)
+    low = [review for review in reviews if review.rating <= low_threshold]
+    high = [review for review in reviews if review.rating >= high_threshold]
+    return {"low": {"reviews": low, "count": len(low), "ratio": len(low) / total if total else 0}, "high": {"reviews": high, "count": len(high), "ratio": len(high) / total if total else 0}}
