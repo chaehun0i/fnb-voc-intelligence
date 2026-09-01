@@ -62,3 +62,9 @@ def token_frequencies(reviews: list[Review], min_length: int = 2, stopwords: set
     for review in reviews:
         tokens.extend(token for token in re.findall(r"[가-힣A-Za-z0-9]+", review.review_text.lower()) if len(token) >= min_length and token not in excluded)
     return dict(sorted(Counter(tokens).items(), key=lambda item: (-item[1], item[0])))
+
+
+def vocabulary_by_rating_group(reviews: list[Review], top_n: int = 10) -> dict[str, list[tuple[str, int]]]:
+    """Compare top vocabulary across low, mid, and high rating groups."""
+    groups = {"low": [review for review in reviews if review.rating <= 2], "mid": [review for review in reviews if review.rating == 3], "high": [review for review in reviews if review.rating >= 4]}
+    return {name: list(token_frequencies(items).items())[:top_n] for name, items in groups.items()}

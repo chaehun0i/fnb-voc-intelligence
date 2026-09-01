@@ -7,6 +7,7 @@ from src.analysis.eda import (
     rating_extremes,
     text_length_distribution,
     token_frequencies,
+    vocabulary_by_rating_group,
 )
 from src.data import Product, Review
 
@@ -44,3 +45,8 @@ def test_rating_extremes_include_threshold_boundaries() -> None:
 def test_token_frequencies_normalize_punctuation_and_stopwords() -> None:
     reviews = [Review(review_id="R", product_id="P", rating=5, review_text="맛있어요! 맛있어요 그리고 신선해요", review_date=date(2026, 1, 1), source="x")]
     assert token_frequencies(reviews)["맛있어요"] == 2
+
+
+def test_vocabulary_groups_ratings() -> None:
+    reviews = [Review(review_id="R1", product_id="P", rating=1, review_text="별로예요", review_date=date(2026, 1, 1), source="x"), Review(review_id="R2", product_id="P", rating=5, review_text="최고예요", review_date=date(2026, 1, 1), source="x")]
+    assert vocabulary_by_rating_group(reviews)["low"][0][0] == "별로예요"
