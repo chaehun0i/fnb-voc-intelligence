@@ -47,3 +47,5 @@ python -m src.data.validate_data --products tests/fixtures/sample_products.csv -
 1. 데이터 기반 구축 (Day 1)
 2. VOC 탐색 분석 및 지표 정의
 3. 인사이트 리포트와 대시보드
+
+Day 2 EDA 사용법과 분석 결과 해석은 [EDA 문서](docs/eda.md)를 참고하세요.
