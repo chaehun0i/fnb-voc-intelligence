@@ -1,11 +1,12 @@
 from datetime import date
 
 from src.analysis.eda import (
+    category_review_metrics,
     dataset_summary,
     rating_distribution,
     text_length_distribution,
 )
-from src.data import Review
+from src.data import Product, Review
 
 
 def test_dataset_summary_is_deterministic() -> None:
@@ -25,3 +26,8 @@ def test_text_lengths_handle_empty_and_normal_input() -> None:
     assert text_length_distribution([])["min"] is None
     review = Review(review_id="R", product_id="P", rating=5, review_text="좋아요", review_date=date(2026, 1, 1), source="x")
     assert text_length_distribution([review])["max"] == 3
+
+
+def test_category_metrics_include_categories_without_reviews() -> None:
+    product = Product(product_id="P", brand="b", product_name="n", category="샐러드", price=1, weight_g=1, calories_kcal=1, protein_g=1, carbohydrate_g=1, sugar_g=1, fat_g=1, sodium_mg=1, source="x")
+    assert category_review_metrics([product], [])[0]["review_count"] == 0

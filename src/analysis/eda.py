@@ -38,3 +38,9 @@ def product_review_metrics(products: list[Product], reviews: list[Review]) -> li
         ratings = [item.rating for item in items]
         output.append({"product_id": product.product_id, "review_count": len(items), "average_rating": mean(ratings) if ratings else None, "rating_variance": stdev(ratings) ** 2 if len(ratings) > 1 else 0.0, "average_text_length": mean([len(item.review_text) for item in items]) if items else None})
     return output
+
+
+def category_review_metrics(products: list[Product], reviews: list[Review]) -> list[dict[str, Any]]:
+    """Aggregate review metrics from product category metadata."""
+    categories = sorted({product.category for product in products})
+    return [{"category": category, "product_count": sum(product.category == category for product in products), "review_count": len(items := [review for review in reviews if next((product.category for product in products if product.product_id == review.product_id), None) == category]), "average_rating": mean([item.rating for item in items]) if items else None, "average_review_length": mean([len(item.review_text) for item in items]) if items else None} for category in categories]
