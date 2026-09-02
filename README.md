@@ -49,3 +49,5 @@ python -m src.data.validate_data --products tests/fixtures/sample_products.csv -
 3. 인사이트 리포트와 대시보드
 
 Day 2 EDA 사용법과 분석 결과 해석은 [EDA 문서](docs/eda.md)를 참고하세요.
+
+Day 3 키워드 기반 페인포인트 분류는 [taxonomy 문서](docs/pain_point_taxonomy.md)를 참고하세요.

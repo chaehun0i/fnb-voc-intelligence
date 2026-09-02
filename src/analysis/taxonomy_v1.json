@@ -1,0 +1,120 @@
+{
+  "version": "1.0",
+  "categories": [
+    {
+      "id": "quality",
+      "name": "품질",
+      "description": "제품 전반 품질 문제",
+      "keywords": [
+        "품질",
+        "불량"
+      ],
+      "examples": [
+        "품질이 아쉬워요"
+      ]
+    },
+    {
+      "id": "taste",
+      "name": "맛",
+      "description": "맛과 간 문제",
+      "keywords": [
+        "맛",
+        "짜",
+        "싱거"
+      ],
+      "examples": [
+        "맛이 별로예요"
+      ]
+    },
+    {
+      "id": "price",
+      "name": "가격",
+      "description": "가격 부담",
+      "keywords": [
+        "비싸",
+        "가격"
+      ],
+      "examples": [
+        "가격이 비싸요"
+      ]
+    },
+    {
+      "id": "quantity",
+      "name": "양",
+      "description": "양과 포만감 문제",
+      "keywords": [
+        "양",
+        "적다",
+        "부족"
+      ],
+      "examples": [
+        "양이 적어요"
+      ]
+    },
+    {
+      "id": "packaging",
+      "name": "포장",
+      "description": "포장 상태 문제",
+      "keywords": [
+        "포장",
+        "새다",
+        "눌림"
+      ],
+      "examples": [
+        "포장이 눌렸어요"
+      ]
+    },
+    {
+      "id": "delivery",
+      "name": "배송",
+      "description": "배송 경험 문제",
+      "keywords": [
+        "배송",
+        "늦",
+        "도착"
+      ],
+      "examples": [
+        "배송이 늦어요"
+      ]
+    },
+    {
+      "id": "freshness",
+      "name": "신선도",
+      "description": "신선도 문제",
+      "keywords": [
+        "신선",
+        "상했",
+        "시들"
+      ],
+      "examples": [
+        "신선하지 않아요"
+      ]
+    },
+    {
+      "id": "service",
+      "name": "서비스",
+      "description": "고객 서비스 문제",
+      "keywords": [
+        "서비스",
+        "응대",
+        "친절"
+      ],
+      "examples": [
+        "응대가 아쉬워요"
+      ]
+    },
+    {
+      "id": "usability",
+      "name": "사용성",
+      "description": "이용 편의 문제",
+      "keywords": [
+        "불편",
+        "사용",
+        "주문"
+      ],
+      "examples": [
+        "주문이 불편해요"
+      ]
+    }
+  ]
+}
