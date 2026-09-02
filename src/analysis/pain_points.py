@@ -1,6 +1,7 @@
 """Typed pain point taxonomy and deterministic classification primitives."""
 
 import json
+import re
 from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
@@ -49,3 +50,8 @@ def load_taxonomy(path: str | Path) -> PainPointTaxonomy:
         return PainPointTaxonomy.model_validate(raw)
     except Exception as error:
         raise ValueError(f"invalid taxonomy: {error}") from error
+
+
+def normalize_classification_text(text: str) -> str:
+    """Normalize punctuation and whitespace while preserving Korean tokens."""
+    return re.sub(r"\s+", " ", re.sub(r"[^가-힣A-Za-z0-9\s]", " ", text)).strip().lower()

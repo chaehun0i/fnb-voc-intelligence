@@ -4,7 +4,12 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from src.analysis.pain_points import PainPointCategory, PainPointTaxonomy, load_taxonomy
+from src.analysis.pain_points import (
+    PainPointCategory,
+    PainPointTaxonomy,
+    load_taxonomy,
+    normalize_classification_text,
+)
 
 
 def category() -> PainPointCategory:
@@ -35,3 +40,7 @@ def test_taxonomy_loader_errors_are_readable(tmp_path: Path) -> None:
     malformed.write_text("{", encoding="utf-8")
     with pytest.raises(ValueError, match="malformed"):
         load_taxonomy(malformed)
+
+
+def test_classification_normalization_is_stable() -> None:
+    assert normalize_classification_text("  포장이!  눌렸어요. ") == "포장이 눌렸어요"
