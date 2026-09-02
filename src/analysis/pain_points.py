@@ -61,3 +61,9 @@ def classify_keywords(text: str, taxonomy: PainPointTaxonomy) -> list[dict[str, 
     """Return multi-label categories with matched keyword evidence."""
     normalized = normalize_classification_text(text)
     return [{"category_id": category.id, "evidence": evidence} for category in taxonomy.categories if (evidence := [keyword for keyword in category.keywords if keyword.lower() in normalized])]
+
+
+def score_classification(text: str, taxonomy: PainPointTaxonomy, minimum_score: int = 1) -> list[dict[str, object]]:
+    """Score labels by evidence count, with category ID tie ordering."""
+    labels = [{**label, "score": len(label["evidence"])} for label in classify_keywords(text, taxonomy)]
+    return sorted((label for label in labels if label["score"] >= minimum_score), key=lambda label: (-label["score"], str(label["category_id"])))
