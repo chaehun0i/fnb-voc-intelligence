@@ -67,3 +67,9 @@ def score_classification(text: str, taxonomy: PainPointTaxonomy, minimum_score: 
     """Score labels by evidence count, with category ID tie ordering."""
     labels = [{**label, "score": len(label["evidence"])} for label in classify_keywords(text, taxonomy)]
     return sorted((label for label in labels if label["score"] >= minimum_score), key=lambda label: (-label["score"], str(label["category_id"])))
+
+
+def classify_review(review_id: str, text: str, taxonomy: PainPointTaxonomy, minimum_score: int = 1) -> dict[str, object]:
+    """Classify one review, explicitly retaining a no-match state."""
+    labels = score_classification(text, taxonomy, minimum_score)
+    return {"review_id": review_id, "normalized_text": normalize_classification_text(text), "score": max((int(label["score"]) for label in labels), default=0), "categories": [label["category_id"] for label in labels], "evidence": [term for label in labels for term in label["evidence"]]}

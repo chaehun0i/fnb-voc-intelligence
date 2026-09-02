@@ -8,6 +8,7 @@ from src.analysis.pain_points import (
     PainPointCategory,
     PainPointTaxonomy,
     classify_keywords,
+    classify_review,
     load_taxonomy,
     normalize_classification_text,
 )
@@ -49,3 +50,9 @@ def test_classification_normalization_is_stable() -> None:
 
 def test_keyword_classifier_returns_evidence() -> None:
     assert classify_keywords("가격이 비싸요", PainPointTaxonomy(version="1", categories=[category()]))[0]["category_id"] == "price"
+
+
+def test_no_match_review_is_explicitly_unclassified() -> None:
+    result = classify_review("R1", "오늘 날씨가 좋네요", PainPointTaxonomy(version="1", categories=[category()]))
+    assert result["review_id"] == "R1"
+    assert result["score"] == 0 and result["categories"] == [] and result["evidence"] == []
