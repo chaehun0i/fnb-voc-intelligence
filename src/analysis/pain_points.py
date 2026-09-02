@@ -1,5 +1,8 @@
 """Typed pain point taxonomy and deterministic classification primitives."""
 
+import json
+from pathlib import Path
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -31,3 +34,18 @@ class PainPointTaxonomy(BaseModel):
         if len({category.id for category in value}) != len(value):
             raise ValueError("category ids must be unique")
         return value
+
+
+def load_taxonomy(path: str | Path) -> PainPointTaxonomy:
+    """Load a non-empty, validated taxonomy with readable errors."""
+    source = Path(path)
+    if not source.is_file():
+        raise ValueError(f"taxonomy file not found: {source}")
+    try:
+        raw = json.loads(source.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ValueError(f"malformed taxonomy: {source}") from error
+    try:
+        return PainPointTaxonomy.model_validate(raw)
+    except Exception as error:
+        raise ValueError(f"invalid taxonomy: {error}") from error

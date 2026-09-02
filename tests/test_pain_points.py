@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from src.analysis.pain_points import PainPointCategory, PainPointTaxonomy
+from src.analysis.pain_points import PainPointCategory, PainPointTaxonomy, load_taxonomy
 
 
 def category() -> PainPointCategory:
@@ -26,3 +26,12 @@ def test_initial_taxonomy_has_unique_required_categories() -> None:
     path = Path(__file__).parents[1] / "src" / "analysis" / "taxonomy_v1.json"
     taxonomy = PainPointTaxonomy.model_validate(json.loads(path.read_text(encoding="utf-8")))
     assert {"quality", "taste", "price", "quantity", "packaging", "delivery", "freshness", "service", "usability"} == {item.id for item in taxonomy.categories}
+
+
+def test_taxonomy_loader_errors_are_readable(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="not found"):
+        load_taxonomy(tmp_path / "none.json")
+    malformed = tmp_path / "bad.json"
+    malformed.write_text("{", encoding="utf-8")
+    with pytest.raises(ValueError, match="malformed"):
+        load_taxonomy(malformed)
