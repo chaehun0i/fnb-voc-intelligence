@@ -2,9 +2,12 @@
 
 import json
 import re
+from collections import Counter
 from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
+
+from src.data.models import Review
 
 
 class PainPointCategory(BaseModel):
@@ -73,3 +76,11 @@ def classify_review(review_id: str, text: str, taxonomy: PainPointTaxonomy, mini
     """Classify one review, explicitly retaining a no-match state."""
     labels = score_classification(text, taxonomy, minimum_score)
     return {"review_id": review_id, "normalized_text": normalize_classification_text(text), "score": max((int(label["score"]) for label in labels), default=0), "categories": [label["category_id"] for label in labels], "evidence": [term for label in labels for term in label["evidence"]]}
+
+
+def classify_reviews(reviews: list[Review], taxonomy: PainPointTaxonomy, minimum_score: int = 1) -> dict[str, object]:
+    """Classify validated reviews in input order and aggregate labels."""
+    results = [classify_review(review.review_id, review.review_text, taxonomy, minimum_score) for review in reviews]
+    counts = Counter(category for result in results for category in result["categories"])
+    total = len(results)
+    return {"results": results, "category_counts": dict(sorted(counts.items())), "category_ratios": {key: value / total if total else 0 for key, value in sorted(counts.items())}}
