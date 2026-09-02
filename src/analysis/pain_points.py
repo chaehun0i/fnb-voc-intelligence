@@ -55,3 +55,9 @@ def load_taxonomy(path: str | Path) -> PainPointTaxonomy:
 def normalize_classification_text(text: str) -> str:
     """Normalize punctuation and whitespace while preserving Korean tokens."""
     return re.sub(r"\s+", " ", re.sub(r"[^가-힣A-Za-z0-9\s]", " ", text)).strip().lower()
+
+
+def classify_keywords(text: str, taxonomy: PainPointTaxonomy) -> list[dict[str, object]]:
+    """Return multi-label categories with matched keyword evidence."""
+    normalized = normalize_classification_text(text)
+    return [{"category_id": category.id, "evidence": evidence} for category in taxonomy.categories if (evidence := [keyword for keyword in category.keywords if keyword.lower() in normalized])]

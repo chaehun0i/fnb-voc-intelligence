@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from src.analysis.pain_points import (
     PainPointCategory,
     PainPointTaxonomy,
+    classify_keywords,
     load_taxonomy,
     normalize_classification_text,
 )
@@ -44,3 +45,7 @@ def test_taxonomy_loader_errors_are_readable(tmp_path: Path) -> None:
 
 def test_classification_normalization_is_stable() -> None:
     assert normalize_classification_text("  포장이!  눌렸어요. ") == "포장이 눌렸어요"
+
+
+def test_keyword_classifier_returns_evidence() -> None:
+    assert classify_keywords("가격이 비싸요", PainPointTaxonomy(version="1", categories=[category()]))[0]["category_id"] == "price"
