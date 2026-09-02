@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -17,3 +20,9 @@ def test_taxonomy_rejects_blank_and_duplicate_ids() -> None:
         PainPointCategory(id="", name="가격", description="설명", keywords=["비싸"], examples=["예시"])
     with pytest.raises(ValidationError):
         PainPointTaxonomy(version="1", categories=[category(), category()])
+
+
+def test_initial_taxonomy_has_unique_required_categories() -> None:
+    path = Path(__file__).parents[1] / "src" / "analysis" / "taxonomy_v1.json"
+    taxonomy = PainPointTaxonomy.model_validate(json.loads(path.read_text(encoding="utf-8")))
+    assert {"quality", "taste", "price", "quantity", "packaging", "delivery", "freshness", "service", "usability"} == {item.id for item in taxonomy.categories}
