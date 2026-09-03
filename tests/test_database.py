@@ -1,4 +1,4 @@
-from src.data.database import check_health
+from src.data.database import check_health, initialize_schema
 
 
 class FakeCursor:
@@ -19,3 +19,9 @@ class FakeConnection:
 
 def test_health_check_uses_select_one() -> None:
     assert check_health(FakeConnection())
+
+
+def test_schema_initialization_is_repeatable() -> None:
+    connection = FakeConnection()
+    initialize_schema(connection)
+    initialize_schema(connection)
