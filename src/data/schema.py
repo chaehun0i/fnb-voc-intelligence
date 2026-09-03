@@ -38,3 +38,15 @@ CREATE TABLE IF NOT EXISTS taxonomy_keywords (
         REFERENCES taxonomy_categories(taxonomy_version, category_id)
 )
 """
+
+REVIEW_CLASSIFICATIONS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS review_classifications (
+    review_id TEXT NOT NULL REFERENCES reviews(review_id), category_id TEXT NOT NULL,
+    taxonomy_version TEXT NOT NULL, score INTEGER NOT NULL CHECK (score >= 0),
+    evidence JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (review_id, taxonomy_version, category_id),
+    FOREIGN KEY (taxonomy_version, category_id)
+        REFERENCES taxonomy_categories(taxonomy_version, category_id)
+)
+"""
