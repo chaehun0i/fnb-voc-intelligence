@@ -12,3 +12,12 @@ CREATE TABLE IF NOT EXISTS products (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 )
 """
+
+REVIEWS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS reviews (
+    review_id TEXT PRIMARY KEY, product_id TEXT NOT NULL REFERENCES products(product_id),
+    rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5), review_text TEXT NOT NULL,
+    review_date DATE NOT NULL, source TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+"""
