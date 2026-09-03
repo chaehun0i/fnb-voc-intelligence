@@ -1,6 +1,6 @@
 """Small PostgreSQL connection boundary, independent of domain logic."""
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from .schema import (
     PRODUCTS_TABLE_SQL,
@@ -15,8 +15,8 @@ PGVECTOR_EXTENSION_SQL = "CREATE EXTENSION IF NOT EXISTS vector"
 
 
 class Cursor(Protocol):
-    def execute(self, query: str) -> None: ...
-    def fetchone(self) -> tuple[int] | None: ...
+    def execute(self, query: str, params: tuple[Any, ...] | None = None) -> None: ...
+    def fetchone(self) -> tuple[Any, ...] | None: ...
 
 
 class Connection(Protocol):
