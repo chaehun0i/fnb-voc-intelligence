@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from src.config import Settings, settings
 
 
@@ -12,3 +15,9 @@ def test_optional_secrets_default_to_none() -> None:
     configured = Settings()
     assert configured.database_url is None
     assert configured.openai_api_key is None
+
+
+def test_postgresql_url_validation() -> None:
+    assert Settings(postgresql_url="postgresql://localhost/test").postgresql_url
+    with pytest.raises(ValidationError):
+        Settings(postgresql_url="sqlite:///test.db")
