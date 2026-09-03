@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -21,9 +22,17 @@ class Settings(BaseSettings):
     processed_data_dir: Path = PROCESSED_DATA_DIR
     app_env: str = "local"
     database_url: str | None = None
+    postgresql_url: str | None = None
     openai_api_key: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @field_validator("postgresql_url")
+    @classmethod
+    def validate_postgresql_url(cls, value: str | None) -> str | None:
+        if value is not None and not value.startswith(("postgresql://", "postgres://")):
+            raise ValueError("must use a PostgreSQL URL")
+        return value
 
 
 settings = Settings()
