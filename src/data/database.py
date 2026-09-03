@@ -22,7 +22,15 @@ class Cursor(Protocol):
 
 class Connection(Protocol):
     def cursor(self) -> Cursor: ...
+    def commit(self) -> None: ...
     def close(self) -> None: ...
+
+
+def connect(postgresql_url: str) -> Connection:
+    """Open a PostgreSQL connection without leaking driver details to services."""
+    from psycopg import connect as psycopg_connect
+
+    return psycopg_connect(postgresql_url)
 
 
 def check_health(connection: Connection) -> bool:
