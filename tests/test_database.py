@@ -3,6 +3,7 @@ from src.data.database import (
     check_health,
     initialize_schema,
 )
+from src.data.schema import REVIEW_EMBEDDINGS_TABLE_SQL
 
 
 class FakeCursor:
@@ -37,3 +38,4 @@ def test_schema_initialization_is_repeatable() -> None:
     initialize_schema(connection)
     assert connection.fake_cursor.queries.count(PGVECTOR_EXTENSION_SQL) == 2
     assert "IF NOT EXISTS" in PGVECTOR_EXTENSION_SQL
+    assert connection.fake_cursor.queries.count(REVIEW_EMBEDDINGS_TABLE_SQL) == 2

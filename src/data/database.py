@@ -5,6 +5,7 @@ from typing import Protocol
 from .schema import (
     PRODUCTS_TABLE_SQL,
     REVIEW_CLASSIFICATIONS_TABLE_SQL,
+    REVIEW_EMBEDDINGS_TABLE_SQL,
     REVIEWS_TABLE_SQL,
     TAXONOMY_CATEGORIES_TABLE_SQL,
     TAXONOMY_KEYWORDS_TABLE_SQL,
@@ -40,5 +41,6 @@ def initialize_schema(connection: Connection) -> None:
         TAXONOMY_CATEGORIES_TABLE_SQL,
         TAXONOMY_KEYWORDS_TABLE_SQL,
         REVIEW_CLASSIFICATIONS_TABLE_SQL,
+        REVIEW_EMBEDDINGS_TABLE_SQL,
     ):
         cursor.execute(statement)

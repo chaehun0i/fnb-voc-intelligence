@@ -50,3 +50,18 @@ CREATE TABLE IF NOT EXISTS review_classifications (
         REFERENCES taxonomy_categories(taxonomy_version, category_id)
 )
 """
+
+REVIEW_EMBEDDINGS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS review_embeddings (
+    review_id TEXT NOT NULL REFERENCES reviews(review_id) ON DELETE CASCADE,
+    model TEXT NOT NULL CHECK (btrim(model) <> ''),
+    dimension INTEGER NOT NULL CHECK (dimension BETWEEN 1 AND 2000),
+    embedding vector NOT NULL,
+    content_hash CHAR(64) NOT NULL
+        CHECK (content_hash ~ '^[0-9a-f]{64}$'),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (review_id, model),
+    CHECK (vector_dims(embedding) = dimension)
+)
+"""
