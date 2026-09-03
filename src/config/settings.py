@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     database_url: str | None = None
     postgresql_url: str | None = None
     openai_api_key: str | None = None
+    embedding_provider: str = "fake"
+    embedding_model: str = "fake-v1"
+    embedding_dimension: int = Field(default=384, ge=1, le=2000)
+    embedding_batch_size: int = Field(default=100, ge=1)
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
