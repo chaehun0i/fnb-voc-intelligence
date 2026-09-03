@@ -21,3 +21,20 @@ CREATE TABLE IF NOT EXISTS reviews (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 )
 """
+
+TAXONOMY_CATEGORIES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS taxonomy_categories (
+    taxonomy_version TEXT NOT NULL, category_id TEXT NOT NULL, name TEXT NOT NULL,
+    description TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (taxonomy_version, category_id)
+)
+"""
+
+TAXONOMY_KEYWORDS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS taxonomy_keywords (
+    taxonomy_version TEXT NOT NULL, category_id TEXT NOT NULL, keyword TEXT NOT NULL,
+    PRIMARY KEY (taxonomy_version, category_id, keyword),
+    FOREIGN KEY (taxonomy_version, category_id)
+        REFERENCES taxonomy_categories(taxonomy_version, category_id)
+)
+"""
