@@ -10,6 +10,8 @@ from .schema import (
     TAXONOMY_KEYWORDS_TABLE_SQL,
 )
 
+PGVECTOR_EXTENSION_SQL = "CREATE EXTENSION IF NOT EXISTS vector"
+
 
 class Cursor(Protocol):
     def execute(self, query: str) -> None: ...
@@ -29,7 +31,14 @@ def check_health(connection: Connection) -> bool:
 
 
 def initialize_schema(connection: Connection) -> None:
-    """Create the Day 4 schema in foreign-key dependency order."""
+    """Enable pgvector and create tables in foreign-key dependency order."""
     cursor = connection.cursor()
-    for statement in (PRODUCTS_TABLE_SQL, REVIEWS_TABLE_SQL, TAXONOMY_CATEGORIES_TABLE_SQL, TAXONOMY_KEYWORDS_TABLE_SQL, REVIEW_CLASSIFICATIONS_TABLE_SQL):
+    for statement in (
+        PGVECTOR_EXTENSION_SQL,
+        PRODUCTS_TABLE_SQL,
+        REVIEWS_TABLE_SQL,
+        TAXONOMY_CATEGORIES_TABLE_SQL,
+        TAXONOMY_KEYWORDS_TABLE_SQL,
+        REVIEW_CLASSIFICATIONS_TABLE_SQL,
+    ):
         cursor.execute(statement)

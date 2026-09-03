@@ -13,6 +13,7 @@ dependencies = [
     "numpy",
     "pydantic",
     "pydantic-settings",
+    "pgvector",
 ]
 
 [project.optional-dependencies]
