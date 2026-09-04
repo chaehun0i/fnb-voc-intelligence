@@ -13,7 +13,12 @@ dependencies = [
     "numpy",
     "pydantic",
     "pydantic-settings",
+    "pgvector",
+    "psycopg[binary]",
 ]
+
+[project.scripts]
+vector-search = "src.rag.vector_cli:main"
 
 [project.optional-dependencies]
 dev = [

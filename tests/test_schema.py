@@ -1,6 +1,7 @@
 from src.data.schema import (
     PRODUCTS_TABLE_SQL,
     REVIEW_CLASSIFICATIONS_TABLE_SQL,
+    REVIEW_EMBEDDINGS_TABLE_SQL,
     REVIEWS_TABLE_SQL,
     TAXONOMY_CATEGORIES_TABLE_SQL,
     TAXONOMY_KEYWORDS_TABLE_SQL,
@@ -25,3 +26,13 @@ def test_taxonomy_schema_has_versioned_unique_category_and_keywords() -> None:
 def test_classification_schema_allows_multilabel_with_fks() -> None:
     assert "PRIMARY KEY (review_id, taxonomy_version, category_id)" in REVIEW_CLASSIFICATIONS_TABLE_SQL
     assert "REFERENCES reviews(review_id)" in REVIEW_CLASSIFICATIONS_TABLE_SQL
+
+
+def test_review_embedding_schema_preserves_vector_provenance() -> None:
+    assert "embedding vector NOT NULL" in REVIEW_EMBEDDINGS_TABLE_SQL
+    assert "REFERENCES reviews(review_id)" in REVIEW_EMBEDDINGS_TABLE_SQL
+    assert "PRIMARY KEY (review_id, model)" in REVIEW_EMBEDDINGS_TABLE_SQL
+    assert "vector_dims(embedding) = dimension" in REVIEW_EMBEDDINGS_TABLE_SQL
+    assert "content_hash CHAR(64)" in REVIEW_EMBEDDINGS_TABLE_SQL
+    assert "created_at TIMESTAMPTZ" in REVIEW_EMBEDDINGS_TABLE_SQL
+    assert "updated_at TIMESTAMPTZ" in REVIEW_EMBEDDINGS_TABLE_SQL

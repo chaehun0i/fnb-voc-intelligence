@@ -21,3 +21,22 @@ def test_postgresql_url_validation() -> None:
     assert Settings(postgresql_url="postgresql://localhost/test").postgresql_url
     with pytest.raises(ValidationError):
         Settings(postgresql_url="sqlite:///test.db")
+
+
+def test_embedding_settings_have_safe_defaults() -> None:
+    configured = Settings()
+    assert configured.embedding_provider == "fake"
+    assert configured.embedding_model == "fake-v1"
+    assert configured.embedding_dimension == 384
+    assert configured.embedding_batch_size == 100
+
+
+@pytest.mark.parametrize("dimension", [0, -1, 2001])
+def test_embedding_dimension_must_be_supported(dimension: int) -> None:
+    with pytest.raises(ValidationError):
+        Settings(embedding_dimension=dimension)
+
+
+def test_embedding_batch_size_must_be_positive() -> None:
+    with pytest.raises(ValidationError):
+        Settings(embedding_batch_size=0)

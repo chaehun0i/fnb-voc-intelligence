@@ -4,7 +4,9 @@
 
 ## 현재 아키텍처
 
-`src/config`는 설정을, `src/data`는 모델·로더·품질 검사·검증 CLI를 제공합니다. `tests/fixtures`에는 결정적인 합성 샘플 데이터가 있습니다.
+`src/config`는 설정을, `src/data`는 모델·로더·품질 검사·PostgreSQL 저장소를,
+`src/rag`는 임베딩·벡터 색인·검색을 제공합니다. `tests/fixtures`에는 결정적인
+합성 샘플 데이터가 있습니다.
 
 ## 데이터 계층
 
@@ -53,3 +55,5 @@ Day 2 EDA 사용법과 분석 결과 해석은 [EDA 문서](docs/eda.md)를 참�
 Day 3 키워드 기반 페인포인트 분류는 [taxonomy 문서](docs/pain_point_taxonomy.md)를 참고하세요.
 
 Day 4 PostgreSQL 스키마와 저장소 사용법은 [PostgreSQL 문서](docs/postgresql.md)를 참고하세요.
+
+Day 5 pgvector 색인과 의미 검색 사용법은 [Vector Search 문서](docs/vector_search.md)를 참고하세요.
