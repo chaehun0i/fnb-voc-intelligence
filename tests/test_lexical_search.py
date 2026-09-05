@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 
 from src.rag.lexical_search import LEXICAL_SEARCH_SQL, search_reviews_lexically
-from src.rag.vector_search import VectorSearchFilters
+from src.rag.search_models import SearchFilters
 
 
 class LexicalCursor:
@@ -59,8 +59,9 @@ def test_keyword_search_returns_deterministic_ranked_reviews() -> None:
     cursor = LexicalCursor()
     results = search_reviews_lexically(cursor, "달콤한 음료", top_k=5)
     assert [result.review_id for result in results] == ["R1", "R2"]
-    assert results[0].score == 2.0
-    assert results[0].review_text == "달콤한 음료가 맛있어요"
+    assert results[0].lexical_score == 2.0
+    assert results[0].text == "달콤한 음료가 맛있어요"
+    assert results[0].rank == 1
     assert "ORDER BY score DESC, r.review_id ASC" in LEXICAL_SEARCH_SQL
 
 
@@ -80,7 +81,7 @@ def test_lexical_search_rejects_invalid_inputs(query: str, top_k: int) -> None:
 
 def test_lexical_filters_match_vector_filter_semantics() -> None:
     cursor = LexicalCursor()
-    filters = VectorSearchFilters(
+    filters = SearchFilters(
         product_id="P1", category="beverage", rating=2, pain_point="price"
     )
     results = search_reviews_lexically(cursor, "음료", top_k=5, filters=filters)
@@ -98,7 +99,7 @@ def test_lexical_filter_values_are_not_interpolated() -> None:
     search_reviews_lexically(
         cursor,
         "음료",
-        filters=VectorSearchFilters(category=unsafe_category),
+        filters=SearchFilters(category=unsafe_category),
     )
     assert unsafe_category not in cursor.query
     assert unsafe_category in cursor.params

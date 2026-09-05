@@ -6,7 +6,7 @@ from typing import Any
 from src.rag import vector_cli
 from src.rag.embeddings import FakeEmbeddingProvider
 from src.rag.indexing import IndexingReport
-from src.rag.vector_search import VectorSearchResult
+from src.rag.search_models import SearchResult
 
 
 class CliCursor:
@@ -95,9 +95,18 @@ def test_search_command_passes_filters_and_prints_results(
     connection = CliConnection()
     captured: dict[str, Any] = {}
 
-    def fake_search(*args: Any, **kwargs: Any) -> list[VectorSearchResult]:
+    def fake_search(*args: Any, **kwargs: Any) -> list[SearchResult]:
         captured.update(args=args, kwargs=kwargs)
-        return [VectorSearchResult("R1", 0.9, 0.1, "달고 맛있어요")]
+        return [
+            SearchResult(
+                review_id="R1",
+                text="달고 맛있어요",
+                rank=1,
+                mode="vector",
+                vector_score=0.9,
+                metadata={"distance": 0.1},
+            )
+        ]
 
     monkeypatch.setattr(vector_cli, "search_similar_reviews", fake_search)
     code = vector_cli.main(

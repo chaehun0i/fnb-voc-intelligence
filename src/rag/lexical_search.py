@@ -1,10 +1,8 @@
 """PostgreSQL full-text retrieval for review text."""
 
-from dataclasses import dataclass
-
 from src.data.database import Cursor
 
-from .vector_search import VectorSearchFilters
+from .search_models import SearchFilters, SearchResult
 
 LEXICAL_SEARCH_BASE_SQL = """
 WITH query AS (SELECT plainto_tsquery('simple', %s) AS terms)
@@ -28,19 +26,12 @@ LEXICAL_SEARCH_SQL = (
 )
 
 
-@dataclass(frozen=True)
-class LexicalSearchResult:
-    review_id: str
-    score: float
-    review_text: str
-
-
 def search_reviews_lexically(
     cursor: Cursor,
     query: str,
     top_k: int = 5,
-    filters: VectorSearchFilters | None = None,
-) -> list[LexicalSearchResult]:
+    filters: SearchFilters | None = None,
+) -> list[SearchResult]:
     """Return keyword-matching reviews with deterministic PostgreSQL ranking."""
     if not query.strip():
         raise ValueError("query must not be empty")
@@ -48,7 +39,7 @@ def search_reviews_lexically(
         raise ValueError("top_k must be positive")
     clauses = ["to_tsvector('simple', r.review_text) @@ query.terms"]
     params: list[object] = [query]
-    filters = filters or VectorSearchFilters()
+    filters = filters or SearchFilters()
     if filters.product_id is not None:
         clauses.append("r.product_id = %s")
         params.append(filters.product_id)
@@ -74,8 +65,12 @@ def search_reviews_lexically(
     params.append(top_k)
     cursor.execute(sql, tuple(params))
     return [
-        LexicalSearchResult(
-            review_id=row[0], score=float(row[1]), review_text=row[2]
+        SearchResult(
+            review_id=row[0],
+            text=row[2],
+            rank=rank,
+            mode="lexical",
+            lexical_score=float(row[1]),
         )
-        for row in cursor.fetchall()
+        for rank, row in enumerate(cursor.fetchall(), start=1)
     ]
