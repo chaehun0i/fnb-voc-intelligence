@@ -70,6 +70,15 @@ def reciprocal_rank_fusion(
                 ),
                 vector_score=vector_result.vector_score if vector_result else None,
                 fused_score=scores[review_id],
+                lexical_rank=lexical_result.rank if lexical_result else None,
+                vector_rank=vector_result.rank if vector_result else None,
+                match_source=(
+                    "both"
+                    if lexical_result and vector_result
+                    else "lexical"
+                    if lexical_result
+                    else "vector"
+                ),
                 metadata=metadata,
             )
         )

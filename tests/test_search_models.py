@@ -41,3 +41,31 @@ def test_shared_result_keeps_explicit_score_and_metadata() -> None:
 def test_result_requires_a_score_and_positive_rank() -> None:
     with pytest.raises(ValidationError):
         SearchResult(review_id="R1", text="리뷰", rank=0, mode="hybrid")
+
+
+def test_hybrid_result_requires_ranking_provenance() -> None:
+    with pytest.raises(ValidationError, match="match source"):
+        SearchResult(
+            review_id="R1",
+            text="리뷰",
+            rank=1,
+            mode="hybrid",
+            fused_score=0.1,
+        )
+
+    result = SearchResult(
+        review_id="R1",
+        text="리뷰",
+        rank=1,
+        mode="hybrid",
+        lexical_score=0.5,
+        vector_score=0.2,
+        fused_score=0.03,
+        lexical_rank=2,
+        vector_rank=1,
+        match_source="both",
+    )
+    assert result.fused_score == 0.03
+    assert result.lexical_rank == 2
+    assert result.vector_rank == 1
+    assert not hasattr(result, "score")

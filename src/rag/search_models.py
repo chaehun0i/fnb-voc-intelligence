@@ -44,6 +44,9 @@ class SearchResult(BaseModel):
     lexical_score: float | None = Field(default=None, ge=0)
     vector_score: float | None = None
     fused_score: float | None = Field(default=None, ge=0)
+    lexical_rank: int | None = Field(default=None, ge=1)
+    vector_rank: int | None = Field(default=None, ge=1)
+    match_source: Literal["lexical", "vector", "both"] | None = None
     metadata: dict[str, MetadataValue] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -53,4 +56,11 @@ class SearchResult(BaseModel):
             for score in (self.lexical_score, self.vector_score, self.fused_score)
         ):
             raise ValueError("at least one retrieval score is required")
+        if self.mode == "hybrid":
+            if self.fused_score is None or self.match_source is None:
+                raise ValueError("hybrid results require fused score and match source")
+            if self.match_source in ("lexical", "both") and self.lexical_rank is None:
+                raise ValueError("lexical match source requires lexical_rank")
+            if self.match_source in ("vector", "both") and self.vector_rank is None:
+                raise ValueError("vector match source requires vector_rank")
         return self

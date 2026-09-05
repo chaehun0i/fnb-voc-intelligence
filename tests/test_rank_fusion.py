@@ -32,6 +32,9 @@ def test_rrf_combines_rankings_reproducibly() -> None:
     )
     assert [result.review_id for result in results] == ["B", "A", "C"]
     assert results[0].fused_score == pytest.approx(1 / 62 + 1 / 61)
+    assert results[0].lexical_rank == 2
+    assert results[0].vector_rank == 1
+    assert results[0].match_source == "both"
     assert [result.rank for result in results] == [1, 2, 3]
 
 
@@ -51,6 +54,9 @@ def test_rrf_handles_missing_source_and_top_k() -> None:
     )
     assert [result.review_id for result in results] == ["A"]
     assert results[0].vector_score is None
+    assert results[0].lexical_rank == 1
+    assert results[0].vector_rank is None
+    assert results[0].match_source == "lexical"
 
 
 @pytest.mark.parametrize(
