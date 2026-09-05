@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 
 from src.rag import hybrid_search
-from src.rag.embeddings import FakeEmbeddingProvider
+from src.rag.embeddings import EmbeddingUnavailableError, FakeEmbeddingProvider
 from src.rag.search_models import SearchFilters, SearchResult
 
 
@@ -51,7 +51,7 @@ def test_hybrid_search_fuses_lexical_and_vector_candidates(
 
 @pytest.mark.parametrize(
     ("query", "top_k", "candidate_k"),
-    [("", 5, 20), ("query", 0, 20), ("query", 10, 5)],
+    [("query", 0, 20), ("query", 10, 5)],
 )
 def test_hybrid_search_rejects_invalid_sizes(
     query: str, top_k: int, candidate_k: int
@@ -64,3 +64,52 @@ def test_hybrid_search_rejects_invalid_sizes(
             top_k=top_k,
             candidate_k=candidate_k,
         )
+
+
+def test_empty_query_returns_no_results_without_retrieval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unexpected(*args: Any, **kwargs: Any) -> list[SearchResult]:
+        raise AssertionError("retrieval should not run")
+
+    monkeypatch.setattr(hybrid_search, "search_reviews_lexically", unexpected)
+    assert hybrid_search.search_reviews_hybrid(object(), "   ", None) == []
+
+
+def test_missing_provider_falls_back_to_lexical_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        hybrid_search,
+        "search_reviews_lexically",
+        lambda *args, **kwargs: [result("A", 1, "lexical")],
+    )
+    results = hybrid_search.search_reviews_hybrid(object(), "query", None)
+    assert [item.review_id for item in results] == ["A"]
+    assert results[0].match_source == "lexical"
+
+
+def test_explicit_embedding_unavailability_falls_back_without_hiding_other_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        hybrid_search,
+        "search_reviews_lexically",
+        lambda *args, **kwargs: [result("A", 1, "lexical")],
+    )
+
+    class UnavailableProvider(FakeEmbeddingProvider):
+        def embed(self, text: str) -> list[float]:
+            raise EmbeddingUnavailableError("temporarily unavailable")
+
+    results = hybrid_search.search_reviews_hybrid(
+        object(), "query", UnavailableProvider()
+    )
+    assert results[0].match_source == "lexical"
+
+    class BrokenProvider(FakeEmbeddingProvider):
+        def embed(self, text: str) -> list[float]:
+            raise RuntimeError("unexpected provider bug")
+
+    with pytest.raises(RuntimeError, match="unexpected provider bug"):
+        hybrid_search.search_reviews_hybrid(object(), "query", BrokenProvider())
