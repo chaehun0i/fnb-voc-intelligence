@@ -1,8 +1,8 @@
 """Cosine similarity search over persisted review embeddings."""
 
-from dataclasses import dataclass
-
 from src.data.database import Cursor
+
+from .search_models import SearchFilters, SearchResult
 
 VECTOR_SEARCH_BASE_SQL = """
 WITH query_vector AS (SELECT %s::vector AS embedding)
@@ -28,24 +28,7 @@ VECTOR_SEARCH_SQL = (
 )
 
 
-@dataclass(frozen=True)
-class VectorSearchResult:
-    review_id: str
-    score: float
-    distance: float
-    review_text: str
-
-
-@dataclass(frozen=True)
-class VectorSearchFilters:
-    product_id: str | None = None
-    category: str | None = None
-    rating: int | None = None
-    pain_point: str | None = None
-
-    def __post_init__(self) -> None:
-        if self.rating is not None and not 1 <= self.rating <= 5:
-            raise ValueError("rating must be between 1 and 5")
+VectorSearchFilters = SearchFilters
 
 
 def _vector_literal(embedding: list[float]) -> str:
@@ -59,8 +42,8 @@ def search_similar_reviews(
     query_embedding: list[float],
     model: str,
     top_k: int = 5,
-    filters: VectorSearchFilters | None = None,
-) -> list[VectorSearchResult]:
+    filters: SearchFilters | None = None,
+) -> list[SearchResult]:
     """Return deterministic nearest reviews using pgvector cosine distance."""
     if top_k < 1:
         raise ValueError("top_k must be positive")
@@ -70,7 +53,7 @@ def search_similar_reviews(
         model,
         len(query_embedding),
     ]
-    filters = filters or VectorSearchFilters()
+    filters = filters or SearchFilters()
     if filters.product_id is not None:
         clauses.append("r.product_id = %s")
         params.append(filters.product_id)
@@ -96,11 +79,13 @@ def search_similar_reviews(
     params.append(top_k)
     cursor.execute(query, tuple(params))
     return [
-        VectorSearchResult(
+        SearchResult(
             review_id=row[0],
-            score=float(row[1]),
-            distance=float(row[2]),
-            review_text=row[3],
+            text=row[3],
+            rank=rank,
+            mode="vector",
+            vector_score=float(row[1]),
+            metadata={"distance": float(row[2])},
         )
-        for row in cursor.fetchall()
+        for rank, row in enumerate(cursor.fetchall(), start=1)
     ]

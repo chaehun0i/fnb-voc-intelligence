@@ -66,9 +66,10 @@ def test_cosine_search_returns_ranked_review_text_and_scores() -> None:
     cursor = RankingCursor()
     results = search_similar_reviews(cursor, [1.0, 0.0], "fake-v1", top_k=2)
     assert [result.review_id for result in results] == ["R1", "R2"]
-    assert results[0].score == pytest.approx(1.0)
-    assert results[0].distance == pytest.approx(0.0)
-    assert results[0].review_text == "첫 번째 리뷰"
+    assert results[0].vector_score == pytest.approx(1.0)
+    assert results[0].metadata["distance"] == pytest.approx(0.0)
+    assert results[0].text == "첫 번째 리뷰"
+    assert results[0].rank == 1
 
 
 def test_search_query_is_parameterized_and_deterministic() -> None:

@@ -57,3 +57,5 @@ Day 3 키워드 기반 페인포인트 분류는 [taxonomy 문서](docs/pain_poi
 Day 4 PostgreSQL 스키마와 저장소 사용법은 [PostgreSQL 문서](docs/postgresql.md)를 참고하세요.
 
 Day 5 pgvector 색인과 의미 검색 사용법은 [Vector Search 문서](docs/vector_search.md)를 참고하세요.
+
+Day 6 키워드·벡터 하이브리드 검색은 [Hybrid Search 문서](docs/hybrid_search.md)를 참고하세요.

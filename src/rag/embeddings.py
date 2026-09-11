@@ -6,6 +6,10 @@ from math import sqrt
 from typing import Protocol
 
 
+class EmbeddingUnavailableError(RuntimeError):
+    """Raised when an embedding provider is temporarily unavailable."""
+
+
 class EmbeddingProvider(Protocol):
     """Minimal interface required by indexing and semantic search services."""
 

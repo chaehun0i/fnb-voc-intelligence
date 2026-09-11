@@ -6,7 +6,7 @@ from typing import Any
 from src.rag import vector_cli
 from src.rag.embeddings import FakeEmbeddingProvider
 from src.rag.indexing import IndexingReport
-from src.rag.vector_search import VectorSearchResult
+from src.rag.search_models import SearchResult
 
 
 class CliCursor:
@@ -95,29 +95,122 @@ def test_search_command_passes_filters_and_prints_results(
     connection = CliConnection()
     captured: dict[str, Any] = {}
 
-    def fake_search(*args: Any, **kwargs: Any) -> list[VectorSearchResult]:
-        captured.update(args=args, kwargs=kwargs)
-        return [VectorSearchResult("R1", 0.9, 0.1, "달고 맛있어요")]
+    class FakeSearchService:
+        def __init__(self, cursor: object, provider: object) -> None:
+            captured.update(cursor=cursor, provider=provider)
 
-    monkeypatch.setattr(vector_cli, "search_similar_reviews", fake_search)
+        def search(self, request: object) -> list[SearchResult]:
+            captured["request"] = request
+            return [
+                SearchResult(
+                    review_id="R1",
+                    text="달고 맛있어요",
+                    rank=1,
+                    mode="hybrid",
+                    lexical_score=0.5,
+                    vector_score=0.9,
+                    fused_score=0.03,
+                    lexical_rank=2,
+                    vector_rank=1,
+                    match_source="both",
+                )
+            ]
+
+    monkeypatch.setattr(vector_cli, "SearchService", FakeSearchService)
     code = vector_cli.main(
         [
             "search",
             "달콤한 음료",
+            "--mode",
+            "hybrid",
             "--top-k",
             "3",
+            "--candidate-k",
+            "9",
             "--category",
             "beverage",
             "--pain-point",
             "taste",
+            "--details",
         ],
         connection_factory=lambda _url: connection,
         provider_factory=lambda: FakeEmbeddingProvider(dimension=3),
     )
     assert code == 0
-    assert len(captured["args"][1]) == 3
-    assert captured["kwargs"]["top_k"] == 3
-    assert captured["kwargs"]["filters"].category == "beverage"
-    assert captured["kwargs"]["filters"].pain_point == "taste"
-    assert json.loads(capsys.readouterr().out)["review_id"] == "R1"
+    assert isinstance(captured["provider"], FakeEmbeddingProvider)
+    request = captured["request"]
+    assert request.mode == "hybrid"
+    assert request.top_k == 3 and request.candidate_k == 9
+    assert request.filters.category == "beverage"
+    assert request.filters.pain_point == "taste"
+    output = json.loads(capsys.readouterr().out)
+    assert output["review_id"] == "R1"
+    assert output["fused_score"] == 0.03
+    assert output["match_source"] == "both"
     assert connection.closed
+
+
+def test_lexical_cli_does_not_require_embeddings(
+    monkeypatch: Any, capsys: Any
+) -> None:
+    configure_cli(monkeypatch)
+    connection = CliConnection()
+    captured: dict[str, Any] = {}
+
+    class FakeSearchService:
+        def __init__(self, cursor: object, provider: object) -> None:
+            captured["provider"] = provider
+
+        def search(self, request: object) -> list[SearchResult]:
+            captured["request"] = request
+            return [
+                SearchResult(
+                    review_id="R1",
+                    text="가격이 비싸요",
+                    rank=1,
+                    mode="lexical",
+                    lexical_score=0.5,
+                )
+            ]
+
+    monkeypatch.setattr(vector_cli, "SearchService", FakeSearchService)
+    code = vector_cli.main(
+        ["search", "가격", "--mode", "lexical"],
+        connection_factory=lambda _url: connection,
+        provider_factory=lambda: (_ for _ in ()).throw(AssertionError()),
+    )
+    assert code == 0
+    assert captured["provider"] is None
+    assert captured["request"].mode == "lexical"
+    assert json.loads(capsys.readouterr().out) == {
+        "mode": "lexical",
+        "rank": 1,
+        "review_id": "R1",
+        "text": "가격이 비싸요",
+    }
+
+
+def test_vector_cli_uses_fake_embedding_provider(
+    monkeypatch: Any, capsys: Any
+) -> None:
+    configure_cli(monkeypatch)
+    connection = CliConnection()
+    captured: dict[str, Any] = {}
+
+    class FakeSearchService:
+        def __init__(self, cursor: object, provider: object) -> None:
+            captured["provider"] = provider
+
+        def search(self, request: object) -> list[SearchResult]:
+            captured["request"] = request
+            return []
+
+    monkeypatch.setattr(vector_cli, "SearchService", FakeSearchService)
+    code = vector_cli.main(
+        ["search", "맛", "--mode", "vector"],
+        connection_factory=lambda _url: connection,
+    )
+    assert code == 0
+    assert isinstance(captured["provider"], FakeEmbeddingProvider)
+    assert captured["request"].mode == "vector"
+    assert capsys.readouterr().out == ""
