@@ -1,6 +1,7 @@
 """Central application settings."""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,6 +29,13 @@ class Settings(BaseSettings):
     embedding_model: str = "fake-v1"
     embedding_dimension: int = Field(default=384, ge=1, le=2000)
     embedding_batch_size: int = Field(default=100, ge=1)
+    rag_retrieval_mode: Literal["lexical", "vector", "hybrid"] = "hybrid"
+    rag_top_k: int = Field(default=5, ge=1, le=100)
+    rag_context_max_items: int = Field(default=5, ge=1, le=100)
+    rag_context_max_chars: int = Field(default=6000, ge=1)
+    generator_provider: str = "fake"
+    generator_model: str = "fake-v1"
+    rag_minimum_evidence: int = Field(default=1, ge=1)
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

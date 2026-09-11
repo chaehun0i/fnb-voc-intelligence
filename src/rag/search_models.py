@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 RetrievalMode = Literal["lexical", "vector", "hybrid"]
-MetadataValue = str | int | float | bool | None
+MetadataValue = str | int | float | bool | list[str] | None
 
 
 class SearchFilters(BaseModel):

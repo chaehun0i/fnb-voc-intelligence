@@ -19,6 +19,7 @@ dependencies = [
 
 [project.scripts]
 vector-search = "src.rag.vector_cli:main"
+rag-query = "src.rag.rag_cli:main"
 
 [project.optional-dependencies]
 dev = [
