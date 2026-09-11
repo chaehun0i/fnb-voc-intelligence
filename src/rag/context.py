@@ -23,6 +23,10 @@ class RagContextItem(BaseModel):
 class RagContext(BaseModel):
     items: list[RagContextItem] = Field(default_factory=list)
 
+    @property
+    def character_count(self) -> int:
+        return sum(len(item.text) for item in self.items)
+
 
 def build_rag_context(results: list[SearchResult]) -> RagContext:
     items = []
@@ -55,3 +59,21 @@ def build_rag_context(results: list[SearchResult]) -> RagContext:
 def _string_metadata(result: SearchResult, key: str) -> str | None:
     value = result.metadata.get(key)
     return value if isinstance(value, str) else None
+
+
+def limit_rag_context(
+    context: RagContext, *, max_items: int, max_chars: int
+) -> RagContext:
+    """Keep ranked items that fit both limits without truncating evidence."""
+    if max_items < 1 or max_chars < 1:
+        raise ValueError("context limits must be positive")
+    selected: list[RagContextItem] = []
+    used_chars = 0
+    for item in context.items:
+        if len(selected) >= max_items:
+            break
+        if used_chars + len(item.text) > max_chars:
+            continue
+        selected.append(item)
+        used_chars += len(item.text)
+    return RagContext(items=selected)
