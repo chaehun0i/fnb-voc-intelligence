@@ -13,3 +13,9 @@ def summarize_reviews(rows: list[DashboardReview], query: DashboardQuery | None 
 
 def filter_options(rows: list[DashboardReview]) -> dict[str, list[str | int]]:
     return {"products": sorted({row.product_id for row in rows}), "categories": sorted({row.category for row in rows}), "ratings": sorted({row.rating for row in rows}), "pain_points": sorted({point for row in rows for point in row.pain_points})}
+
+
+def kpis(summary: DashboardSummary) -> dict[str, float | int | str | None]:
+    total = summary.review_total
+    classified = sum(summary.pain_point_counts.values())
+    return {"total_reviews": total, "average_rating": summary.average_rating, "low_rating_ratio": sum(count for rating, count in summary.rating_distribution.items() if rating <= 2) / total if total else 0.0, "top_pain_point": max(summary.pain_point_counts, key=summary.pain_point_counts.get) if summary.pain_point_counts else None, "unclassified_ratio": (total - classified) / total if total else 0.0}
