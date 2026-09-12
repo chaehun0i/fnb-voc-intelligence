@@ -1,5 +1,5 @@
 from src.dashboard.models import DashboardQuery, DashboardReview
-from src.dashboard.service import filter_options, kpis, summarize_reviews
+from src.dashboard.service import chart_rows, filter_options, kpis, summarize_reviews
 
 
 def test_dashboard_summary_aggregates_and_filters() -> None:
@@ -16,3 +16,7 @@ def test_filter_options_derive_available_business_values() -> None:
 def test_kpis_respect_filtered_summary() -> None:
     summary=summarize_reviews([DashboardReview("R1","P1","음료","beverage",2,"x",["price"] )])
     assert kpis(summary)["top_pain_point"] == "price" and kpis(summary)["low_rating_ratio"] == 1.0
+
+
+def test_chart_rows_expose_counts_and_percentages() -> None:
+    assert chart_rows({"price": 2, "taste": 1}, 3)[0] == {"label":"price","count":2,"percentage":2/3*100}
