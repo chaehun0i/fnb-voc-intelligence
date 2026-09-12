@@ -15,11 +15,13 @@ dependencies = [
     "pydantic-settings",
     "pgvector",
     "psycopg[binary]",
+    "streamlit",
 ]
 
 [project.scripts]
 vector-search = "src.rag.vector_cli:main"
 rag-query = "src.rag.rag_cli:main"
+voc-dashboard = "src.dashboard.app:main"
 
 [project.optional-dependencies]
 dev = [
