@@ -65,3 +65,18 @@ def test_rag_settings_have_safe_defaults() -> None:
 def test_rag_settings_reject_invalid_values(values: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         Settings(**values)
+
+
+def test_evaluation_settings_defaults_and_validation() -> None:
+    configured = Settings()
+    assert configured.evaluation_dataset_path.name == "rag_evaluation.jsonl"
+    assert configured.evaluation_retrieval_k == 5
+    assert configured.evaluation_evaluator_mode == "deterministic"
+    for values in (
+        {"evaluation_retrieval_k": 0},
+        {"evaluation_recall_threshold": 1.1},
+        {"evaluation_precision_threshold": -0.1},
+        {"evaluation_evaluator_mode": "llm"},
+    ):
+        with pytest.raises(ValidationError):
+            Settings(**values)

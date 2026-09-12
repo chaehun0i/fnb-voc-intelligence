@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     generator_provider: str = "fake"
     generator_model: str = "fake-v1"
     rag_minimum_evidence: int = Field(default=1, ge=1)
+    evaluation_dataset_path: Path = PROCESSED_DATA_DIR / "rag_evaluation.jsonl"
+    evaluation_retrieval_k: int = Field(default=5, ge=1, le=100)
+    evaluation_recall_threshold: float = Field(default=0.7, ge=0, le=1)
+    evaluation_precision_threshold: float = Field(default=0.5, ge=0, le=1)
+    evaluation_citation_threshold: float = Field(default=0.8, ge=0, le=1)
+    evaluation_evaluator_mode: Literal["deterministic"] = "deterministic"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
