@@ -1,0 +1,2 @@
+{"case_id":"price-1","version":"v1","query":"가격 불만","expected_pain_points":["price"],"relevant_review_ids":["R1"],"answer_requirements":["cite R1"]}
+{"case_id":"no-answer-1","version":"v1","query":"근거 없는 질문","expected_no_answer":true}
