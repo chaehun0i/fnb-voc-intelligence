@@ -5,6 +5,11 @@ def page_config() -> dict[str, str]:
     return {"page_title": "F&B VOC Dashboard", "layout": "wide"}
 
 
+def overview_sections(review_total: int) -> list[str]:
+    sections = ["Summary", "Filters", "Analysis", "Review explorer"]
+    return sections if review_total else ["Summary", "Filters", "Empty state"]
+
+
 def main() -> None:
     import streamlit as st
 
