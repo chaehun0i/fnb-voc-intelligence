@@ -10,6 +10,14 @@ def overview_sections(review_total: int) -> list[str]:
     return sections if review_total else ["Summary", "Filters", "Empty state"]
 
 
+def dashboard_message(review_total: int, error: Exception | None = None) -> str | None:
+    if error is not None:
+        return "데이터를 불러오지 못했습니다. 설정과 연결 상태를 확인하세요."
+    if not review_total:
+        return "선택한 조건에 맞는 리뷰가 없습니다. 필터를 재설정하세요."
+    return None
+
+
 def main() -> None:
     import streamlit as st
 
