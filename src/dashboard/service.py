@@ -23,3 +23,7 @@ def kpis(summary: DashboardSummary) -> dict[str, float | int | str | None]:
 
 def chart_rows(counts: dict[str | int, int], total: int) -> list[dict[str, float | int | str]]:
     return [{"label": str(label), "count": count, "percentage": count / total * 100 if total else 0.0} for label, count in sorted(counts.items(), key=lambda item: (-item[1], str(item[0])))]
+
+
+def review_rows(summary: DashboardSummary) -> list[dict[str, str | int]]:
+    return [{"review_id": r.review_id, "product": r.product_name, "category": r.category, "rating": r.rating, "pain_points": ", ".join(r.pain_points), "review_text": r.review_text} for r in summary.reviews]
