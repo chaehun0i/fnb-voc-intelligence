@@ -63,3 +63,5 @@ Day 6 키워드·벡터 하이브리드 검색은 [Hybrid Search 문서](docs/hy
 Day 7 근거 중심 RAG 질의는 [RAG 문서](docs/rag.md)를 참고하세요.
 
 Day 8 RAG 평가 지표와 실행법은 [RAG Evaluation 문서](docs/rag_evaluation.md)를 참고하세요.
+
+Day 9 VOC 대시보드 구조와 실행법은 [Dashboard 문서](docs/dashboard.md)를 참고하세요.
