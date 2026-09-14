@@ -3,6 +3,44 @@
 from .database import Cursor
 from .models import Product, Review
 
+BULK_REVIEWS_SQL = """
+INSERT INTO reviews (review_id, product_id, rating, review_text, review_date, source)
+VALUES (%s, %s, %s, %s, %s, %s)
+ON CONFLICT (review_id) DO NOTHING
+"""
+
+BULK_CLASSIFICATIONS_SQL = """
+INSERT INTO review_classifications
+    (review_id, category_id, score, evidence, taxonomy_version)
+VALUES (%s, %s, %s, %s, %s)
+ON CONFLICT DO NOTHING
+"""
+
+
+def bulk_insert_reviews(cursor: object, reviews: list[Review]) -> None:
+    """Idempotently persist a batch with one parameterized driver call."""
+    if not reviews:
+        return
+    cursor.executemany(  # type: ignore[attr-defined]
+        BULK_REVIEWS_SQL,
+        [
+            (review.review_id, review.product_id, review.rating, review.review_text, review.review_date, review.source)
+            for review in reviews
+        ],
+    )
+
+
+def bulk_insert_review_classifications(
+    cursor: object, classifications: list[tuple[str, str, int, list[str], str]]
+) -> None:
+    """Persist classification rows in one idempotent parameterized call."""
+    if not classifications:
+        return
+    cursor.executemany(  # type: ignore[attr-defined]
+        BULK_CLASSIFICATIONS_SQL,
+        classifications,
+    )
+
 
 def save_taxonomy_category(
     cursor: Cursor, version: str, category_id: str, name: str, description: str, keywords: list[str]
