@@ -22,6 +22,7 @@ dependencies = [
 vector-search = "src.rag.vector_cli:main"
 rag-query = "src.rag.rag_cli:main"
 voc-dashboard = "src.dashboard.app:main"
+scale-index = "src.rag.scale_cli:main"
 
 [project.optional-dependencies]
 dev = [
