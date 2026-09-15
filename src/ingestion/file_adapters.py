@@ -36,6 +36,20 @@ def map_review(record: RawRecord, mapping: dict[str, str]) -> Review:
     return Review.model_validate(values)
 
 
+def ingest_reviews(
+    path: Path, kind: str, source: str, mapping: dict[str, str]
+) -> tuple[list[Review], list[str]]:
+    """Map valid review rows while retaining readable row-level errors."""
+    reviews: list[Review] = []
+    errors: list[str] = []
+    for record in read_file(path, kind, source):
+        try:
+            reviews.append(map_review(record, mapping))
+        except ValidationError as error:
+            errors.append(f"row {record.row_number}: {error.errors()[0]['msg']}")
+    return reviews, errors
+
+
 def errors_for(records: list[RawRecord], mapper: object, mapping: dict[str, str]) -> list[str]:
     errors = []
     for record in records:
