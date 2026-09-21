@@ -69,3 +69,5 @@ Day 9 VOC 대시보드 구조와 실행법은 [Dashboard 문서](docs/dashboard.
 Day 10 대규모·재개 가능한 벡터 색인은 [Scale-up 문서](docs/scale_up.md)를 참고하세요.
 
 Day 11 실제 외부 데이터 수집과 적재는 [Real Data Pipeline 문서](docs/real_data_pipeline.md)를 참고하세요.
+
+Day 12 Docker Compose 환경은 [Docker 문서](docs/docker.md)를 참고하세요.
