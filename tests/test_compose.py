@@ -19,3 +19,8 @@ def test_compose_wires_idempotent_database_initializer() -> None:
 def test_compose_offers_reusable_cli_service() -> None:
     contents = Path("compose.yaml").read_text(encoding="utf-8")
     assert "cli:" in contents and 'profiles: ["cli"]' in contents
+
+
+def test_compose_exposes_dashboard_after_database_readiness() -> None:
+    contents = Path("compose.yaml").read_text(encoding="utf-8")
+    assert "dashboard:" in contents and "DASHBOARD_PORT" in contents
