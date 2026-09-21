@@ -1,0 +1,59 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fnb_voc}
+      POSTGRES_USER: ${POSTGRES_USER:-fnb}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    environment:
+      POSTGRESQL_URL: postgresql://${POSTGRES_USER:-fnb}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-fnb_voc}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "src.health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  init-db:
+    build: .
+    command: ["python", "-m", "src.init_db"]
+    environment:
+      POSTGRESQL_URL: postgresql://${POSTGRES_USER:-fnb}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-fnb_voc}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  cli:
+    build: .
+    profiles: ["cli"]
+    environment:
+      POSTGRESQL_URL: postgresql://${POSTGRES_USER:-fnb}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-fnb_voc}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  dashboard:
+    build: .
+    command: ["streamlit", "run", "src/dashboard/app.py", "--server.address=0.0.0.0"]
+    ports:
+      - "${DASHBOARD_PORT:-8501}:8501"
+    environment:
+      POSTGRESQL_URL: postgresql://${POSTGRES_USER:-fnb}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-fnb_voc}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

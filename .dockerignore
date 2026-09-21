@@ -1,0 +1,15 @@
+.git
+.venv
+.pytest_cache
+.pytest_*
+__pycache__
+*.py[cod]
+.env
+.env.*
+!.env.example
+data/raw
+*.csv
+*.jsonl
+*.log
+docs
+tests
