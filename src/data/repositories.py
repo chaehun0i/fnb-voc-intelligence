@@ -16,6 +16,19 @@ VALUES (%s, %s, %s, %s, %s)
 ON CONFLICT DO NOTHING
 """
 
+BULK_PRODUCTS_SQL = """
+INSERT INTO products (product_id, brand, product_name, category, price, weight_g,
+calories_kcal, protein_g, carbohydrate_g, sugar_g, fat_g, sodium_mg, source)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+ON CONFLICT (product_id) DO UPDATE SET product_name = EXCLUDED.product_name
+"""
+
+
+def bulk_upsert_products(cursor: object, products: list[Product]) -> None:
+    if not products:
+        return
+    cursor.executemany(BULK_PRODUCTS_SQL, [tuple(product.model_dump().values()) for product in products])  # type: ignore[attr-defined]
+
 
 def bulk_insert_reviews(cursor: object, reviews: list[Review]) -> None:
     """Idempotently persist a batch with one parameterized driver call."""
