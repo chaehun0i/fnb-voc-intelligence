@@ -14,3 +14,8 @@ def test_app_service_uses_database_network_configuration() -> None:
 
 def test_compose_wires_idempotent_database_initializer() -> None:
     assert "init-db:" in Path("compose.yaml").read_text(encoding="utf-8")
+
+
+def test_compose_offers_reusable_cli_service() -> None:
+    contents = Path("compose.yaml").read_text(encoding="utf-8")
+    assert "cli:" in contents and 'profiles: ["cli"]' in contents

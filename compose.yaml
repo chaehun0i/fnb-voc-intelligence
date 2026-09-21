@@ -35,5 +35,14 @@ services:
       db:
         condition: service_healthy
 
+  cli:
+    build: .
+    profiles: ["cli"]
+    environment:
+      POSTGRESQL_URL: postgresql://${POSTGRES_USER:-fnb}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-fnb_voc}
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   postgres_data:
