@@ -11,6 +11,6 @@ export type Route = "dashboard" | "incidents" | "reviews" | "trace" | "integrati
 export function App() {
   const [route, setRoute] = useState<Route>("dashboard");
   const [incidentId, setIncidentId] = useState<string>();
-  const page = route === "incidents" ? (incidentId ? <IncidentDetail id={incidentId} onBack={()=>setIncidentId(undefined)} /> : route === "reviews" ? <ReviewQueue /> : route === "trace" ? <AgentTrace /> : route === "settings" ? <ControlPlaneSettings /> : <IncidentList onSelect={setIncidentId} />) : <section className="placeholder"><h1>{route === "dashboard" ? "Operations Dashboard" : route[0].toUpperCase() + route.slice(1)}</h1><p>ServIQ operations console.</p></section>;
+  const page = route === "incidents" ? (incidentId ? <IncidentDetail id={incidentId} onBack={()=>setIncidentId(undefined)} /> : <IncidentList onSelect={setIncidentId} />) : route === "reviews" ? <ReviewQueue /> : route === "trace" ? <AgentTrace /> : route === "settings" ? <ControlPlaneSettings /> : <section className="placeholder"><h1>{route === "dashboard" ? "Operations Dashboard" : route[0].toUpperCase() + route.slice(1)}</h1><p>ServIQ operations console.</p></section>;
   return <AppShell route={route} onNavigate={setRoute}>{page}</AppShell>;
 }

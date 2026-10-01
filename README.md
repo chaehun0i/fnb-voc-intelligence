@@ -1,5 +1,25 @@
 # fnb-voc-intelligence
 
+## ServIQ v0.4.1 development direction
+
+Day 13 starts the ServIQ v0.4.1 transition with a **Frontend-first, Contract-first,
+Vertical Slice**. The new React operations console lives in `frontend/`; it does not
+replace the existing Streamlit dashboard, RAG pipeline, pgvector, ingestion flow, or
+Docker Compose services.
+
+The initial console fixes the product surface and API-shaped Mock Contract before a
+backend exists. Backend-owned decisions such as approval permissions and policy are
+represented in contract data, not hidden in UI logic. Gemini is the intended default
+LLM provider behind a future common LLM Gateway. Ollama remains the local-development
+and fallback provider. Day 13 makes no Jev, Gemini, Ollama, or LangGraph call.
+
+The planned sequence after this foundation is:
+
+`Domain/API -> Queue/Worker -> Jev -> LLM Gateway -> LangGraph -> Multi-Agent -> Harness/Loop -> MCP`
+
+See [ServIQ v0.4.1 architecture notes](docs/serviq_v041.md) and the
+[frontend README](frontend/README.md).
+
 식음료 고객의 VOC 데이터를 수집·정리·분석하여 상품 개선 인사이트를 만드는 프로젝트입니다.
 
 ## 현재 아키텍처
