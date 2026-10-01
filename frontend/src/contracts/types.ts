@@ -1,0 +1,14 @@
+export type IncidentStatus = "DETECTED" | "TRIAGED" | "INVESTIGATING" | "RCA_READY" | "ACTION_PROPOSED" | "PENDING_APPROVAL" | "EXECUTING" | "VERIFYING" | "RESOLVED" | "CLOSED" | "ESCALATED" | "BLOCKED" | "FAILED" | "REOPENED";
+export type Severity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type Evidence = { id: string; source: string; type: string; summary: string; confidence: number; status: "AVAILABLE" | "PENDING" | "REJECTED" };
+export type RootCauseCandidate = { id: string; summary: string; confidence: number; supporting_evidence_ids: string[]; counter_evidence_ids: string[] };
+export type CorrectiveAction = { id: string; summary: string; risk_level: Severity; expected_effect: string; verification_criteria: string; status: "PROPOSED" | "APPROVED" | "EXECUTED" };
+export type Verification = { id: string; result: "PASS" | "FAIL" | "INCONCLUSIVE"; summary: string; verified_at?: string };
+export type ActionPermission = { allowed: boolean; reason: string };
+export type Approval = { id: string; incident_id: string; type: string; risk_level: Severity; requester: string; requested_at: string; evidence_completeness: number; status: "PENDING" | "APPROVED" | "REJECTED"; actions: Record<"approve" | "edit" | "reject" | "request_more_evidence", ActionPermission> };
+export type Incident = { id: string; display_id: string; title: string; severity: Severity; status: IncidentStatus; store: string; owner: string; created_at: string; sla_due_at: string; timeline: Array<{ status: IncidentStatus; occurred_at: string }>; evidence: Evidence[]; root_cause_candidates: RootCauseCandidate[]; corrective_actions: CorrectiveAction[]; verification?: Verification };
+export type ToolCall = { id: string; name: string; status: "SUCCESS" | "FAILED"; latency_ms: number; summary: string };
+export type AgentStep = { id: string; name: string; status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED"; latency_ms: number; retry_count: number; token_usage: number; cost_usd: number; decision_summary: string; tool_calls: ToolCall[] };
+export type AgentRun = { id: string; incident_id: string; status: "RUNNING" | "COMPLETED" | "FAILED"; steps: AgentStep[] };
+export type ControlPlaneConfig = { version: number; default_llm_provider: "gemini"; fallback_llm_provider: "ollama"; jev_enabled: boolean; max_agent_iterations: number; max_tool_calls: number; parallelism: number; timeout_seconds: number; token_budget: number; cost_budget_usd: number; gemini_concurrency: number; gemini_rate_limit: number; gemini_timeout_seconds: number; auto_investigation: boolean; auto_rca_draft: boolean; auto_capa_draft: boolean; auto_execute: boolean; approval_policy_by_risk: Record<Severity, boolean>; tenant_queue_concurrency: number; retry_limit: number };
+export type QueueJob = { id: string; tenant_id: string; type: string; status: "QUEUED" | "RUNNING" | "FAILED"; queued_at: string; attempts: number };
