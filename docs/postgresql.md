@@ -2,7 +2,7 @@
 
 ## Local setup
 
-Set `POSTGRESQL_URL` in `.env` to a PostgreSQL database URL. The project keeps connection concerns in `src/data/database.py`; domain models remain independent from database access.
+Set `POSTGRESQL_URL` in `.env` to a PostgreSQL database URL. The project keeps connection concerns in `backend/src/data/database.py`; domain models remain independent from database access.
 
 ## Relationships
 
@@ -16,7 +16,7 @@ Set `POSTGRESQL_URL` in `.env` to a PostgreSQL database URL. The project keeps c
 
 ## Repositories
 
-Product/review and taxonomy/classification repository helpers live in `src/data/repositories.py`. Use them behind the connection boundary for local persistence work.
+Product/review and taxonomy/classification repository helpers live in `backend/src/data/repositories.py`. Use them behind the connection boundary for local persistence work.
 
 ## Validation
 

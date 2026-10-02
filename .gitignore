@@ -10,3 +10,6 @@ data/interim/*
 !data/interim/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
+.uv-cache/
+# 백엔드는 uv 프로젝트이며 npm을 잘못 실행해 만든 로컬 파일은 추적하지 않습니다.
+/backend/package-lock.json

@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python 검증과 기존 RAG 회귀
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EMBEDDING_PROVIDER: fake
+      GENERATOR_PROVIDER: fake
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            backend/uv.lock
+            backend/pyproject.toml
+            pyproject.toml
+      - name: Python 린트
+        run: uv run --extra dev ruff check .
+      - name: 전체 Python 테스트
+        run: uv run --extra dev pytest
+      - name: 외부 서비스 없는 RAG 및 ingestion smoke
+        run: uv run --extra dev pytest backend/tests/test_rag_cli.py backend/tests/test_rag_pipeline.py backend/tests/test_ingestion_pipeline.py backend/tests/test_health.py
+      - name: Backend lockfile 기반 설치
+        working-directory: backend
+        run: uv sync --locked
+      - name: Backend 진입점과 DB 리소스 import
+        working-directory: backend
+        run: uv run --locked python -c "from main import app; from src.infrastructure.migrations import migration_sql; assert 'serviq_incidents' in migration_sql(); print(app.title)"
+      - name: Backend FastAPI 실행 명령 확인
+        working-directory: backend
+        run: uv run --locked fastapi run --help
+
+  frontend:
+    name: 프론트엔드 검증과 반복 빌드
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: lockfile 기반 설치
+        run: npm ci
+      - name: 프론트엔드 린트
+        run: npm run lint
+      - name: 프론트엔드 테스트
+        run: npm run test
+      - name: 첫 번째 프로덕션 빌드
+        run: npm run build
+      - name: 반복 빌드 검증
+        run: npm run build
+      - name: 빌드 산출물 생성 후 린트
+        run: npm run lint
+
+  postgres:
+    name: PostgreSQL Incident와 Outbox smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: serviq_ci
+          POSTGRES_USER: serviq_ci
+          POSTGRES_PASSWORD: test-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U serviq_ci -d serviq_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      SERVIQ_TEST_DATABASE_URL: postgresql://serviq_ci:test-password@localhost:5432/serviq_ci
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            backend/uv.lock
+            backend/pyproject.toml
+            pyproject.toml
+      - name: 실제 PostgreSQL 저장과 이벤트 처리 검증
+        run: uv run --extra dev python -m scripts.serviq_postgres_smoke
+
+  docker:
+    name: 이미지와 Compose 운영 흐름 검증
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      POSTGRES_DB: serviq_ci
+      POSTGRES_USER: serviq_ci
+      POSTGRES_PASSWORD: test-password
+      SERVIQ_API_PORT: "18000"
+      SERVIQ_FRONTEND_PORT: "18080"
+      SERVIQ_SEED_DEMO: "false"
+      SERVIQ_TEST_API_BASE_URL: http://127.0.0.1:18080/api/v1
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 기존 Python 이미지 빌드
+        run: docker build --tag serviq-python:ci .
+      - name: Python 이미지의 FastAPI import smoke
+        run: docker run --rm --network none --workdir /app/backend serviq-python:ci python -c "from pathlib import Path; from main import app; from src.infrastructure.migrations import migration_sql; from src.config.settings import PROJECT_ROOT; assert PROJECT_ROOT == Path('/app'), PROJECT_ROOT; assert 'serviq_incidents' in migration_sql(); print(app.title)"
+      - name: 기존 Python 실행 경로와 모듈 smoke
+        run: docker run --rm --network none serviq-python:ci python -c "from pathlib import Path; from src.config.settings import PROJECT_ROOT; import src.rag.pipeline; import src.ingestion.pipeline; assert PROJECT_ROOT == Path('/app'), PROJECT_ROOT; print('RAG/ingestion import passed')"
+      - name: 프론트엔드 정적 이미지 빌드
+        run: docker build --file frontend/Dockerfile --tag serviq-frontend:ci .
+      - name: 비특권 nginx 설정 검증
+        run: docker run --rm --network none --entrypoint nginx serviq-frontend:ci -t
+      - name: 기존 스택과 ServIQ 프로필 구성 검증
+        run: docker compose --project-name serviq-ci --profile serviq config --quiet
+      - name: CI 전용 Compose 스택 시작
+        run: docker compose --project-name serviq-ci --profile serviq up --build -d --wait --wait-timeout 180 api frontend worker
+      - name: nginx 프록시와 실제 Incident 수동 흐름 검증
+        run: python -m scripts.serviq_http_smoke
+      - name: Worker의 실제 Outbox 완료 기록 확인
+        shell: bash
+        run: |
+          for attempt in $(seq 1 20); do
+            state=$(docker compose --project-name serviq-ci --profile serviq exec -T db psql -U serviq_ci -d serviq_ci -Atc "SELECT CASE WHEN count(*) > 0 AND bool_and(status='COMPLETED') THEN 'ready' ELSE 'waiting' END FROM serviq_outbox;")
+            if [ "$state" = "ready" ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose --project-name serviq-ci --profile serviq exec -T db psql -U serviq_ci -d serviq_ci -c "SELECT status,count(*) FROM serviq_outbox GROUP BY status;"
+          exit 1
+      - name: 실패한 CI 스택 로그
+        if: failure()
+        run: |
+          docker compose --project-name serviq-ci --profile serviq ps -a
+          docker compose --project-name serviq-ci --profile serviq logs --no-color --tail 150 api frontend worker serviq-init db
+      - name: CI 프로젝트의 컨테이너와 테스트 볼륨 정리
+        if: always()
+        run: docker compose --project-name serviq-ci --profile serviq down --volumes

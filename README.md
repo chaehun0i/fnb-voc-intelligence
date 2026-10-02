@@ -4,8 +4,8 @@
 
 ## 현재 아키텍처
 
-`src/config`는 설정을, `src/data`는 모델·로더·품질 검사·PostgreSQL 저장소를,
-`src/rag`는 임베딩·벡터 색인·검색을 제공합니다. `tests/fixtures`에는 결정적인
+`backend/src/config`는 설정을, `backend/src/data`는 모델·로더·품질 검사·PostgreSQL 저장소를,
+`backend/src/rag`는 임베딩·벡터 색인·검색을 제공합니다. `backend/tests/fixtures`에는 결정적인
 합성 샘플 데이터가 있습니다.
 
 ## 데이터 계층
@@ -32,7 +32,7 @@ pytest
 ## 검증 CLI
 
 ```bash
-python -m src.data.validate_data --products tests/fixtures/sample_products.csv --reviews tests/fixtures/sample_reviews.csv
+python -m src.data.validate_data --products backend/tests/fixtures/sample_products.csv --reviews backend/tests/fixtures/sample_reviews.csv
 ```
 
 ## 디렉터리
@@ -40,8 +40,10 @@ python -m src.data.validate_data --products tests/fixtures/sample_products.csv -
 - `data/raw`: 원본 데이터
 - `data/interim`: 중간 처리 데이터
 - `data/processed`: 처리 완료 데이터
-- `src`: 애플리케이션 코드
-- `tests`: 테스트
+- `backend/src`: Python 애플리케이션 코드
+- `backend/tests`: Python 테스트
+- `frontend`: React 운영 콘솔
+- `db`: DB SQL 초기화 자료
 - `docs`: 프로젝트 문서
 
 ## 로드맵
@@ -77,3 +79,5 @@ Day 13 ServIQ v0.4.1 프론트엔드 기반과 이후 개발 방향은 [ServIQ F
 Day 14 Incident Domain API는 [Incident API 문서](docs/serviq_incident_api.md)를 참고하세요.
 
 Day 15 ServIQ 운영 콘솔의 한글 사용자 경험과 UI 구성은 [Frontend UX 문서](docs/serviq_frontend_ux.md)를 참고하세요.
+
+Day 16 ServIQ 운영 화면·업무 흐름·영속 저장·실행과 CI/CD는 [운영 Vertical Slice 문서](docs/serviq_runtime.md)를 참고하세요.

@@ -1,18 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ChevronRight, Filter, Inbox } from "lucide-react";
-import { incidentApi } from "../../api/incidents";
-import type { Incident, Severity } from "../../contracts/types";
+import { useMemo, useState } from "react";
+import { Filter, Search } from "lucide-react";
+import { apiMode, incidentApi } from "../../api/incidents";
+import { mockApi } from "../../api/mockApi";
+import { Badge } from "../../components/IncidentBadge";
 import { SelectField } from "../../components/SelectField";
+import { Button, PageHeading, StateMessage } from "../../components/ui";
+import { CreateIncident } from "./CreateIncident";
+import { ageLabel, dateTime, severityLabels, statusLabels } from "../../lib/display";
+import { useQuery } from "../../lib/useQuery";
 
-const statusLabel: Record<string, string> = { DETECTED: "감지됨", TRIAGED: "초기 분류", INVESTIGATING: "조사 중", RCA_READY: "원인 분석 완료", ACTION_PROPOSED: "조치 제안됨", PENDING_APPROVAL: "승인 대기", EXECUTING: "조치 실행 중", VERIFYING: "검증 중", RESOLVED: "해결됨", CLOSED: "종료", ESCALATED: "상위 이관", BLOCKED: "보류", FAILED: "실패", REOPENED: "재조사" };
-const severityLabel: Record<Severity, string> = { LOW: "낮음", MEDIUM: "보통", HIGH: "높음", CRITICAL: "긴급" };
-export function Badge({ value, kind = "severity" }: { value: string; kind?: "severity" | "status" }) { return <span className={`tag ${kind === "status" ? "status" : value.toLowerCase()}`}>{kind === "status" ? (statusLabel[value] ?? value) : (severityLabel[value as Severity] ?? value)}</span>; }
-
-export function IncidentList({ onSelect }: { onSelect: (id: string) => void }) {
-  const [items, setItems] = useState<Incident[]>([]); const [status, setStatus] = useState("ALL"); const [severity, setSeverity] = useState("ALL"); const [store, setStore] = useState("ALL"); const [error, setError] = useState(false);
-  useEffect(() => { void incidentApi.listIncidents().then(setItems).catch(() => setError(true)); }, []);
-  const filtered = useMemo(() => items.filter((item) => (status === "ALL" || item.status === status) && (severity === "ALL" || item.severity === severity) && (store === "ALL" || item.store === store)), [items, status, severity, store]);
-  if (error) return <section className="page"><div className="state-message error"><div><AlertTriangle size={28} /><strong>인시던트를 불러오지 못했습니다</strong><p>잠시 후 다시 시도하거나 API 연결 설정을 확인해 주세요.</p></div></div></section>;
-  const statusOptions = [{ value: "ALL", label: "전체 상태" }, ...Object.entries(statusLabel).map(([value, label]) => ({ value, label }))]; const severityOptions = [{ value: "ALL", label: "전체 심각도" }, ...Object.entries(severityLabel).map(([value, label]) => ({ value, label }))]; const storeOptions = [{ value: "ALL", label: "전체 매장" }, ...[...new Set(items.map((item) => item.store))].map((value) => ({ value, label: value }))];
-  return <section className="page"><div className="page-heading"><div><h1>인시던트</h1><p>감지된 운영 이슈의 상태, 담당자, SLA를 빠르게 확인하세요.</p></div><span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">총 {items.length}건</span></div><div className="filters"><Filter size={16} className="text-slate-400" /><SelectField label="상태 필터" value={status} options={statusOptions} onValueChange={setStatus} /><SelectField label="심각도 필터" value={severity} options={severityOptions} onValueChange={setSeverity} /><SelectField label="매장 필터" value={store} options={storeOptions} onValueChange={setStore} /></div>{items.length === 0 ? <div className="state-message"><div><Inbox size={28} /><strong>인시던트를 불러오는 중입니다</strong><p>운영 데이터를 연결하고 있습니다.</p></div></div> : filtered.length === 0 ? <div className="empty-state"><div><Inbox size={28} /><strong>조건에 맞는 인시던트가 없습니다</strong><p>필터를 변경해 다시 확인해 주세요.</p></div></div> : <div className="table-wrap"><table><thead><tr><th>인시던트</th><th>심각도</th><th>상태</th><th>매장</th><th>담당자</th><th>발생 시각</th><th>SLA</th><th aria-label="상세 보기" /></tr></thead><tbody>{filtered.map((item) => <tr data-clickable key={item.id} onClick={() => onSelect(item.id)}><td><span className="muted">{item.display_id}</span><div className="incident-title">{item.title}</div></td><td><Badge value={item.severity} /></td><td><Badge value={item.status} kind="status" /></td><td>{item.store}</td><td>{item.owner}</td><td>{new Date(item.created_at).toLocaleString("ko-KR")}</td><td>{new Date(item.sla_due_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}까지</td><td><ChevronRight size={17} className="text-slate-400" /></td></tr>)}</tbody></table></div>}</section>;
+export function IncidentList({ onSelect, refresh = 0 }: { onSelect: (id: string) => void; refresh?: number }) {
+  const loader = useMemo(() => () => incidentApi.listIncidents(), [refresh]);
+  const query = useQuery(loader);
+  const [creating, setCreating] = useState(false);
+  const items = query.data ?? [];
+  const asOf = apiMode === "http" ? new Date().toISOString() : mockApi.asOf;
+  const [status, setStatus] = useState("ALL"); const [severity, setSeverity] = useState("ALL"); const [store, setStore] = useState("ALL"); const [search, setSearch] = useState("");
+  const filtered = items.filter((item) => (status === "ALL" || item.status === status) && (severity === "ALL" || item.severity === severity) && (store === "ALL" || item.store === store) && `${item.display_id} ${item.title} ${item.owner}`.toLowerCase().includes(search.toLowerCase()));
+  return <section className="page">
+    <PageHeading title="인시던트" description="운영 이슈를 검색하고 증거부터 검증까지 해결 과정을 확인하세요."><div className="flex items-center gap-3"><span className="tag status">총 {items.length}건</span>{apiMode === "http" && <Button variant="primary" onClick={() => setCreating(true)}>인시던트 등록</Button>}</div></PageHeading>
+    <div className="filters"><Filter size={16} /><SelectField label="상태 필터" value={status} options={[{ value: "ALL", label: "전체 상태" }, ...Object.entries(statusLabels).map(([value, label]) => ({ value, label }))]} onValueChange={setStatus} /><SelectField label="심각도 필터" value={severity} options={[{ value: "ALL", label: "전체 심각도" }, ...Object.entries(severityLabels).map(([value, label]) => ({ value, label }))]} onValueChange={setSeverity} /><SelectField label="매장 필터" value={store} options={[{ value: "ALL", label: "전체 매장" }, ...[...new Set(items.map((item) => item.store))].map((value) => ({ value, label: value }))]} onValueChange={setStore} /><label className="search-field"><Search size={16} /><input aria-label="인시던트 검색" placeholder="제목·ID·담당자 검색" value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
+    {query.loading ? <StateMessage kind="loading" title="인시던트를 불러오는 중입니다" /> : query.error ? <StateMessage kind="error" title="인시던트를 불러오지 못했습니다" onRetry={query.reload}>API 연결 설정을 확인해 주세요.</StateMessage> : filtered.length === 0 ? <StateMessage title={items.length ? "조건에 맞는 인시던트가 없습니다" : "등록된 인시던트가 없습니다"}>검색어나 필터를 확인해 주세요.</StateMessage> : <div className="table-wrap"><table><thead><tr><th>인시던트</th><th>심각도</th><th>상태</th><th>매장</th><th>담당자</th><th>발생 시각</th><th>경과 시간</th><th>SLA 기한</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><td><span className="muted">{item.display_id}</span><div><button className="text-link incident-title" onClick={() => onSelect(item.id)}>{item.title}</button></div></td><td><Badge value={item.severity} /></td><td><Badge value={item.status} kind="status" /></td><td>{item.store}</td><td>{item.owner}</td><td>{dateTime(item.created_at)}</td><td>{ageLabel(item.created_at, asOf)}</td><td>{dateTime(item.sla_due_at)}</td></tr>)}</tbody></table></div>}
+    {creating && <CreateIncident onClose={() => setCreating(false)} onCreated={(id) => { setCreating(false); query.reload(); onSelect(id); }} />}
+  </section>;
 }

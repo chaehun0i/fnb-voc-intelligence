@@ -11,7 +11,7 @@
 ## CLI
 
 ```bash
-python -m src.analysis.classify_reviews --products tests/fixtures/sample_products.csv --reviews tests/fixtures/sample_reviews.csv --output data/processed/classification.json
+python -m src.analysis.classify_reviews --products backend/tests/fixtures/sample_products.csv --reviews backend/tests/fixtures/sample_reviews.csv --output data/processed/classification.json
 ```
 
 생성 결과는 무시되는 `data/processed` 경로에만 저장합니다.

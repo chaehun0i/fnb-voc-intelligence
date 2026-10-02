@@ -9,7 +9,7 @@ Configure `EVALUATION_DATASET_PATH`, `EVALUATION_RETRIEVAL_K`, recall/precision/
 Run programmatically with an application-configured RAG pipeline, or use the CLI entry point with an injected application pipeline:
 
 ```bash
-python -m src.rag.evaluation_cli --dataset tests/fixtures/sample_rag_evaluation.jsonl --k 5
+python -m src.rag.evaluation_cli --dataset backend/tests/fixtures/sample_rag_evaluation.jsonl --k 5
 ```
 
 The command prints JSON containing averages, thresholds, and pass/fail, followed by a human-readable summary. `--json-only` suppresses that summary.
