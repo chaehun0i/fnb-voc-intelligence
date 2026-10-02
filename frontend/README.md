@@ -11,6 +11,7 @@ ServIQ v0.4.1의 운영 콘솔입니다. Frontend-first → Contract-first → D
 - `src/features/`: 대시보드, 인시던트, 검토, 실행 추적, 연동, 대기열, 운영 설정입니다.
 - Tailwind CSS, Radix Select/Dialog/Tabs, Framer Motion, lucide-react로 화면·키보드 조작·상태를 구성합니다.
 - 인시던트 팝업은 진행 이력·증거·RCA·CAPA·담당 작업·검증·추적의 7개 탭과 서버 Permission에 따른 운영 명령을 제공합니다.
+- 메뉴별 `#/incidents`, `#/reviews` 등의 주소를 유지해 새로고침·뒤로가기와 화면 공유를 지원합니다. `#/incidents?incident=inc-1`로 상세를 직접 열 수 있습니다. 페이지 코드는 필요할 때 지연 로딩합니다.
 
 ## 실행 및 검증
 
@@ -32,6 +33,10 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 ```
 
 HTTP 모드에서는 Incident 접수·조회·조사·증거/RCA/CAPA 등록·승인·수동 실행 기록·검증·종결을 API에 요청합니다. 화면은 다음 상태를 계산하지 않으며 서버가 반환한 `workspace.commands`의 `allowed`, `reason`을 표시합니다. 데이터 버전을 함께 전송해 충돌을 감지합니다.
+
+API Adapter는 조회뿐 아니라 등록·명령 응답의 필수 필드, 날짜, 증거·작업 목록, Permission 형식도 확인합니다. 잘못된 응답은 화면에 전달하지 않고 `CONTRACT_ERROR`로 안내합니다. 연결 실패는 `NETWORK_ERROR`, 입력 오류는 `VALIDATION_ERROR` 등 안정적인 오류 코드로 구분하며, 서버의 요청 ID가 있으면 안내에 함께 표시합니다.
+
+다른 담당자가 먼저 수정해 `CONFLICT`가 발생하면 운영 명령을 자동으로 재실행하지 않습니다. 팝업의 `최신 정보 다시 불러오기`로 현재 상태와 Permission을 확인한 후 다시 요청하세요. Mock 모드에서는 실제 등록·운영 명령이 비활성화되며, 화면에 보이는 예시 상태로 업무 규칙을 대신 판단하지 않습니다.
 
 ## 제한 사항
 
