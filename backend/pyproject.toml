@@ -1,0 +1,15 @@
+[project]
+name = "serviq-backend"
+version = "0.4.1"
+description = "ServIQ 운영 API 실행 환경"
+requires-python = ">=3.12,<3.13"
+dependencies = ["fnb-voc-intelligence", "fastapi[standard]"]
+
+[project.optional-dependencies]
+dev = ["fnb-voc-intelligence[dev]"]
+
+[tool.uv.sources]
+fnb-voc-intelligence = { path = "..", editable = true }
+
+[tool.fastapi]
+entrypoint = "main:app"

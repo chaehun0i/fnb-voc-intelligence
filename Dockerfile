@@ -6,8 +6,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --create-home app
-COPY pyproject.toml README.md ./
-COPY src ./src
+COPY . .
 RUN pip install --no-cache-dir .
+ENV PYTHONPATH=/app/backend
 USER app
 CMD ["python", "-m", "src.ingestion.cli", "--help"]

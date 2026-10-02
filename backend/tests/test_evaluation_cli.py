@@ -12,7 +12,8 @@ class Pipeline:
 
 
 def test_evaluation_cli_outputs_json_and_summary(capsys) -> None:
-    code = main(["--dataset", str(Path("tests/fixtures/sample_rag_evaluation.jsonl")), "--k", "1"], pipeline_factory=Pipeline)
+    dataset = Path(__file__).parent / "fixtures" / "sample_rag_evaluation.jsonl"
+    code = main(["--dataset", str(dataset), "--k", "1"], pipeline_factory=Pipeline)
     lines = capsys.readouterr().out.splitlines()
     assert code in (0, 1)
     assert json.loads(lines[0])["cases"] == 2

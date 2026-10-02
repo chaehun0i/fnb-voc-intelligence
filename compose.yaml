@@ -46,7 +46,7 @@ services:
 
   dashboard:
     build: .
-    command: ["streamlit", "run", "src/dashboard/app.py", "--server.address=0.0.0.0"]
+    command: ["streamlit", "run", "backend/src/dashboard/app.py", "--server.address=0.0.0.0"]
     ports:
       - "${DASHBOARD_PORT:-8501}:8501"
     environment:

@@ -4,7 +4,7 @@ Install dependencies and run Streamlit locally:
 
 ```bash
 python -m pip install -e ".[dev]"
-streamlit run src/dashboard/app.py
+streamlit run backend/src/dashboard/app.py
 ```
 
 The dashboard domain layer is UI-independent. `DashboardQuery` combines product,

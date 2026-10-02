@@ -7,7 +7,7 @@ from src.rag.evaluation_loader import load_evaluation_cases
 
 
 def test_jsonl_dataset_loads_deterministically() -> None:
-    path = Path("tests/fixtures/sample_rag_evaluation.jsonl")
+    path = Path(__file__).parent / "fixtures" / "sample_rag_evaluation.jsonl"
     cases = load_evaluation_cases(path)
     assert [case.case_id for case in cases] == ["price-1", "no-answer-1"]
     assert cases[0].relevant_review_ids == ["R1"]

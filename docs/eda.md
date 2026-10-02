@@ -10,7 +10,7 @@
 ## CLI 사용
 
 ```bash
-python -m src.analysis.eda_report --products tests/fixtures/sample_products.csv --reviews tests/fixtures/sample_reviews.csv --output data/processed/eda_report.json
+python -m src.analysis.eda_report --products backend/tests/fixtures/sample_products.csv --reviews backend/tests/fixtures/sample_reviews.csv --output data/processed/eda_report.json
 ```
 
 출력 JSON은 데이터셋 요약, 평점·길이 분포, 카테고리 지표, 어휘 비교를 담습니다. 생성 보고서는 `data/processed`에만 저장하며 커밋하지 않습니다.
