@@ -5,7 +5,7 @@ import type { ReviewAction, ReviewDetail } from "../../contracts/types";
 import { Button, PageHeading, PreviewNotice, StateMessage } from "../../components/ui";
 import { ageLabel, dateTime } from "../../lib/display";
 import { useQuery } from "../../lib/useQuery";
-import { Badge } from "../incidents/IncidentList";
+import { Badge } from "../../components/IncidentBadge";
 
 const actions = [
   { key: "approve", label: "승인", icon: Check },

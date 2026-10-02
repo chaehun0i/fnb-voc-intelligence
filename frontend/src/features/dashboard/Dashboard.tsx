@@ -4,7 +4,7 @@ import { mockApi } from "../../api/mockApi";
 import { Button, PageHeading, PreviewNotice, StateMessage, StatCard } from "../../components/ui";
 import { dateTime } from "../../lib/display";
 import { useQuery } from "../../lib/useQuery";
-import { Badge } from "../incidents/IncidentList";
+import { Badge } from "../../components/IncidentBadge";
 
 const load = async () => { const [incidents, approvals, jobs, integrations, snapshot] = await Promise.all([incidentApi.listIncidents(), mockApi.listApprovals(), mockApi.listJobs(), mockApi.listIntegrations(), mockApi.getDashboardSnapshot()]); return { incidents, approvals, jobs, integrations, snapshot }; };
 export function Dashboard({ onIncidents, onReviews, onQueue, onIncident }: { onIncidents: () => void; onReviews: () => void; onQueue: () => void; onIncident: (id: string) => void }) {

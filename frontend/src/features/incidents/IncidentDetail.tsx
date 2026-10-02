@@ -8,7 +8,7 @@ import { StateMessage } from "../../components/ui";
 import { dateTime, percent, statusLabels } from "../../lib/display";
 import { useQuery } from "../../lib/useQuery";
 import { IncidentCommandPanel } from "./IncidentCommandPanel";
-import { Badge } from "./IncidentList";
+import { Badge } from "../../components/IncidentBadge";
 
 const tabLabels = { timeline: "진행 이력", evidence: "증거", rca: "원인 분석", capa: "시정·예방 조치", tasks: "담당 작업", verification: "검증", trace: "실행 추적" };
 export function IncidentDetail({ id, onBack }: { id: string; onBack: () => void }) {

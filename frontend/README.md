@@ -15,7 +15,7 @@ ServIQ v0.4.1의 운영 콘솔입니다. Frontend-first → Contract-first → D
 
 ## 실행 및 검증
 
-이 디렉터리에서 실행합니다. Node.js 24 LTS를 사용합니다.
+이 디렉터리에서 실행합니다. 테스트 도구의 지원 범위에 맞춰 Node.js 24 LTS의 `24.15.0` 이상을 사용합니다. 이전 24.x 버전에서는 `npm ci`에 `EBADENGINE` 경고가 나올 수 있습니다.
 
 ```bash
 npm ci
@@ -24,6 +24,8 @@ npm run lint
 npm run test
 npm run build
 ```
+
+Windows에서 `npm ci`가 Tailwind 바이너리의 `EPERM` 오류로 실패하면 이 저장소의 Vite 개발 서버를 먼저 종료하고 재실행합니다. 실행 중인 개발 서버의 파일 잠금은 코드 빌드 실패와 구분합니다. 설치가 끝난 뒤 `npm run dev`로 서버를 다시 실행합니다.
 
 `.env.example`을 `.env.local`로 복사하면 기본 Mock 모드로 실행합니다. 실제 API는 `backend/`에서 `uv run fastapi run`으로 시작한 뒤 다음과 같이 설정하고 Vite를 재시작합니다.
 

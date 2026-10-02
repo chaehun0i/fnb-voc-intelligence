@@ -20,7 +20,7 @@ export function AppShell({ route, onNavigate, children }: { route: Route; onNavi
 
   return (
     <div className="app-shell">
-      <a className="skip-link" href="#main-content">본문 바로가기</a>
+      <a className="skip-link" href="#main-content" onClick={(event) => { event.preventDefault(); scrollRef.current?.focus(); }}>본문 바로가기</a>
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark"><Sparkles size={19} aria-hidden="true" /></span>
