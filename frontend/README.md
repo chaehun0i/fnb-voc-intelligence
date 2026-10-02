@@ -8,4 +8,4 @@ Jev는 아직 구현하지 않습니다. Gemini는 향후 공통 LLM Gateway의 
 
 이후 개발 순서는 `Domain/API -> Queue/Worker -> Jev -> LLM Gateway -> LangGraph -> Multi-Agent -> Harness/Loop -> MCP`입니다.
 
-의존성 설치 후 이 디렉터리에서 `npm run dev`, `npm run lint`, `npm run test`, `npm run build`를 실행합니다.
+화면은 Tailwind CSS, Framer Motion, lucide-react를 사용해 한글 운영 콘솔 경험을 제공합니다. 의존성 설치 후 이 디렉터리에서 `npm run dev`, `npm run lint`, `npm run test`, `npm run build`를 실행합니다.
