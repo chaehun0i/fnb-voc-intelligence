@@ -55,5 +55,66 @@ services:
       db:
         condition: service_healthy
 
+  serviq-init:
+    build: .
+    profiles: ["serviq"]
+    command: ["python", "-m", "src.infrastructure.migrations"]
+    environment:
+      SERVIQ_DATABASE_URL: postgresql://${POSTGRES_USER:-fnb}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-fnb_voc}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: .
+    profiles: ["serviq"]
+    working_dir: /app/backend
+    command: ["fastapi", "run", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SERVIQ_API_PORT:-8000}:8000"
+    environment:
+      SERVIQ_REPOSITORY: postgres
+      SERVIQ_DATABASE_URL: postgresql://${POSTGRES_USER:-fnb}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-fnb_voc}
+      SERVIQ_SEED_DEMO: ${SERVIQ_SEED_DEMO:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+      serviq-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_MODE: http
+        VITE_API_BASE_URL: /api/v1
+    profiles: ["serviq"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SERVIQ_FRONTEND_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  worker:
+    build: .
+    profiles: ["serviq"]
+    command: ["python", "-m", "src.infrastructure.outbox.worker", "--poll-seconds", "2"]
+    restart: unless-stopped
+    environment:
+      SERVIQ_DATABASE_URL: postgresql://${POSTGRES_USER:-fnb}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-fnb_voc}
+    depends_on:
+      db:
+        condition: service_healthy
+      serviq-init:
+        condition: service_completed_successfully
+
 volumes:
   postgres_data:

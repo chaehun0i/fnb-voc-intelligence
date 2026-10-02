@@ -80,4 +80,4 @@ Day 14 Incident Domain API는 [Incident API 문서](docs/serviq_incident_api.md)
 
 Day 15 ServIQ 운영 콘솔의 한글 사용자 경험과 UI 구성은 [Frontend UX 문서](docs/serviq_frontend_ux.md)를 참고하세요.
 
-Day 16 백엔드·DB·프론트 실행 디렉터리는 [실행 구조 문서](docs/serviq_structure.md)를 참고하세요.
+Day 16 ServIQ 운영 화면·업무 흐름·영속 저장·실행과 CI/CD는 [운영 Vertical Slice 문서](docs/serviq_runtime.md)를 참고하세요.
