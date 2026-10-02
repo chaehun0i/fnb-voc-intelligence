@@ -10,22 +10,28 @@
     "test": "vitest run --pool=threads --maxWorkers=1"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-select": "^2.3.7",
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
-    "typescript": "latest",
+    "framer-motion": "^13.5.0",
+    "lucide-react": "^1.49.0",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "typescript": "latest",
+    "vite": "latest"
   },
   "devDependencies": {
     "@eslint/js": "latest",
-    "eslint": "latest",
-    "typescript-eslint": "latest",
-    "vitest": "latest",
-    "jsdom": "latest",
-    "@testing-library/react": "latest",
+    "@tailwindcss/vite": "^4.3.3",
     "@testing-library/jest-dom": "latest",
+    "@testing-library/react": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "globals": "latest"
+    "eslint": "latest",
+    "globals": "latest",
+    "jsdom": "latest",
+    "tailwindcss": "^4.3.3",
+    "typescript-eslint": "latest",
+    "vitest": "latest"
   }
 }
