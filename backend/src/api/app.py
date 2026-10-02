@@ -64,7 +64,7 @@ def create_app(
     seed_demo: bool = False,
 ) -> FastAPI:
     app = FastAPI(title="ServIQ API", version="0.4.1")
-    repo = repository if repository is not None else InMemoryIncidentRepository()
+    repo = repository if repository is not None else configured_repository()
     if seed_demo:
         for item in demo_incidents():
             if repo.get(item.id) is None:
