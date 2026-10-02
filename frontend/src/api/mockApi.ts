@@ -1,7 +1,81 @@
-import type { AgentRun, Approval, ControlPlaneConfig, Incident } from "../contracts/types";
+import type { ControlPlaneConfig, ReviewAction } from "../contracts/types";
+import { agentFixture, approvalFixtures, configFixture, dashboardFixture, incidentFixtures, integrationFixtures, jobFixtures, previewTime, reviewFixtures, workspaceFixtures } from "./fixtures";
 
-const incidents: Incident[] = [{ id:"inc-1", display_id:"INC-2026-001", title:"강남점 냉장 보관 온도 이탈", severity:"CRITICAL", status:"PENDING_APPROVAL", store:"강남점", owner:"김민지", created_at:"2026-10-02T08:20:00Z", sla_due_at:"2026-10-02T12:20:00Z", timeline:[{status:"DETECTED",occurred_at:"2026-10-02T08:20:00Z"},{status:"TRIAGED",occurred_at:"2026-10-02T08:31:00Z"},{status:"INVESTIGATING",occurred_at:"2026-10-02T08:40:00Z"},{status:"PENDING_APPROVAL",occurred_at:"2026-10-02T09:15:00Z"}], evidence:[{id:"ev-1",source:"temperature_sensor",type:"telemetry",summary:"4°C 한계를 34분 초과",confidence:0.98,status:"AVAILABLE"}], root_cause_candidates:[{id:"rca-1",summary:"냉각기 압축기 성능 저하",confidence:0.82,supporting_evidence_ids:["ev-1"],counter_evidence_ids:[]}], corrective_actions:[{id:"ca-1",summary:"재고 격리 및 냉각기 점검",risk_level:"HIGH",expected_effect:"식품 안전 위험 차단",verification_criteria:"온도 2~4°C 2시간 유지",status:"PROPOSED"}], verification:{id:"ver-1",result:"INCONCLUSIVE",summary:"승인 후 확인 예정"} }, { id:"inc-2",display_id:"INC-2026-002",title:"홍대점 배달 지연 VOC 급증",severity:"HIGH",status:"INVESTIGATING",store:"홍대점",owner:"박준호",created_at:"2026-10-02T07:10:00Z",sla_due_at:"2026-10-02T15:10:00Z",timeline:[{status:"DETECTED",occurred_at:"2026-10-02T07:10:00Z"},{status:"INVESTIGATING",occurred_at:"2026-10-02T07:20:00Z"}],evidence:[],root_cause_candidates:[],corrective_actions:[] }];
-const approvals: Approval[] = [{id:"apr-1",incident_id:"inc-1",type:"Corrective Action",risk_level:"HIGH",requester:"CAPA Agent",requested_at:"2026-10-02T09:15:00Z",evidence_completeness:92,status:"PENDING",actions:{approve:{allowed:true,reason:"필수 증거가 충족되었습니다."},edit:{allowed:true,reason:"승인자가 조치안을 수정할 수 있습니다."},reject:{allowed:true,reason:"위험 평가를 재검토할 수 있습니다."},request_more_evidence:{allowed:true,reason:"추가 근거를 요청할 수 있습니다."}}}];
-let config: ControlPlaneConfig = {version:1,default_llm_provider:"gemini",fallback_llm_provider:"ollama",jev_enabled:false,max_agent_iterations:8,max_tool_calls:24,parallelism:4,timeout_seconds:90,token_budget:30000,cost_budget_usd:3,gemini_concurrency:3,gemini_rate_limit:60,gemini_timeout_seconds:45,auto_investigation:true,auto_rca_draft:true,auto_capa_draft:false,auto_execute:false,approval_policy_by_risk:{LOW:false,MEDIUM:false,HIGH:true,CRITICAL:true},tenant_queue_concurrency:2,retry_limit:2};
-const run: AgentRun = {id:"run-1",incident_id:"inc-1",status:"COMPLETED",steps:["Jev Decision","LangGraph","Investigation fan-out","Transaction Agent","Inventory Agent","Lot Agent","Supplier Agent","History Agent","Evidence Aggregation","RCA Agent","CAPA Agent","Human Approval"].map((name,index)=>({id:`step-${index}`,name,status:index===11?"PENDING":"COMPLETED",latency_ms:120+index*45,retry_count:index===5?1:0,token_usage:300+index*85,cost_usd:0.004+index*0.002,decision_summary:`${name} 결과를 다음 단계에 전달했습니다.`,tool_calls:index===0?[]:[{id:`tool-${index}`,name:"evidence.search",status:"SUCCESS",latency_ms:90,summary:"관련 운영 기록 조회"}]}))};
-export const mockApi = { listIncidents: async () => incidents, getIncident: async (id:string) => incidents.find(i=>i.id===id), listApprovals: async () => approvals, getAgentRun: async () => run, getConfig: async () => config, updateConfig: async (patch:Partial<ControlPlaneConfig>) => (config={...config,...patch}) };
+const clone = <T,>(value: T): T => structuredClone(value);
+let approvals = clone(approvalFixtures);
+let reviews = clone(reviewFixtures);
+let integrations = clone(integrationFixtures);
+let jobs = clone(jobFixtures);
+let workspace = clone(configFixture);
+workspace.revisions = [{ version: 1, created_at: previewTime, actor: "운영 관리자", reason: "초기 운영 설정", changes: [], snapshot: clone(workspace.config) }];
+
+function getApproval(id: string) { const item = approvals.find((value) => value.id === id); if (!item) throw new Error("검토 항목을 찾을 수 없습니다."); return item; }
+function denied(reason: string): never { throw new Error(reason); }
+function revision(config: ControlPlaneConfig, reason: string) {
+  const changes = (Object.keys(config) as Array<keyof ControlPlaneConfig>).filter((key) => key !== "version" && JSON.stringify(workspace.config[key]) !== JSON.stringify(config[key])).map((key) => ({ field: key, before: JSON.stringify(workspace.config[key]), after: JSON.stringify(config[key]) }));
+  const next = { ...clone(config), version: workspace.config.version + 1 };
+  workspace.config = next;
+  workspace.revisions.unshift({ version: next.version, created_at: previewTime, actor: "운영 관리자", reason: reason.trim(), changes, snapshot: clone(next) });
+  return clone(workspace);
+}
+export const mockApi = {
+  asOf: previewTime,
+  listIncidents: async () => clone(incidentFixtures),
+  getIncident: async (id: string) => clone(incidentFixtures.find((item) => item.id === id)),
+  getIncidentWorkspace: async (id: string) => clone(workspaceFixtures[id]),
+  listApprovals: async () => clone(approvals),
+  getReviewDetail: async (id: string) => clone(reviews[id]),
+  reviewAction: async (id: string, action: ReviewAction, note: string) => {
+    const item = getApproval(id);
+    if (!item.actions[action].allowed) denied(item.actions[action].reason);
+    if (action !== "approve" && !note.trim()) throw new Error("검토 사유 또는 요청 내용을 입력해 주세요.");
+    if (action === "approve" || action === "reject") {
+      item.status = action === "approve" ? "APPROVED" : "REJECTED";
+      for (const permission of Object.values(item.actions)) { permission.allowed = false; permission.reason = "이미 결정된 검토 항목입니다."; }
+    }
+    reviews[id].history.push({ occurred_at: previewTime, actor: "검토자", summary: `${{ approve: "승인", edit: "수정 요청", reject: "반려", request_more_evidence: "추가 증거 요청" }[action]}${note.trim() ? ` · ${note.trim()}` : ""}` });
+    return clone(item);
+  },
+  getAgentRun: async () => clone(agentFixture),
+  getAgentRunForIncident: async (id: string) => id === agentFixture.incident_id ? clone(agentFixture) : undefined,
+  getDashboardSnapshot: async () => clone(dashboardFixture),
+  listIntegrations: async () => clone(integrations),
+  syncIntegration: async (id: string) => {
+    const item = integrations.find((value) => value.id === id);
+    if (!item) throw new Error("연동 항목을 찾을 수 없습니다.");
+    if (!item.actions.sync.allowed) denied(item.actions.sync.reason);
+    item.last_success_at = previewTime; item.sync.ended_at = previewTime;
+    return clone(item);
+  },
+  listJobs: async () => clone(jobs),
+  jobAction: async (id: string, action: "retry" | "cancel") => {
+    const item = jobs.find((value) => value.id === id);
+    if (!item) throw new Error("작업을 찾을 수 없습니다.");
+    if (!item.actions[action].allowed) denied(item.actions[action].reason);
+    item.status = action === "retry" ? "QUEUED" : "CANCELLED";
+    item.actions.retry = { allowed: false, reason: "현재 상태에서는 재시도가 필요하지 않습니다." };
+    item.actions.cancel = { allowed: action === "retry", reason: action === "retry" ? "대기 중인 작업을 취소할 수 있습니다." : "이미 취소된 작업입니다." };
+    return clone(item);
+  },
+  getConfig: async () => clone(workspace.config),
+  updateConfig: async (patch: Partial<ControlPlaneConfig>) => clone(workspace.config = { ...workspace.config, ...clone(patch) }),
+  getConfigWorkspace: async () => clone(workspace),
+  saveConfig: async (config: ControlPlaneConfig, reason: string) => {
+    if (!workspace.save_permission.allowed) denied(workspace.save_permission.reason);
+    if (!reason.trim()) throw new Error("설정 변경 사유를 입력해 주세요.");
+    if (config.version !== workspace.config.version) throw new Error("설정이 변경되었습니다. 최신 설정을 다시 불러와 주세요.");
+    for (const [key, rule] of Object.entries(workspace.rules)) {
+      const value = config[key as keyof ControlPlaneConfig];
+      if (typeof value !== "number" || !Number.isFinite(value) || value < rule.min || value > rule.max || (rule.integer && !Number.isInteger(value))) throw new Error(`${key}: ${rule.min}~${rule.max} 범위의 ${rule.integer ? "정수" : "숫자"}를 입력해 주세요.`);
+    }
+    return revision(config, reason);
+  },
+  rollbackConfig: async (version: number, reason: string) => {
+    if (!workspace.rollback_permission.allowed) denied(workspace.rollback_permission.reason);
+    if (!reason.trim()) throw new Error("복원 사유를 입력해 주세요.");
+    const previous = workspace.revisions.find((item) => item.version === version);
+    if (!previous) throw new Error("설정 버전을 찾을 수 없습니다.");
+    return revision(previous.snapshot, reason);
+  },
+};
+export function resetMockState() { approvals = clone(approvalFixtures); reviews = clone(reviewFixtures); integrations = clone(integrationFixtures); jobs = clone(jobFixtures); workspace = clone(configFixture); workspace.revisions = [{ version: 1, created_at: previewTime, actor: "운영 관리자", reason: "초기 운영 설정", changes: [], snapshot: clone(workspace.config) }]; }
