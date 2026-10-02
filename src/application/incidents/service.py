@@ -1,5 +1,7 @@
 from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.transitions import transition
+
+
 class IncidentNotFound(LookupError): pass
 class IncidentService:
  def __init__(self,repo): self.repo=repo

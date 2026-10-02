@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
+
 from .enums import IncidentStatus, Severity
+
 
 @dataclass(frozen=True)
 class Evidence: id:str; source:str; type:str; summary:str; confidence:float

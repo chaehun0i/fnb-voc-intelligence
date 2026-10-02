@@ -1,6 +1,7 @@
 from .enums import IncidentStatus
 from .models import Incident, StateTransition
 
+
 class DomainRuleViolation(ValueError): pass
 
 _NEXT={IncidentStatus.DETECTED:IncidentStatus.TRIAGED,IncidentStatus.TRIAGED:IncidentStatus.INVESTIGATING,IncidentStatus.INVESTIGATING:IncidentStatus.RCA_READY,IncidentStatus.RCA_READY:IncidentStatus.ACTION_PROPOSED,IncidentStatus.ACTION_PROPOSED:IncidentStatus.PENDING_APPROVAL,IncidentStatus.PENDING_APPROVAL:IncidentStatus.EXECUTING,IncidentStatus.EXECUTING:IncidentStatus.VERIFYING,IncidentStatus.VERIFYING:IncidentStatus.RESOLVED,IncidentStatus.RESOLVED:IncidentStatus.CLOSED}

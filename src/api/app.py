@@ -1,7 +1,10 @@
 from fastapi import FastAPI
+
 from src.api.routes.incidents import router
 from src.application.incidents.service import IncidentService
-from src.infrastructure.repositories.in_memory_incident_repository import InMemoryIncidentRepository
+from src.infrastructure.repositories.in_memory_incident_repository import (
+    InMemoryIncidentRepository,
+)
 
 
 def create_app() -> FastAPI:
