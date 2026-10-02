@@ -32,14 +32,20 @@ def create(service):
     return service.create("온도 이상", Severity.HIGH, "강남점", "운영 담당자")
 
 
-def ready_for_verification(service):
+def ready_for_proposal(service):
     item = create(service)
     service.triage(item.id)
     service.investigate(item.id)
     service.add_evidence(
         item.id, Evidence("e1", "센서", "TEMPERATURE", "온도 상승", 0.9)
     )
-    service.prepare_rca(item.id, [RootCauseCandidate("r1", "장비 이상", 0.8, ["e1"])])
+    return service.prepare_rca(
+        item.id, [RootCauseCandidate("r1", "장비 이상", 0.8, ["e1"])]
+    )
+
+
+def ready_for_verification(service):
+    item = ready_for_proposal(service)
     service.propose_action(
         item.id,
         [
@@ -152,6 +158,55 @@ def test_approval_rejection_returns_to_proposal(service):
     assert (
         service.request_approval(revised.id).status == IncidentStatus.PENDING_APPROVAL
     )
+
+
+@pytest.mark.parametrize("edit_existing", [False, True])
+def test_empty_proposal_is_rejected_without_changing_stored_model(service, edit_existing):
+    item = ready_for_proposal(service)
+    if edit_existing:
+        item = service.propose_action(
+            item.id,
+            [CorrectiveAction("a1", "장비 점검", Severity.HIGH, "정상화", "4도 이하")],
+        )
+    before = service.get(item.id)
+    with pytest.raises(DomainRuleViolation, match="시정·예방 조치안이 필요합니다"):
+        service.propose_action(item.id, [], expected_version=before.version)
+    after = service.get(item.id)
+    assert after == before
+    assert after.version == before.version
+    assert after.corrective_actions == before.corrective_actions
+
+
+def test_empty_initial_proposal_cannot_bypass_approval_or_execution(service):
+    item = ready_for_proposal(service)
+    with pytest.raises(DomainRuleViolation):
+        service.propose_action(item.id, [])
+    for command in (service.request_approval, service.approve, service.execute):
+        with pytest.raises(DomainRuleViolation):
+            command(item.id)
+        assert service.get(item.id) == item
+    assert service.get(item.id).status == IncidentStatus.RCA_READY
+    assert service.get(item.id).approved is False
+
+
+def test_empty_edit_preserves_original_actions_through_approved_execution(service):
+    item = ready_for_proposal(service)
+    proposed = service.propose_action(
+        item.id,
+        [CorrectiveAction("a1", "장비 점검", Severity.HIGH, "정상화", "4도 이하")],
+    )
+    with pytest.raises(DomainRuleViolation):
+        service.propose_action(item.id, [])
+    assert service.get(item.id) == proposed
+    pending = service.request_approval(item.id)
+    assert len(pending.corrective_actions) == 1
+    approved = service.approve(item.id)
+    assert approved.corrective_actions[0].id == "a1"
+    executed = service.execute(item.id)
+    assert executed.status == IncidentStatus.VERIFYING
+    assert len(executed.corrective_actions) == 1
+    assert executed.corrective_actions[0].id == "a1"
+    assert executed.corrective_actions[0].status == "EXECUTED"
 
 
 def test_expected_version_rejects_stale_command(service):

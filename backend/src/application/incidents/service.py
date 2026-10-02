@@ -197,6 +197,8 @@ class IncidentService:
     ) -> Incident:
         item = self._load(incident_id, expected_version)
         require_status(item, IncidentStatus.RCA_READY, IncidentStatus.ACTION_PROPOSED)
+        if not actions:
+            raise DomainRuleViolation("시정·예방 조치안이 필요합니다.")
         if len({action.id for action in actions}) != len(actions):
             raise DomainRuleViolation("조치 ID는 서로 달라야 합니다.")
         proposed = [replace(action, status=ActionStatus.PROPOSED) for action in actions]

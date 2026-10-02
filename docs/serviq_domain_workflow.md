@@ -27,6 +27,8 @@ DETECTED → TRIAGED → INVESTIGATING → RCA_READY → ACTION_PROPOSED
 
 승인 반려는 `PENDING_APPROVAL → ACTION_PROPOSED`로 돌아가며 승인을 해제합니다. 제안 단계에서 `actions` 명령으로 조치안을 수정한 뒤 승인을 다시 요청할 수 있습니다. 검증 결과가 `INCONCLUSIVE`이면 `VERIFYING`에 남습니다. 검증 실패로 재조사할 때는 기존 승인·원인 후보·조치안을 해제하여 이전 승인을 재사용하지 않습니다. 수집한 증거와 상태 이력은 유지합니다.
 
+시정·예방 조치안은 최초 제안과 기존 제안 수정 모두 한 건 이상 필요합니다. 이 조건은 HTTP 입력 검증뿐 아니라 Application Service에서도 확인하므로, 직접 서비스 호출로 빈 CAPA를 저장하고 승인·실행하는 우회를 막습니다. 빈 목록 요청은 `DomainRuleViolation`으로 거부하며 저장된 조치안·상태·승인 여부·`version`을 그대로 유지합니다. 수정 실패 후에도 다음 승인·실행은 기존의 유효한 조치안으로만 진행됩니다.
+
 Domain의 `transition`은 새 모델을 반환합니다. Application은 전이가 성공한 모델만 저장합니다. 메모리 Repository는 중첩 목록까지 복사하므로 실패한 명령이나 화면 밖의 수정이 저장된 데이터를 바꿀 수 없습니다.
 
 Repository의 `save`는 새 모델의 `version=0`을 저장해 `version=1`로 반환합니다. 수정할 때는 읽은 버전이 저장된 버전과 같아야 하며, 성공할 때만 증가합니다. 따라서 동시에 수정한 두 요청 중 오래된 요청은 `CONFLICT`로 거절됩니다.
@@ -73,7 +75,7 @@ uv run fastapi run
 uv run --extra dev pytest backend/tests/test_incident_domain.py backend/tests/test_incident_application.py backend/tests/test_api_app.py
 ```
 
-정상 완료 흐름, 승인 없는 실행 거부, 검증 실패·판정 보류, 잘못된 근거 ID, 실패 명령의 원본 보존, 버전 충돌, HTTP 입력 검증, CORS, arbitrary status PATCH 부재를 확인합니다.
+정상 완료 흐름, 승인 없는 실행 거부, 검증 실패·판정 보류, 잘못된 근거 ID, 최초·수정 단계의 빈 CAPA 거부와 승인·실행 우회 방지, 실패 명령의 원본·버전 보존, 버전 충돌, HTTP 입력 검증, CORS, arbitrary status PATCH 부재를 확인합니다.
 
 ## 제한 사항
 
