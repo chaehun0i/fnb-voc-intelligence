@@ -1,4 +1,11 @@
+"""도메인 모델을 HTTP 응답으로 변환합니다."""
+
+from dataclasses import asdict
+
+from src.domain.incidents.models import Incident
+
 from .schemas.incidents import IncidentResponse
 
 
-def incident_response(i): return IncidentResponse(id=i.id,display_id=i.display_id,title=i.title,severity=i.severity,status=i.status,store=i.store,owner=i.owner,created_at=i.created_at,sla_due_at=i.sla_due_at)
+def incident_response(incident: Incident) -> IncidentResponse:
+    return IncidentResponse.model_validate(asdict(incident))
