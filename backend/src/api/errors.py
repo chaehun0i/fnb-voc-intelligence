@@ -7,6 +7,7 @@ from starlette.exceptions import HTTPException
 
 from src.application.incidents.service import IncidentNotFound
 from src.application.ports.incident_repository import IncidentConflict
+from src.application.security.principal import AccessError
 from src.domain.incidents.transitions import DomainRuleViolation
 
 
@@ -27,6 +28,15 @@ def error_response(
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(AccessError)
+    async def access_error(request: Request, exc: AccessError) -> JSONResponse:
+        message = (
+            "로그인이 필요합니다. 인증 설정을 확인해 주세요."
+            if exc.status == 401
+            else "현재 역할 또는 매장 범위에서는 이 작업을 수행할 수 없습니다."
+        )
+        return error_response(request, exc.status, exc.code, message)
+
     @app.exception_handler(IncidentNotFound)
     async def not_found(request: Request, _: IncidentNotFound) -> JSONResponse:
         return error_response(request, 404, "NOT_FOUND", "인시던트를 찾을 수 없습니다.")

@@ -12,9 +12,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.errors import register_error_handlers
 from src.api.routes.incidents import router
 from src.application.incidents.service import IncidentService
+from src.application.ports.identity_provider import IdentityProvider
 from src.application.ports.incident_repository import IncidentRepository
 from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.models import Incident, StateTransition
+from src.infrastructure.auth.local_identity_provider import configured_identity_provider
 from src.infrastructure.repositories.in_memory_incident_repository import (
     InMemoryIncidentRepository,
 )
@@ -62,8 +64,10 @@ def create_app(
     id_generator: Callable[[], str] | None = None,
     *,
     seed_demo: bool = False,
+    identity_provider: IdentityProvider | None = None,
 ) -> FastAPI:
     app = FastAPI(title="ServIQ API", version="0.4.1")
+    app.state.identity_provider = identity_provider or configured_identity_provider()
     repo = repository if repository is not None else configured_repository()
     if seed_demo:
         for item in demo_incidents():
