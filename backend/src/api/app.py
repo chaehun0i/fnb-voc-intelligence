@@ -16,6 +16,7 @@ from src.application.ports.identity_provider import IdentityProvider
 from src.application.ports.incident_repository import IncidentRepository
 from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.models import Incident, StateTransition
+from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.auth.local_identity_provider import configured_identity_provider
 from src.infrastructure.repositories.in_memory_incident_repository import (
     InMemoryIncidentRepository,
@@ -69,6 +70,7 @@ def create_app(
     app = FastAPI(title="ServIQ API", version="0.4.1")
     app.state.identity_provider = identity_provider or configured_identity_provider()
     repo = repository if repository is not None else configured_repository()
+    app.state.access_persistence = AccessPersistence(repo)
     if seed_demo:
         for item in demo_incidents():
             if repo.get(item.id) is None:

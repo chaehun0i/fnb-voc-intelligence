@@ -12,6 +12,8 @@ Incident HTTP 경로는 조직에 고정된 Repository를 사용합니다. 다�
 
 ## 실행 및 검증
 
+승인 요청은 조치 목록 digest·위험도·요청자·기한을 별도 Approval에 저장합니다. 결정은 검토자·시각·사유를 기록하고 기존 Incident approve/reject를 재사용합니다. PostgreSQL은 같은 연결, 메모리는 잠금·복원으로 Incident와 Approval을 함께 저장합니다. `003_approval.sql`은 additive migration입니다. 기존 자료의 승인 boolean을 실제 검토 기록으로 꾸며 이관하지 않습니다.
+
 `uv run --extra dev pytest backend/tests/test_authentication.py`로 로컬 계정 매핑과 인증 거부를 확인합니다.
 
 ## 제한 사항

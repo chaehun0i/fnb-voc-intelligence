@@ -1,5 +1,6 @@
 """버전 확인과 Outbox 기록을 같은 PostgreSQL 트랜잭션으로 저장합니다."""
 
+from contextlib import contextmanager
 from dataclasses import replace
 from uuid import uuid4
 
@@ -13,11 +14,20 @@ from src.infrastructure.incident_codec import incident_document, incident_from_d
 
 
 class PostgresIncidentRepository:
-    def __init__(self, dsn: str) -> None:
+    def __init__(self, dsn: str, connection=None) -> None:
         self.dsn = dsn
+        self._transaction = connection
+
+    @contextmanager
+    def _connect(self):
+        if self._transaction is not None:
+            yield self._transaction
+        else:
+            with psycopg.connect(self.dsn) as connection:
+                yield connection
 
     def list(self, status: IncidentStatus | None = None, severity: Severity | None = None, store: str | None = None, *, tenant_id: str | None = None) -> list[Incident]:
-        with psycopg.connect(self.dsn) as connection:
+        with self._connect() as connection:
             rows = connection.execute("""SELECT document FROM serviq_incidents
                 WHERE (%s::text IS NULL OR status=%s)
                 AND (%s::text IS NULL OR severity=%s)
@@ -27,14 +37,14 @@ class PostgresIncidentRepository:
         return [incident_from_document(row[0]) for row in rows]
 
     def get(self, incident_id: str, *, tenant_id: str | None = None) -> Incident | None:
-        with psycopg.connect(self.dsn) as connection:
+        with self._connect() as connection:
             row = connection.execute("SELECT document FROM serviq_incidents WHERE id=%s AND (%s::text IS NULL OR tenant_id=%s)", (incident_id, tenant_id, tenant_id)).fetchone()
         return incident_from_document(row[0]) if row else None
 
     def save(self, incident: Incident) -> Incident:
         saved = replace(incident, version=incident.version + 1)
         document = incident_document(saved)
-        with psycopg.connect(self.dsn) as connection:
+        with self._connect() as connection:
             previous = connection.execute("SELECT status FROM serviq_incidents WHERE id=%s AND tenant_id=%s FOR UPDATE", (incident.id, incident.tenant_id)).fetchone()
             if incident.version == 0:
                 row = connection.execute("""INSERT INTO serviq_incidents(id,version,status,severity,store,document,tenant_id)
