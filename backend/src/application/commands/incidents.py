@@ -8,14 +8,16 @@ from uuid import uuid4
 import psycopg
 
 from src.application.approvals.service import ApprovalService
-from src.application.incidents.service import IncidentService
+from src.application.incidents.service import IncidentNotFound, IncidentService
+from src.application.ports.incident_repository import IncidentConflict
 from src.application.security.authorization import require
 from src.application.security.principal import AccessError
 from src.domain.approvals.audit import AuditRecord
+from src.domain.incidents.transitions import DomainRuleViolation
 
 COMMANDS = frozenset({"create", "triage", "investigate", "add_evidence", "prepare_rca",
                       "propose_action", "request_approval", "approve", "reject",
-                      "execute", "verify", "close", "reopen"})
+                      "execute", "verify", "close", "reopen", "review_approve", "review_reject"})
 
 
 class IncidentCommands:
@@ -52,7 +54,7 @@ class IncidentCommands:
         principal = self.context.principal
         uow.audit.append(AuditRecord(
             str(uuid4()), principal.tenant_id, principal.principal_id, operation,
-            "incident", resource_id, result, self.context.request_id,
+            "approval" if operation.startswith("review_") else "incident", resource_id, result, self.context.request_id,
             self.context.correlation_id, self._service(uow.incidents)._now(), version,
         ))
 
@@ -64,11 +66,16 @@ class IncidentCommands:
                 if operation in COMMANDS:
                     if operation == "create":
                         require(self.context.principal, "operate", kwargs.get("store"))
+                    elif operation.startswith("review_"):
+                        target = uow.approvals.get(args[0])
+                        if target is None:
+                            raise IncidentNotFound()
+                        service._load(target.incident_id, None, "review")
                     else:
                         service._load(args[0], None, "review" if operation in {"approve", "reject"} else "operate")
                     key = self.context.idempotency_key
                     if key is None:
-                        if self.context.principal.principal_id != "local-operator" or self.context.principal.tenant_id != "legacy-local":
+                        if operation.startswith("review_") or self.context.principal.authentication_source != "local-compatibility":
                             raise AccessError("IDEMPOTENCY_KEY_REQUIRED", 422)
                         key = str(uuid4())
                     canonical = json.dumps([args, kwargs], sort_keys=True, ensure_ascii=False,
@@ -77,7 +84,9 @@ class IncidentCommands:
                     cached = uow.idempotency.claim(self.context.principal.principal_id, operation, key, fingerprint)
                     if cached is not None:
                         return cached
-                if operation == "request_approval":
+                if operation.startswith("review_"):
+                    result = approval.decide(args[0], operation.removeprefix("review_"), *args[1:], **kwargs)
+                elif operation == "request_approval":
                     result = approval.request(*args, **kwargs)
                 elif operation in {"approve", "reject"}:
                     result = approval.decide_incident(args[0], operation, *args[1:], **kwargs)
@@ -86,6 +95,13 @@ class IncidentCommands:
                         approval.require_effective(service._load(args[0], None))
                     result = getattr(service, operation)(*args, **kwargs)
                 if operation in COMMANDS:
-                    self._audit(uow, operation, result.id, "SUCCESS", result.version)
+                    self._audit(uow, operation, args[0] if operation.startswith("review_") else result.id, "SUCCESS", result.version)
                     uow.idempotency.complete(self.context.principal.principal_id, operation, key, result)
+                if operation == "workspace" and result["commands"]["execute"]["allowed"]:
+                    try:
+                        approval.require_effective(service.get(args[0]))
+                    except (IncidentConflict, DomainRuleViolation):
+                        permission = {"allowed": False, "reason": "유효한 승인 기록과 검토 기한을 확인해 주세요."}
+                        result["commands"]["execute"] = permission
+                        result["actions"]["execute"] = permission
                 return result

@@ -1,9 +1,9 @@
 """Review 화면이 필요로 하는 승인 원본의 읽기 계약입니다."""
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from src.api.schemas.incidents import EvidenceResponse
+from src.api.schemas.incidents import EvidenceResponse, InputModel, NonEmpty
 from src.domain.incidents.enums import Severity
 
 
@@ -46,3 +46,8 @@ class ReviewDetailResponse(BaseModel):
 class ReviewResponse(BaseModel):
     approval: ReviewApprovalResponse
     detail: ReviewDetailResponse
+
+
+class ReviewDecisionRequest(InputModel):
+    expected_version: int = Field(ge=1)
+    reason: NonEmpty

@@ -39,6 +39,7 @@ def register_error_handlers(app: FastAPI) -> None:
             "IDEMPOTENCY_CONFLICT": "같은 요청 키에 다른 내용이 전달되었습니다. 내용을 확인해 주세요.",
             "PROCESSING": "같은 요청을 처리 중입니다. 잠시 후 동일한 키로 다시 시도해 주세요.",
             "IDEMPOTENCY_KEY_REQUIRED": "중복 실행을 방지하는 요청 키가 필요합니다.",
+            "REVIEW_COMMAND_REQUIRED": "승인·반려는 결정 사유와 승인 버전을 포함한 Review 명령으로 진행해 주세요.",
             "VALIDATION_ERROR": "요청 키 형식을 확인해 주세요.",
         }.get(exc.code, message)
         return error_response(request, exc.status, exc.code, message)

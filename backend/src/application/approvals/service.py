@@ -63,6 +63,8 @@ class ApprovalService:
 
     def decide_incident(self, incident_id, decision, expected_version=None):
         item = self.incidents._load(incident_id, expected_version, "review")
+        if self.context.principal.authentication_source != "local-compatibility":
+            raise AccessError("REVIEW_COMMAND_REQUIRED", 422)
         approvals = self.approvals.list(item.id)
         if not approvals:
             raise IncidentConflict()

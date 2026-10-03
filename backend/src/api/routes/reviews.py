@@ -4,7 +4,14 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Query, Request
 
 from src.api.dependencies.auth import request_context
-from src.api.schemas.reviews import ReviewApprovalResponse, ReviewResponse
+from src.api.mappers import incident_response
+from src.api.routes.incidents import Service
+from src.api.schemas.incidents import IncidentResponse
+from src.api.schemas.reviews import (
+    ReviewApprovalResponse,
+    ReviewDecisionRequest,
+    ReviewResponse,
+)
 from src.application.approvals.queries import ReviewQueries
 from src.application.commands.incidents import IncidentCommands
 
@@ -33,3 +40,13 @@ def get_review(approval_id: str, queries: Queries):
     persistence, commands, context = queries
     with persistence.transaction(context.principal.tenant_id) as uow:
         return ReviewQueries(commands._service(uow.incidents), uow.approvals, context).get(approval_id)
+
+
+@router.post("/{approval_id}/approve", response_model=IncidentResponse)
+def approve_review(approval_id: str, body: ReviewDecisionRequest, service: Service):
+    return incident_response(service.review_approve(approval_id, body.reason, body.expected_version))
+
+
+@router.post("/{approval_id}/reject", response_model=IncidentResponse)
+def reject_review(approval_id: str, body: ReviewDecisionRequest, service: Service):
+    return incident_response(service.review_reject(approval_id, body.reason, body.expected_version))

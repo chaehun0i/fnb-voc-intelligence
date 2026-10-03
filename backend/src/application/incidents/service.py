@@ -398,9 +398,16 @@ class IncidentService:
                 for action, enabled in values.items()
             }
 
+        command_permissions = permissions(commands)
+        if self.principal is not None and self.principal.authentication_source != "local-compatibility":
+            for decision in ("approve", "reject"):
+                command_permissions[decision] = {
+                    "allowed": False,
+                    "reason": "검토 대기함에서 결정 사유와 승인 버전을 확인한 뒤 진행해 주세요.",
+                }
         return {
             "priority": item.priority,
             "tasks": [],
             "actions": permissions(actions),
-            "commands": permissions(commands),
+            "commands": command_permissions,
         }

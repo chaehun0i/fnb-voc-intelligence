@@ -2,6 +2,7 @@
 
 import json
 import os
+from dataclasses import replace
 
 from src.application.security.principal import AccessError, Principal, Role
 
@@ -24,7 +25,8 @@ class LocalIdentityProvider:
         scheme, _, token = authorization.partition(" ")
         if scheme.lower() != "bearer" or not token or token not in self.identities:
             raise AccessError("INVALID_CREDENTIALS", 401)
-        return self.identities[token]
+        # 등록 계정이 기본 익명 개발 계정의 호환 예외를 상속하지 않게 합니다.
+        return replace(self.identities[token], authentication_source="local")
 
 
 def configured_identity_provider() -> LocalIdentityProvider:
@@ -42,5 +44,5 @@ def configured_identity_provider() -> LocalIdentityProvider:
             raise ValueError("로컬 인증 설정에 유효한 계정이 필요합니다.")
         return LocalIdentityProvider(identities, environment=environment)
     # 기존 로컬 실행·회귀 테스트를 위한 서버 고정 계정입니다.
-    default = Principal("local-operator", "legacy-local", frozenset({Role.HQ_ADMIN}))
+    default = Principal("local-operator", "legacy-local", frozenset({Role.HQ_ADMIN}), authentication_source="local-compatibility")
     return LocalIdentityProvider(default=default, environment=environment)
