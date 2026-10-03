@@ -7,6 +7,7 @@ from starlette.exceptions import HTTPException
 
 from src.application.incidents.service import IncidentNotFound
 from src.application.ports.incident_repository import IncidentConflict
+from src.application.security.principal import AccessError
 from src.domain.incidents.transitions import DomainRuleViolation
 
 
@@ -27,6 +28,22 @@ def error_response(
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(AccessError)
+    async def access_error(request: Request, exc: AccessError) -> JSONResponse:
+        message = (
+            "로그인이 필요합니다. 인증 설정을 확인해 주세요."
+            if exc.status == 401
+            else "현재 역할 또는 매장 범위에서는 이 작업을 수행할 수 없습니다."
+        )
+        message = {
+            "IDEMPOTENCY_CONFLICT": "같은 요청 키에 다른 내용이 전달되었습니다. 내용을 확인해 주세요.",
+            "PROCESSING": "같은 요청을 처리 중입니다. 잠시 후 동일한 키로 다시 시도해 주세요.",
+            "IDEMPOTENCY_KEY_REQUIRED": "중복 실행을 방지하는 요청 키가 필요합니다.",
+            "REVIEW_COMMAND_REQUIRED": "승인·반려는 결정 사유와 승인 버전을 포함한 Review 명령으로 진행해 주세요.",
+            "VALIDATION_ERROR": "요청 키 형식을 확인해 주세요.",
+        }.get(exc.code, message)
+        return error_response(request, exc.status, exc.code, message)
+
     @app.exception_handler(IncidentNotFound)
     async def not_found(request: Request, _: IncidentNotFound) -> JSONResponse:
         return error_response(request, 404, "NOT_FOUND", "인시던트를 찾을 수 없습니다.")

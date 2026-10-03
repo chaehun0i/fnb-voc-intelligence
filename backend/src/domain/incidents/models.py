@@ -91,6 +91,7 @@ class Incident:
     approved: bool = False
     version: int = 0
     priority: Priority = Priority.P2
+    tenant_id: str = "legacy-local"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "severity", Severity(self.severity))

@@ -16,9 +16,10 @@ class IncidentRepository(Protocol):
         status: IncidentStatus | None = None,
         severity: Severity | None = None,
         store: str | None = None,
+        *, tenant_id: str | None = None,
     ) -> list[Incident]: ...
 
-    def get(self, incident_id: str) -> Incident | None: ...
+    def get(self, incident_id: str, *, tenant_id: str | None = None) -> Incident | None: ...
 
     def save(self, incident: Incident) -> Incident:
         """버전을 확인하고 저장한 새 버전의 복사본을 반환합니다."""

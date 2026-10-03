@@ -8,7 +8,10 @@ import psycopg
 
 def migration_sql() -> str:
     """실행 위치와 관계없이 설치된 SQL 리소스를 읽습니다."""
-    return files("db.migrations").joinpath("001_serviq.sql").read_text(encoding="utf-8")
+    root = files("db.migrations")
+    return "\n".join(item.read_text(encoding="utf-8") for item in
+                     sorted(root.iterdir(), key=lambda item: item.name)
+                     if item.name.endswith(".sql"))
 
 
 def migrate(dsn: str) -> None:

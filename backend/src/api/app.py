@@ -11,10 +11,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.errors import register_error_handlers
 from src.api.routes.incidents import router
+from src.api.routes.reviews import router as review_router
 from src.application.incidents.service import IncidentService
+from src.application.ports.identity_provider import IdentityProvider
 from src.application.ports.incident_repository import IncidentRepository
 from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.models import Incident, StateTransition
+from src.infrastructure.access_unit_of_work import AccessPersistence
+from src.infrastructure.auth.local_identity_provider import configured_identity_provider
 from src.infrastructure.repositories.in_memory_incident_repository import (
     InMemoryIncidentRepository,
 )
@@ -62,9 +66,12 @@ def create_app(
     id_generator: Callable[[], str] | None = None,
     *,
     seed_demo: bool = False,
+    identity_provider: IdentityProvider | None = None,
 ) -> FastAPI:
     app = FastAPI(title="ServIQ API", version="0.4.1")
+    app.state.identity_provider = identity_provider or configured_identity_provider()
     repo = repository if repository is not None else configured_repository()
+    app.state.access_persistence = AccessPersistence(repo)
     if seed_demo:
         for item in demo_incidents():
             if repo.get(item.id) is None:
@@ -74,7 +81,7 @@ def create_app(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", "X-Request-ID"],
+        allow_headers=["Content-Type", "X-Request-ID", "Authorization", "Idempotency-Key"],
         expose_headers=["X-Request-ID"],
     )
 
@@ -92,6 +99,7 @@ def create_app(
 
     register_error_handlers(app)
     app.include_router(router)
+    app.include_router(review_router)
 
     @app.get("/api/v1/health", tags=["health"])
     def health() -> dict[str, str]:

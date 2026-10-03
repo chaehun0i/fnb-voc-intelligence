@@ -117,6 +117,8 @@ jobs:
             pyproject.toml
       - name: 실제 PostgreSQL 저장과 이벤트 처리 검증
         run: uv run --extra dev python -m scripts.serviq_postgres_smoke
+      - name: Tenant 권한과 영속 Review 실행 안전 검증
+        run: uv run --extra dev python -m scripts.serviq_security_smoke
 
   docker:
     name: 이미지와 Compose 운영 흐름 검증

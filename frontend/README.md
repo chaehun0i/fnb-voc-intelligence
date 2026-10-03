@@ -2,12 +2,13 @@
 
 ## 목적
 
-ServIQ v0.4.1의 운영 콘솔입니다. Frontend-first → Contract-first → Domain/API 순서로 개발하며 기존 Streamlit 분석 대시보드를 대체하지 않습니다.
+ServIQ의 운영 콘솔입니다. Day 13 v0.4.1 기반을 유지하며 현재 운영 안전 설계 기준은 v0.5입니다. Frontend-first → Contract-first → Domain/API 순서로 개발하며 기존 Streamlit 분석 대시보드를 대체하지 않습니다.
 
 ## 구성
 
 - `src/api/fixtures.ts`, `mockApi.ts`: 화면 검토용 데이터와 세션 내 Mock Action을 제공합니다.
 - `src/api/incidents/`: 같은 Incident Contract를 사용하는 Mock/HTTP 경계입니다.
+- `src/api/reviews/`: 실제 Approval 원본의 조회·승인·반려와 기존 Mock 경로를 분리합니다.
 - `src/features/`: 대시보드, 인시던트, 검토, 실행 추적, 연동, 대기열, 운영 설정입니다.
 - Tailwind CSS, Radix Select/Dialog/Tabs, Framer Motion, lucide-react로 화면·키보드 조작·상태를 구성합니다.
 - 인시던트 팝업은 진행 이력·증거·RCA·CAPA·담당 작업·검증·추적의 7개 탭과 서버 Permission에 따른 운영 명령을 제공합니다.
@@ -32,9 +33,14 @@ Windows에서 `npm ci`가 Tailwind 바이너리의 `EPERM` 오류로 실패하�
 ```dotenv
 VITE_API_MODE=http
 VITE_API_BASE_URL=http://localhost:8000/api/v1
+VITE_LOCAL_AUTH_TOKEN=local-reviewer-demo
 ```
 
 HTTP 모드에서는 Incident 접수·조회·조사·증거/RCA/CAPA 등록·승인·수동 실행 기록·검증·종결을 API에 요청합니다. 화면은 다음 상태를 계산하지 않으며 서버가 반환한 `workspace.commands`의 `allowed`, `reason`을 표시합니다. 데이터 버전을 함께 전송해 충돌을 감지합니다.
+
+Review도 HTTP 모드에서는 실제 서버의 목록·상세·승인·반려를 사용합니다. 승인과 반려 모두 사유와 Approval 버전을 보내고, 같은 내용의 네트워크 재시도에는 같은 Idempotency-Key를 재사용합니다. 제출 중 중복 클릭을 차단하고 서버의 permission·비활성 사유를 표시합니다. 승인해도 외부 조치는 자동 실행되지 않습니다. 수정·추가 증거 요청은 HTTP에서 미지원 사유를 표시하며 Mock Action은 유지합니다.
+
+`VITE_LOCAL_AUTH_TOKEN`은 개발 모드에서만 전달하는 서버 등록 계정의 예시 토큰입니다. 실제 Backend 계정 매핑과 Tenant/RBAC 설정은 [Day 17 문서](../docs/serviq_access_review.md)를 따르세요. 역할·조직을 브라우저 헤더로 지정하지 않습니다. VITE 설정은 브라우저에 공개되므로 운영 비밀이나 OIDC client secret을 넣지 마세요. 실제 로그인과 운영 토큰 전달 경로는 아직 없습니다. 개발 계정을 바꾸면 Vite를 재시작합니다.
 
 API Adapter는 조회뿐 아니라 등록·명령 응답의 필수 필드, 날짜, 증거·작업 목록, Permission 형식도 확인합니다. 잘못된 응답은 화면에 전달하지 않고 `CONTRACT_ERROR`로 안내합니다. 연결 실패는 `NETWORK_ERROR`, 입력 오류는 `VALIDATION_ERROR` 등 안정적인 오류 코드로 구분하며, 서버의 요청 ID가 있으면 안내에 함께 표시합니다.
 
@@ -42,10 +48,10 @@ API Adapter는 조회뿐 아니라 등록·명령 응답의 필수 필드, 날�
 
 ## 제한 사항
 
-검토 대기함·연동·대기열·Agent Trace·설정 변경은 Mock입니다. 새로고침하면 초기화되고 실제 Worker/API 운영 상태와 연결되지 않습니다. HTTP Incident와 예시 집계를 혼동하지 않도록 미리보기 안내를 표시합니다. 날짜가 없는 검증은 `기록 없음`으로 표시합니다.
+기본 Mock 모드의 자료는 새로고침하면 초기화됩니다. HTTP 모드에서는 Incident와 Review가 실제 API를 사용하지만 운영 집계·연동·대기열·Agent Trace·설정 변경은 여전히 Mock입니다. 예시 집계와 실제 자료를 혼동하지 않도록 안내를 구분합니다. 날짜가 없는 검증은 `기록 없음`으로 표시합니다. PostgreSQL 영속 기록은 Backend의 PostgreSQL 모드에서만 보장합니다.
 
 Jev·Gemini/Ollama Runtime·LangGraph·Multi-Agent·MCP는 아직 호출하지 않습니다. 향후 Agent는 Provider에 직접 의존하지 않고 공통 LLM Gateway 뒤의 Gemini(기본), Ollama(로컬·대체)를 사용합니다.
 
 ## 다음 단계
 
-영속 Incident/Outbox 위에 인증·승인자 감사·멱등성과 실제 운영 Query를 추가하고, 이후 Jev → LLM Gateway → LangGraph → Multi-Agent → Harness/Loop → MCP 순서로 연결합니다. 실행·배포는 [배포 문서](../docs/serviq_delivery.md), 구조는 [실행 구조 문서](../docs/serviq_structure.md)를 참고하세요.
+다음은 실제 Job/Queue API와 Queue UI 연결입니다. Day 17의 서버 permission·Tenant/RBAC·Audit·멱등성 경계를 재사용하며 OIDC/SSO는 별도 완료 기준으로 추적합니다. 이후 Jev → LLM Gateway → LangGraph → Multi-Agent → Harness/Loop → MCP를 순차 연결합니다. 실행·배포는 [배포 문서](../docs/serviq_delivery.md), 구조는 [실행 구조 문서](../docs/serviq_structure.md)를 참고하세요.
