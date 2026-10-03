@@ -10,6 +10,8 @@ Day 17에는 [운영 안전 실행 계약](serviq_access_review.md)의 PostgreSQ
 
 ## 구성
 
+Day 18에는 [작업 대기열 운영](serviq_job_queue.md)의 PostgreSQL Queue smoke와 nginx HTTP Job 조회를 추가했습니다. `worker`는 Outbox 전달과 독립 Job 실행을 함께 순회합니다. Redis나 Agent Runtime을 도입한 것은 아닙니다.
+
 ### 로컬 실행 구성
 
 새 서비스는 `serviq` 프로필에만 포함됩니다. 기존 `db`, `app`, `init-db`, `cli`, `dashboard`의 역할과 데이터 볼륨을 유지합니다. Streamlit의 실행 경로만 이동한 `backend/src/dashboard/app.py`로 맞춥니다.
@@ -20,7 +22,7 @@ Day 17에는 [운영 안전 실행 계약](serviq_access_review.md)의 PostgreSQ
 | `serviq-init` | Incident 및 Outbox 스키마의 반복 가능한 초기화 | 작업 완료 후 종료 |
 | `api` | `main:app`의 FastAPI 서버 | `127.0.0.1:8000` |
 | `frontend` | Vite 빌드 산출물을 제공하는 nginx | `127.0.0.1:8080` |
-| `worker` | Outbox 이벤트 처리와 실행 기록 | 공개 포트 없음 |
+| `worker` | Outbox 전달과 독립 PostgreSQL Job 실행 | 공개 포트 없음 |
 
 `api`와 `worker`는 DB healthcheck와 `serviq-init`의 정상 완료 이후 시작합니다. `frontend`는 API healthcheck가 통과한 후 시작합니다. Python 서비스는 기존 루트 `Dockerfile`을 사용하고, API는 `/app/backend`에서 `fastapi run`으로 실행합니다. 이미지의 `PYTHONPATH=/app/backend` 설정으로 기존 `/app` 작업 경로의 CLI도 같은 소스와 데이터 기준 경로를 사용합니다. 정적 화면은 `frontend/Dockerfile`의 Node.js 24 빌드와 비특권 nginx 실행 단계로 분리합니다.
 
@@ -42,6 +44,8 @@ Day 17에는 [운영 안전 실행 계약](serviq_access_review.md)의 PostgreSQ
 - 기존 서비스와 `serviq` 프로필의 Compose 설정
 - `serviq-ci` 전용 Compose 스택에서 nginx 프록시를 거친 Incident 생성부터 수동 검증·종결까지의 HTTP 흐름, 오류 계약과 Worker의 실제 Outbox 완료 기록
 - HTTP Review 원본 조회·승인·같은 키 재전송·다른 내용 충돌
+- PostgreSQL Job의 Tenant 격리·동시 claim·lease 복구·재시도/취소·Audit·멱등성·DLQ 검증
+- nginx Queue 목록·상세 조회, Outbox dispatch와 Job Worker 완료 및 terminal 상태 보호
 
 RAG smoke는 실제 DB 자료나 외부 LLM을 준비해야 하는 CLI 운영 실행 대신 기존 CLI 및 파이프라인 테스트를 실행합니다. 테스트의 Fake 연결과 생성기를 사용하므로 API Key와 외부 네트워크가 필요하지 않습니다. PostgreSQL smoke는 CI 전용 DB와 테스트용 비밀번호를 사용합니다.
 

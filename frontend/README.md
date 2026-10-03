@@ -9,6 +9,7 @@ ServIQ의 운영 콘솔입니다. Day 13 v0.4.1 기반을 유지하며 현재 �
 - `src/api/fixtures.ts`, `mockApi.ts`: 화면 검토용 데이터와 세션 내 Mock Action을 제공합니다.
 - `src/api/incidents/`: 같은 Incident Contract를 사용하는 Mock/HTTP 경계입니다.
 - `src/api/reviews/`: 실제 Approval 원본의 조회·승인·반려와 기존 Mock 경로를 분리합니다.
+- `src/api/jobs/`: PostgreSQL Job 조회·재시도·취소의 HTTP 계약과 기존 Mock 경로를 분리합니다.
 - `src/features/`: 대시보드, 인시던트, 검토, 실행 추적, 연동, 대기열, 운영 설정입니다.
 - Tailwind CSS, Radix Select/Dialog/Tabs, Framer Motion, lucide-react로 화면·키보드 조작·상태를 구성합니다.
 - 인시던트 팝업은 진행 이력·증거·RCA·CAPA·담당 작업·검증·추적의 7개 탭과 서버 Permission에 따른 운영 명령을 제공합니다.
@@ -46,12 +47,14 @@ API Adapter는 조회뿐 아니라 등록·명령 응답의 필수 필드, 날�
 
 다른 담당자가 먼저 수정해 `CONFLICT`가 발생하면 운영 명령을 자동으로 재실행하지 않습니다. 팝업의 `최신 정보 다시 불러오기`로 현재 상태와 Permission을 확인한 후 다시 요청하세요. Mock 모드에서는 실제 등록·운영 명령이 비활성화되며, 화면에 보이는 예시 상태로 업무 규칙을 대신 판단하지 않습니다.
 
+Queue도 HTTP 모드에서는 실제 Job 목록과 상세 팝업을 사용합니다. 실행 시각, 시도 횟수, 오류, 재시도 원본과 서버 Permission을 표시합니다. 재시도·취소에는 사유와 Job 버전을 보내며 같은 네트워크 재시도에는 같은 Idempotency-Key를 사용합니다. 실행 중인 작업을 실제로 중단할 수 없는 경우 취소 완료로 표시하지 않습니다. 목록은 최대 100건이며 자세한 실행·안전 계약은 [Day 18 문서](../docs/serviq_job_queue.md)를 참고하세요.
+
 ## 제한 사항
 
-기본 Mock 모드의 자료는 새로고침하면 초기화됩니다. HTTP 모드에서는 Incident와 Review가 실제 API를 사용하지만 운영 집계·연동·대기열·Agent Trace·설정 변경은 여전히 Mock입니다. 예시 집계와 실제 자료를 혼동하지 않도록 안내를 구분합니다. 날짜가 없는 검증은 `기록 없음`으로 표시합니다. PostgreSQL 영속 기록은 Backend의 PostgreSQL 모드에서만 보장합니다.
+기본 Mock 모드의 자료는 새로고침하면 초기화됩니다. HTTP 모드에서는 Incident·Review·Queue가 실제 API를 사용하지만 운영 집계·연동·Agent Trace·설정 변경은 여전히 Mock입니다. 예시 집계와 실제 자료를 혼동하지 않도록 안내를 구분합니다. 날짜가 없는 검증은 `기록 없음`으로 표시합니다. PostgreSQL 영속 기록은 Backend의 PostgreSQL 모드에서만 보장합니다.
 
 Jev·Gemini/Ollama Runtime·LangGraph·Multi-Agent·MCP는 아직 호출하지 않습니다. 향후 Agent는 Provider에 직접 의존하지 않고 공통 LLM Gateway 뒤의 Gemini(기본), Ollama(로컬·대체)를 사용합니다.
 
 ## 다음 단계
 
-다음은 실제 Job/Queue API와 Queue UI 연결입니다. Day 17의 서버 permission·Tenant/RBAC·Audit·멱등성 경계를 재사용하며 OIDC/SSO는 별도 완료 기준으로 추적합니다. 이후 Jev → LLM Gateway → LangGraph → Multi-Agent → Harness/Loop → MCP를 순차 연결합니다. 실행·배포는 [배포 문서](../docs/serviq_delivery.md), 구조는 [실행 구조 문서](../docs/serviq_structure.md)를 참고하세요.
+다음 후보는 Dashboard의 실제 서버 집계 연결 또는 persistent Job 기반 Worker 정책 확장입니다. 다음 Day 시작 시 최신 main과 Drive 설계를 다시 확인합니다. Day 17~18의 서버 Permission·Tenant/RBAC·Audit·멱등성 경계를 재사용하며 OIDC/SSO는 별도 완료 기준으로 추적합니다. 이후 Jev → LLM Gateway → LangGraph → Multi-Agent → Harness/Loop → MCP를 순차 연결합니다. 실행·배포는 [배포 문서](../docs/serviq_delivery.md), 구조는 [실행 구조 문서](../docs/serviq_structure.md)를 참고하세요.
