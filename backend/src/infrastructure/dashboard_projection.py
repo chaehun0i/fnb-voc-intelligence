@@ -6,6 +6,8 @@ from datetime import UTC, datetime, timedelta
 import psycopg
 
 from src.application.dashboard.models import (
+    CapaCount,
+    CauseCount,
     DashboardKpis,
     DashboardSnapshot,
     DashboardUnavailable,
@@ -45,12 +47,16 @@ class MemoryDashboardProjection:
             jobs = [item for item in state.data.get("jobs", {}).values()
                     if item.tenant_id == principal.tenant_id and (scope is None or item.store in scope)
                     and item.created_at <= as_of]
-            return replace(snapshot, kpis=replace(snapshot.kpis,
+            snapshot = replace(snapshot, kpis=replace(snapshot.kpis,
                 pending_approvals=sum(a.status == "PENDING" for a in approvals),
                 failed_jobs=sum(j.status == "FAILED" for j in jobs),
                 dlq_jobs=sum(j.status == "DLQ" for j in jobs),
                 queue_depth=sum(j.status == "PENDING" for j in jobs),
                 running_jobs=sum(j.status == "RUNNING" for j in jobs)))
+            causes = sum(len(item.root_cause_candidates) for item in incidents)
+            return replace(snapshot, root_cause_distribution=[CauseCount("미분류", causes)] if causes else [],
+                capa_status=[CapaCount(status, sum(action.status == status for item in incidents for action in item.corrective_actions))
+                             for status in ["PROPOSED", "APPROVED", "EXECUTED"]])
 
     def incidents(self, incidents, as_of, start):
         trend = {day: [0, 0] for day in days(start)}
@@ -78,7 +84,8 @@ class PostgresDashboardProjection:
                 connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
                 connection.execute("SET LOCAL statement_timeout='5s'")
                 snapshot = self.incidents(connection, principal.tenant_id, scope, as_of, start)
-                return self.operations(connection, principal.tenant_id, scope, as_of, snapshot)
+                snapshot = self.operations(connection, principal.tenant_id, scope, as_of, snapshot)
+                return self.analysis(connection, principal.tenant_id, scope, as_of, snapshot)
         except (psycopg.Error, ValueError, TypeError) as exc:
             raise DashboardUnavailable() from exc
 
@@ -120,3 +127,17 @@ class PostgresDashboardProjection:
             AND created_at<=%s""", (tenant, scope, scope, as_of)).fetchone()
         return replace(snapshot, kpis=replace(snapshot.kpis, pending_approvals=pending,
             failed_jobs=failed, dlq_jobs=dlq, queue_depth=queued, running_jobs=running))
+
+    def analysis(self, connection, tenant, scope, as_of, snapshot):
+        predicates = "tenant_id=%s AND (%s::text[] IS NULL OR store=ANY(%s)) AND (document->>'created_at')::timestamptz<=%s"
+        params = (tenant, scope, scope, as_of)
+        causes = connection.execute(f"""SELECT COALESCE(sum(jsonb_array_length(
+            COALESCE(document->'root_cause_candidates','[]'::jsonb))),0)
+            FROM serviq_incidents WHERE {predicates}""", params).fetchone()[0]
+        rows = connection.execute(f"""SELECT action->>'status',count(*)
+            FROM (SELECT document FROM serviq_incidents WHERE {predicates}) scoped
+            CROSS JOIN LATERAL jsonb_array_elements(COALESCE(document->'corrective_actions','[]'::jsonb)) action
+            GROUP BY 1""", params).fetchall()
+        counts = dict(rows)
+        return replace(snapshot, root_cause_distribution=[CauseCount("미분류", causes)] if causes else [],
+                       capa_status=[CapaCount(status, counts.get(status, 0)) for status in ["PROPOSED", "APPROVED", "EXECUTED"]])
