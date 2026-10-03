@@ -29,6 +29,9 @@ API는 payload reference와 Worker 소유자 등 불필요한 내부 정보를 �
 기존 Day 17 멱등성 저장소는 Incident 결과 호환을 유지하면서 Job snapshot도 저장합니다.
 조직·역할 검사를 replay 전에 수행하고, Job 저장·사유가 있는 Audit·멱등성 완료를 한 트랜잭션으로 처리합니다.
 취소는 PENDING만 가능하며, 실패/DLQ 재시도는 새 Job의 parent_job_id로 원본 이력을 연결합니다.
+Queue 화면은 `api/jobs` 어댑터를 사용합니다. `VITE_API_MODE=mock|http`와 기존 API URL 설정을 재사용합니다.
+HTTP 데이터와 Mock 예시를 섞지 않으며 서버 permission과 사유를 표시합니다.
+처리 사유·버전·동작이 같은 네트워크 재시도에는 같은 요청 키를 사용하고 중복 클릭은 즉시 차단합니다.
 상태는 `PENDING → RUNNING → COMPLETED`이며 실패는 `FAILED` 또는 `DLQ`로 남깁니다.
 자동 재시도는 횟수와 대기 시간을 제한합니다. 운영 재시도는 원본을 보존한 새 Job을 만듭니다.
 취소는 `PENDING`에만 허용하며 실행 중인 작업을 중단한 것처럼 표시하지 않습니다.
