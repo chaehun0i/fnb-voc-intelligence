@@ -11,6 +11,10 @@ from src.infrastructure.repositories.approval_repository import (
     MemoryApprovalRepository,
     PostgresApprovalRepository,
 )
+from src.infrastructure.repositories.audit_repository import (
+    MemoryAuditRepository,
+    PostgresAuditRepository,
+)
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )
@@ -23,6 +27,7 @@ from src.infrastructure.repositories.scoped_incident_repository import (
 class AccessUnitOfWork:
     incidents: object
     approvals: object
+    audit: object
     connection: object = None
 
 
@@ -38,7 +43,8 @@ class AccessPersistence:
                 connection.execute("SET LOCAL lock_timeout='2s'")
                 repo = PostgresIncidentRepository(self.incidents.dsn, connection)
                 yield AccessUnitOfWork(ScopedIncidentRepository(repo, tenant_id),
-                                       PostgresApprovalRepository(connection, tenant_id), connection)
+                                       PostgresApprovalRepository(connection, tenant_id),
+                                       PostgresAuditRepository(connection, tenant_id), connection)
         else:
             with self.incidents._lock, self.memory.lock:
                 incidents = deepcopy(self.incidents._items)
@@ -47,6 +53,7 @@ class AccessPersistence:
                     yield AccessUnitOfWork(
                         ScopedIncidentRepository(self.incidents, tenant_id),
                         MemoryApprovalRepository(self.memory, tenant_id),
+                        MemoryAuditRepository(self.memory, tenant_id),
                     )
                 except Exception:
                     self.incidents._items = incidents
