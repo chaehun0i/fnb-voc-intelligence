@@ -1,0 +1,93 @@
+"""원본을 복제하지 않고 읽기 전용 snapshot에서 운영 현황을 집계합니다."""
+
+from datetime import UTC, datetime, timedelta
+
+import psycopg
+
+from src.application.dashboard.models import (
+    DashboardKpis,
+    DashboardSnapshot,
+    DashboardUnavailable,
+    TrendBucket,
+)
+from src.application.dashboard.queries import store_scope
+
+
+def timestamp(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("원본 시각에는 시간대가 필요합니다.")
+    return parsed.astimezone(UTC)
+
+
+def days(start):
+    return [(start + timedelta(days=n)).date().isoformat() for n in range(7)]
+
+
+class MemoryDashboardProjection:
+    """명시적 memory 모드용이며 HTTP DB 실패 fallback이 아닙니다."""
+
+    def __init__(self, persistence):
+        self.persistence = persistence
+
+    def project(self, principal, as_of, start):
+        repo, state = self.persistence.incidents, self.persistence.memory
+        with repo._lock, state.lock:
+            scope = store_scope(principal)
+            incidents = [item for item in repo.list(tenant_id=principal.tenant_id)
+                         if (scope is None or item.store in scope) and timestamp(item.created_at) <= as_of]
+            return self.incidents(incidents, as_of, start)
+
+    def incidents(self, incidents, as_of, start):
+        trend = {day: [0, 0] for day in days(start)}
+        for item in incidents:
+            created = timestamp(item.created_at)
+            if start <= created <= as_of:
+                trend[created.date().isoformat()][0] += 1
+            resolved = [timestamp(t.occurred_at) for t in item.timeline
+                        if t.status == "RESOLVED" and timestamp(t.occurred_at) <= as_of]
+            if resolved and start <= max(resolved):
+                trend[max(resolved).date().isoformat()][1] += 1
+        opened = [item for item in incidents if item.status not in {"RESOLVED", "CLOSED"}]
+        return DashboardSnapshot(as_of.isoformat(), [TrendBucket(day, *counts) for day, counts in trend.items()],
+            DashboardKpis(open_incidents=len(opened), critical_incidents=sum(i.severity == "CRITICAL" for i in opened)))
+
+
+class PostgresDashboardProjection:
+    def __init__(self, dsn):
+        self.dsn = dsn
+
+    def project(self, principal, as_of, start):
+        scope = store_scope(principal)
+        try:
+            with psycopg.connect(self.dsn) as connection:
+                connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                connection.execute("SET LOCAL statement_timeout='5s'")
+                return self.incidents(connection, principal.tenant_id, scope, as_of, start)
+        except (psycopg.Error, ValueError, TypeError) as exc:
+            raise DashboardUnavailable() from exc
+
+    def incidents(self, connection, tenant, scope, as_of, start):
+        predicates = "tenant_id=%s AND (%s::text[] IS NULL OR store=ANY(%s)) AND (document->>'created_at')::timestamptz<=%s"
+        params = (tenant, scope, scope, as_of)
+        opened, critical = connection.execute(f"""SELECT
+            count(*) FILTER(WHERE status NOT IN ('RESOLVED','CLOSED')),
+            count(*) FILTER(WHERE status NOT IN ('RESOLVED','CLOSED') AND severity='CRITICAL')
+            FROM serviq_incidents WHERE {predicates}""", params).fetchone()
+        rows = connection.execute(f"""WITH scoped AS (
+            SELECT document FROM serviq_incidents WHERE {predicates}
+        ), detected AS (
+            SELECT ((document->>'created_at')::timestamptz AT TIME ZONE 'UTC')::date day, count(*) n
+            FROM scoped WHERE (document->>'created_at')::timestamptz>=%s GROUP BY 1
+        ), resolved_times AS (
+            SELECT (SELECT max((t->>'occurred_at')::timestamptz)
+                FROM jsonb_array_elements(COALESCE(document->'timeline','[]'::jsonb)) t
+                WHERE t->>'status'='RESOLVED' AND (t->>'occurred_at')::timestamptz<=%s) at FROM scoped
+        ), resolved AS (
+            SELECT (at AT TIME ZONE 'UTC')::date day,count(*) n FROM resolved_times WHERE at>=%s GROUP BY 1
+        ) SELECT to_char(d.day,'YYYY-MM-DD'), COALESCE(a.n,0),COALESCE(r.n,0)
+        FROM generate_series(%s::timestamp,%s::timestamp,interval '1 day') d(day)
+        LEFT JOIN detected a ON a.day=d.day::date LEFT JOIN resolved r ON r.day=d.day::date ORDER BY d.day""",
+            (*params, start, as_of, start, start.replace(tzinfo=None), as_of.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None))).fetchall()
+        return DashboardSnapshot(as_of.isoformat(), [TrendBucket(*row) for row in rows],
+                                 DashboardKpis(open_incidents=opened, critical_incidents=critical))

@@ -14,6 +14,8 @@ Frontend의 기존 lint/test/build 명령으로 계약 호환성을 검증합니
 
 ## 제한 사항
 
+Incident KPI는 현재 상태에서 RESOLVED/CLOSED를 제외한 열린 사건과 그중 CRITICAL을 집계합니다. UTC 오늘을 포함한 7개 날짜의 생성 및 마지막 RESOLVED 기록을 각각 사건당 한 번 계산합니다. KPI는 기간 내 생성에 제한하지 않고 현재 원본 전체를 사용합니다. SQL은 Tenant/store 범위를 적용한 읽기 전용 repeatable-read snapshot이며 원본 테이블을 복제하지 않습니다.
+
 Mock은 예시일 뿐 실제 운영 집계가 아닙니다. Redis·Agent·LLM·별도 projection DB를 추가하지 않습니다.
 
 ## 다음 단계
