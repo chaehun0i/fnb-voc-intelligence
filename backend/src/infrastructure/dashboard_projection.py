@@ -1,5 +1,6 @@
 """원본을 복제하지 않고 읽기 전용 snapshot에서 운영 현황을 집계합니다."""
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import psycopg
@@ -36,7 +37,20 @@ class MemoryDashboardProjection:
             scope = store_scope(principal)
             incidents = [item for item in repo.list(tenant_id=principal.tenant_id)
                          if (scope is None or item.store in scope) and timestamp(item.created_at) <= as_of]
-            return self.incidents(incidents, as_of, start)
+            snapshot = self.incidents(incidents, as_of, start)
+            ids = {item.id for item in incidents}
+            approvals = [item for item in state.data.get("approvals", {}).values()
+                         if item.tenant_id == principal.tenant_id and item.incident_id in ids
+                         and timestamp(item.requested_at) <= as_of]
+            jobs = [item for item in state.data.get("jobs", {}).values()
+                    if item.tenant_id == principal.tenant_id and (scope is None or item.store in scope)
+                    and item.created_at <= as_of]
+            return replace(snapshot, kpis=replace(snapshot.kpis,
+                pending_approvals=sum(a.status == "PENDING" for a in approvals),
+                failed_jobs=sum(j.status == "FAILED" for j in jobs),
+                dlq_jobs=sum(j.status == "DLQ" for j in jobs),
+                queue_depth=sum(j.status == "PENDING" for j in jobs),
+                running_jobs=sum(j.status == "RUNNING" for j in jobs)))
 
     def incidents(self, incidents, as_of, start):
         trend = {day: [0, 0] for day in days(start)}
@@ -63,7 +77,8 @@ class PostgresDashboardProjection:
             with psycopg.connect(self.dsn) as connection:
                 connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
                 connection.execute("SET LOCAL statement_timeout='5s'")
-                return self.incidents(connection, principal.tenant_id, scope, as_of, start)
+                snapshot = self.incidents(connection, principal.tenant_id, scope, as_of, start)
+                return self.operations(connection, principal.tenant_id, scope, as_of, snapshot)
         except (psycopg.Error, ValueError, TypeError) as exc:
             raise DashboardUnavailable() from exc
 
@@ -91,3 +106,17 @@ class PostgresDashboardProjection:
             (*params, start, as_of, start, start.replace(tzinfo=None), as_of.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None))).fetchall()
         return DashboardSnapshot(as_of.isoformat(), [TrendBucket(*row) for row in rows],
                                  DashboardKpis(open_incidents=opened, critical_incidents=critical))
+
+    def operations(self, connection, tenant, scope, as_of, snapshot):
+        pending = connection.execute("""SELECT count(*) FROM serviq_approvals a
+            JOIN serviq_incidents i ON i.tenant_id=a.tenant_id AND i.id=a.incident_id
+            WHERE a.tenant_id=%s AND (%s::text[] IS NULL OR i.store=ANY(%s))
+            AND a.status='PENDING' AND a.requested_at<=%s
+            AND (i.document->>'created_at')::timestamptz<=%s""", (tenant, scope, scope, as_of, as_of)).fetchone()[0]
+        failed, dlq, queued, running = connection.execute("""SELECT
+            count(*) FILTER(WHERE status='FAILED'),count(*) FILTER(WHERE status='DLQ'),
+            count(*) FILTER(WHERE status='PENDING'),count(*) FILTER(WHERE status='RUNNING')
+            FROM serviq_jobs WHERE tenant_id=%s AND (%s::text[] IS NULL OR store=ANY(%s))
+            AND created_at<=%s""", (tenant, scope, scope, as_of)).fetchone()
+        return replace(snapshot, kpis=replace(snapshot.kpis, pending_approvals=pending,
+            failed_jobs=failed, dlq_jobs=dlq, queue_depth=queued, running_jobs=running))
