@@ -6,6 +6,8 @@ Day 16의 Incident 업무 흐름에 요청자·조직·권한·승인·감사·�
 
 ## 구성
 
+Review 화면은 기존 Mock Adapter를 보존하고 HTTP 모드에서 실제 조회·승인·반려를 호출합니다. 서버 permission과 사유를 표시하며 제출 중 중복 클릭을 차단합니다. 연결 실패 뒤 동일한 결정 내용을 재시도할 때 요청 키를 재사용합니다. 개발 계정 토큰은 개발 모드에서만 Authorization으로 전달하며 조직·역할은 서버가 결정합니다.
+
 `POST /api/v1/reviews/{approval_id}/approve`와 `/reject`는 `reason`, Approval의 `expected_version`, `Idempotency-Key`가 필수입니다. 서버 권한→멱등성→승인 유효성→기존 Incident 명령→결정·감사 저장 순서로 처리합니다. 이미 결정된 승인은 CONFLICT이며, 동일 요청의 재전송만 이전 결과를 돌려줍니다. 승인 자체는 외부 조치를 실행하지 않습니다.
 
 `GET /api/v1/reviews`와 `GET /api/v1/reviews/{approval_id}`는 Approval 원본과 조직에 제한된 Incident를 투영합니다. status/limit(최대 100)/offset으로 조회하며 서버가 역할·기한·조치 변경·결정 여부를 판단해 action availability와 사유를 반환합니다. 증거 충족도는 현재 등록된 증거 중 AVAILABLE 비율이며 별도 품질 정책의 평가 점수가 아닙니다.

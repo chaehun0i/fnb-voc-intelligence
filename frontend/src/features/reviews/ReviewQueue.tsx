@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Check, FilePenLine, FileSearch, X } from "lucide-react";
-import { mockApi } from "../../api/mockApi";
+import { reviewApi, reviewAsOf } from "../../api/reviews";
+import { apiMode } from "../../api/incidents";
+import { commandKey } from "../../api/auth";
 import type { ReviewAction, ReviewDetail } from "../../contracts/types";
 import { Button, PageHeading, PreviewNotice, StateMessage } from "../../components/ui";
 import { ageLabel, dateTime } from "../../lib/display";
@@ -21,8 +23,8 @@ const actorLabel = (value: string) => value === "CAPA Agent" ? "조치안 작성
 const sourceLabel = (value: string) => ({ temperature_sensor: "온도 센서", telemetry: "센서 측정 기록" } as Record<string, string>)[value] ?? value;
 
 async function loadReviews() {
-  const approvals = await mockApi.listApprovals();
-  const details = await Promise.all(approvals.map((item) => mockApi.getReviewDetail(item.id)));
+  const approvals = await reviewApi.listApprovals();
+  const details = await Promise.all(approvals.map((item) => reviewApi.getReviewDetail(item.id)));
   return approvals.map((approval, index) => ({ approval, detail: details[index] }));
 }
 
@@ -48,6 +50,8 @@ export function ReviewQueue() {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState<ReviewAction>();
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string }>();
+  const busy = useRef(false);
+  const attempt = useRef<{ signature: string; key: string } | undefined>(undefined);
   const items = query.data ?? [];
   const selected = items.find((item) => item.approval.id === selectedId);
 
@@ -58,11 +62,15 @@ export function ReviewQueue() {
   }
 
   async function submitAction(action: ReviewAction) {
-    if (!selected) return;
+    if (!selected || busy.current || !selected.approval.actions[action].allowed) return;
+    busy.current = true;
+    const signature = JSON.stringify([selected.approval.id, action, note.trim(), selected.approval.version]);
+    if (attempt.current?.signature !== signature) attempt.current = { signature, key: commandKey() };
     setSubmitting(action);
     setFeedback(undefined);
     try {
-      await mockApi.reviewAction(selected.approval.id, action, note);
+      await reviewApi.reviewAction(selected.approval.id, action, note, attempt.current.key, selected.approval.version);
+      attempt.current = undefined;
       const label = actions.find((item) => item.key === action)?.label ?? "검토";
       setFeedback({ kind: "success", message: `${label} 결과를 기록했습니다. 검토 이력에서 확인할 수 있습니다.` });
       setNote("");
@@ -70,6 +78,7 @@ export function ReviewQueue() {
     } catch (error) {
       setFeedback({ kind: "error", message: error instanceof Error ? error.message : "검토 결과를 저장하지 못했습니다. 다시 시도해 주세요." });
     } finally {
+      busy.current = false;
       setSubmitting(undefined);
     }
   }
@@ -78,9 +87,9 @@ export function ReviewQueue() {
     <PageHeading title="검토 대기함" description="제안된 조치와 근거를 확인하고, 허용된 검토 결정을 기록하세요.">
       <span className="tag high">검토 대기 {items.filter(({ approval }) => approval.status === "PENDING").length}건</span>
     </PageHeading>
-    <PreviewNotice />
+    {apiMode === "mock" ? <PreviewNotice /> : <p className="mb-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-800">실제 서버의 승인 기록입니다. 승인해도 외부 조치는 자동 실행되지 않습니다.</p>}
     {query.loading && !query.data ? <StateMessage kind="loading" title="검토 요청을 불러오는 중입니다" /> :
-      query.error ? <StateMessage kind="error" title="검토 요청을 불러오지 못했습니다" onRetry={query.reload}>잠시 후 다시 불러와 주세요.</StateMessage> :
+      query.error ? <StateMessage kind="error" title="검토 요청을 불러오지 못했습니다" onRetry={query.reload}>{query.error}</StateMessage> :
       items.length === 0 ? <StateMessage title="등록된 검토 요청이 없습니다">검토가 필요한 조치안이 도착하면 목록에 표시됩니다.</StateMessage> : <>
         <div className="table-wrap mb-5 overflow-x-auto">
           <table>
@@ -92,7 +101,7 @@ export function ReviewQueue() {
               </button></td>
               <td>{reviewType(approval.type)}</td><td><Badge value={approval.risk_level} /></td>
               <td>{actorLabel(approval.requester)}</td><td>{dateTime(approval.requested_at)}</td>
-              <td>{ageLabel(approval.requested_at, mockApi.asOf)}</td><td>{approval.evidence_completeness}%</td>
+              <td>{ageLabel(approval.requested_at, reviewAsOf())}</td><td>{approval.evidence_completeness}%</td>
               <td><span className="tag status">{statusLabels[approval.status]}</span></td>
             </tr>)}</tbody>
           </table>
@@ -124,7 +133,7 @@ export function ReviewQueue() {
               <p>버튼 아래의 권한 안내와 증거를 확인한 뒤 선택하세요.</p>
               <label htmlFor="review-note" className="mb-2 block text-sm font-semibold text-slate-700">결정 사유 또는 요청 내용</label>
               <textarea id="review-note" rows={4} value={note} disabled={!!submitting} onChange={(event) => setNote(event.target.value)} className="w-full rounded-lg border border-slate-300 p-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="수정할 내용, 반려 사유 또는 필요한 증거를 적어 주세요." aria-describedby="review-note-help" />
-              <p id="review-note-help" className="mt-2">수정 요청·반려·추가 증거 요청에는 내용을 반드시 남겨 주세요. 승인에도 메모를 남길 수 있습니다.</p>
+              <p id="review-note-help" className="mt-2">{apiMode === "http" ? "승인·반려 모두 결정 사유를 남겨 주세요. 연결 오류 후 같은 내용으로 재시도하면 같은 요청 키를 사용합니다." : "수정 요청·반려·추가 증거 요청에는 내용을 반드시 남겨 주세요. 승인에도 메모를 남길 수 있습니다."}</p>
               <div className="space-y-3">{actions.map(({ key, label, icon: Icon }) => {
                 const permission = selected.approval.actions[key];
                 return <div key={key}>

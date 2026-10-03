@@ -1,5 +1,6 @@
 import type { Incident, IncidentWorkspace, Severity } from "../../contracts/types";
 import { mockApi } from "../mockApi";
+import { authHeaders, commandKey } from "../auth";
 
 export class IncidentApiError extends Error {
   constructor(public code: string, message: string, public requestId?: string) {
@@ -58,7 +59,7 @@ function isVerification(value: unknown) {
     isChoice(value.result, ["PASS", "FAIL", "INCONCLUSIVE"]) && optionalDate(value.verified_at));
 }
 
-function decodeIncident(value: unknown, requestId?: string): Incident {
+export function decodeIncident(value: unknown, requestId?: string): Incident {
   if (!isRecord(value) || !textFields(value, ["id", "display_id", "title", "store", "owner"]) ||
     !isChoice(value.status, statuses) || !isChoice(value.severity, severities) ||
     !isDate(value.created_at) || !isDate(value.sla_due_at) ||
@@ -109,7 +110,7 @@ async function requestIncidentJson(baseUrl: string, path: string, fetcher: typeo
   try {
     response = await fetcher(`${baseUrl.replace(/\/+$/, "")}${path}`, {
       method: input === undefined ? "GET" : "POST",
-      headers: input === undefined ? { Accept: "application/json" } : { Accept: "application/json", "Content-Type": "application/json" },
+      headers: input === undefined ? { Accept: "application/json", ...authHeaders() } : { Accept: "application/json", ...authHeaders(), "Content-Type": "application/json", "Idempotency-Key": commandKey() },
       ...(input === undefined ? {} : { body: JSON.stringify(input) }),
     });
   } catch {
