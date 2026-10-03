@@ -4,6 +4,8 @@
 
 서버 재시작 후에도 Incident와 상태 변경 기록을 유지하고, 상태 저장과 이벤트 기록이 분리되어 유실되는 문제를 막습니다.
 
+이 문서는 Day 16의 기반 기록입니다. Day 17의 Tenant 범위·Approval·Audit·Idempotency와 현재 제한 사항은 [운영 안전 실행 계약](serviq_access_review.md)에서 이어집니다. 기존 001 SQL은 유지하고 002~005 additive migration을 순서대로 적용합니다.
+
 ## 구성
 
 `PostgresIncidentRepository`는 기존 Repository Port를 구현합니다. `serviq_incidents`의 저장용 JSON은 Domain 객체와 직렬화 경계로 분리하며, 기존 Product/Review/pgvector 테이블을 변경하지 않습니다.
@@ -36,7 +38,7 @@ uv run python -m scripts.serviq_postgres_smoke
 
 ## 제한 사항
 
-이 저장소는 단일 운영 환경의 첫 Incident 영속화입니다. 멀티테넌트 인증·데이터 격리와 온라인 스키마 버전 업그레이드는 별도 개발 항목입니다. 운영 배포 전 인증과 데이터 접근 경계를 연결해야 합니다.
+Day 16 시점에는 단일 운영 환경의 첫 Incident 영속화였습니다. Day 17에서 서버 Tenant/RBAC와 조직별 조회·승인·감사·멱등성을 연결했지만 실제 OIDC/회원 범위, 온라인 migration ledger, 전용 DB 권한 분리와 백업/복원은 후속입니다. 운영 배포 준비가 완료된 상태는 아닙니다.
 
 ## 다음 단계
 

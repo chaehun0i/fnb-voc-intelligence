@@ -6,6 +6,8 @@
 
 이번 단계의 CI는 코드와 이미지를 검증합니다. 수동 릴리스는 검증한 이미지를 GHCR에 게시하는 과정이며, 운영 서버 배포는 별도 절차로 남겨 둡니다.
 
+Day 17에는 [운영 안전 실행 계약](serviq_access_review.md)의 PostgreSQL 보안 smoke와 실제 HTTP Review 검증을 추가했습니다. Compose는 여전히 개발용 Local Principal을 사용하므로 OIDC나 production-ready 배포로 간주하지 않습니다.
+
 ## 구성
 
 ### 로컬 실행 구성
@@ -35,9 +37,11 @@
 - Fake 생성기를 사용하는 기존 RAG/ingestion/health 회귀 테스트
 - Node.js 24에서 `npm ci`, lint, test, 두 번의 build와 빌드 후 lint
 - 별도 pgvector PostgreSQL 서비스에서 Incident 저장과 Outbox smoke
+- 같은 전용 DB에서 Tenant/RBAC·Approval·불변 Audit·재시작/동시 Idempotency·감사 실패 롤백 smoke
 - 기존 Python 이미지와 새 프론트엔드 이미지의 Docker build, API/RAG/ingestion import, `PROJECT_ROOT=/app`, nginx 설정
 - 기존 서비스와 `serviq` 프로필의 Compose 설정
 - `serviq-ci` 전용 Compose 스택에서 nginx 프록시를 거친 Incident 생성부터 수동 검증·종결까지의 HTTP 흐름, 오류 계약과 Worker의 실제 Outbox 완료 기록
+- HTTP Review 원본 조회·승인·같은 키 재전송·다른 내용 충돌
 
 RAG smoke는 실제 DB 자료나 외부 LLM을 준비해야 하는 CLI 운영 실행 대신 기존 CLI 및 파이프라인 테스트를 실행합니다. 테스트의 Fake 연결과 생성기를 사용하므로 API Key와 외부 네트워크가 필요하지 않습니다. PostgreSQL smoke는 CI 전용 DB와 테스트용 비밀번호를 사용합니다.
 
