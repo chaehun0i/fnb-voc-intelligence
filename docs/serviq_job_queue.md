@@ -21,6 +21,10 @@ Job Worker는 우선순위·실행 가능 시각 순으로 `FOR UPDATE SKIP LOCK
 잠금 만료 작업은 남은 횟수 안에서 새 Worker가 재인수하며 최대 횟수 도달 시 DLQ로 보존합니다.
 완료 기록은 조직·버전·시도 횟수·유효 lease·Worker 소유자가 일치할 때만 허용합니다.
 원본 예외 문자열은 저장하지 않습니다. 일시 실패는 최대 300초의 지수 대기로 제한합니다.
+`GET /api/v1/jobs`와 `GET /api/v1/jobs/{job_id}`는 실제 저장소를 조회합니다.
+status·priority·job_type·incident_id·correlation_id 필터와 최대 100건 limit/offset을 제공합니다.
+서버에서 조직·역할·매장·상태에 따른 retry/cancel permission과 사유를 계산합니다.
+API는 payload reference와 Worker 소유자 등 불필요한 내부 정보를 공개하지 않습니다.
 상태는 `PENDING → RUNNING → COMPLETED`이며 실패는 `FAILED` 또는 `DLQ`로 남깁니다.
 자동 재시도는 횟수와 대기 시간을 제한합니다. 운영 재시도는 원본을 보존한 새 Job을 만듭니다.
 취소는 `PENDING`에만 허용하며 실행 중인 작업을 중단한 것처럼 표시하지 않습니다.
