@@ -26,6 +26,8 @@ SQL은 기존 Product/Review/pgvector 테이블을 변경하지 않습니다. �
 
 ## 실행 및 검증
 
+Day 17~18 이후 초기화 로더는 `001`~`006` migration을 번호순으로 읽습니다. 독립 Job 모델은 `backend/src/domain/jobs/`, 서비스는 `backend/src/application/jobs/`, API는 `backend/src/api/routes/jobs.py`, Worker는 `backend/src/infrastructure/queue/`에 있습니다. 화면 경계는 `frontend/src/api/jobs/`이며 자세한 책임 분리는 [Day 18 문서](serviq_job_queue.md)를 참고하세요.
+
 ### 백엔드 실행
 
 저장소 루트에서 `backend/`로 이동한 후 다음 명령을 그대로 실행합니다.

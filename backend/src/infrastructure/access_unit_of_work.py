@@ -19,6 +19,10 @@ from src.infrastructure.repositories.idempotency_repository import (
     MemoryIdempotencyRepository,
     PostgresIdempotencyRepository,
 )
+from src.infrastructure.repositories.job_repository import (
+    MemoryJobRepository,
+    PostgresJobRepository,
+)
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )
@@ -34,6 +38,7 @@ class AccessUnitOfWork:
     audit: object
     idempotency: object
     connection: object = None
+    jobs: object = None
 
 
 class AccessPersistence:
@@ -50,7 +55,8 @@ class AccessPersistence:
                 yield AccessUnitOfWork(ScopedIncidentRepository(repo, tenant_id),
                                        PostgresApprovalRepository(connection, tenant_id),
                                        PostgresAuditRepository(connection, tenant_id),
-                                       PostgresIdempotencyRepository(connection, tenant_id), connection)
+                                       PostgresIdempotencyRepository(connection, tenant_id), connection,
+                                       PostgresJobRepository(connection, tenant_id))
         else:
             with self.incidents._lock, self.memory.lock:
                 incidents = deepcopy(self.incidents._items)
@@ -61,6 +67,7 @@ class AccessPersistence:
                         MemoryApprovalRepository(self.memory, tenant_id),
                         MemoryAuditRepository(self.memory, tenant_id),
                         MemoryIdempotencyRepository(self.memory, tenant_id),
+                        jobs=MemoryJobRepository(self.memory, tenant_id),
                     )
                 except Exception:
                     self.incidents._items = incidents

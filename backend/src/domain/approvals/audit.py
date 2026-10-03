@@ -15,3 +15,4 @@ class AuditRecord:
     correlation_id: str
     occurred_at: str
     resulting_version: int | None = None
+    reason: str | None = None

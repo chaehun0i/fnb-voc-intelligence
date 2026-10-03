@@ -8,6 +8,8 @@
 
 ## 구성
 
+Day 18의 `006_serviq_jobs.sql`은 Outbox와 별개인 Job 실행 상태를 저장합니다. 기존 001~005 SQL은 변경하지 않습니다. dispatch·lease·재시도 이력·Queue Command의 원자적 저장은 [작업 대기열 운영 문서](serviq_job_queue.md)에서 이어집니다.
+
 `PostgresIncidentRepository`는 기존 Repository Port를 구현합니다. `serviq_incidents`의 저장용 JSON은 Domain 객체와 직렬화 경계로 분리하며, 기존 Product/Review/pgvector 테이블을 변경하지 않습니다.
 
 새 Incident는 버전 1로 저장합니다. 업데이트는 읽은 버전과 저장 버전이 같을 때만 성공합니다. 상태 변경은 같은 트랜잭션에 `serviq_outbox` 이벤트를 기록합니다. 충돌과 롤백 시 이벤트도 저장되지 않습니다.

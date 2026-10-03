@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.errors import register_error_handlers
 from src.api.routes.incidents import router
+from src.api.routes.jobs import router as job_router
 from src.api.routes.reviews import router as review_router
 from src.application.incidents.service import IncidentService
 from src.application.ports.identity_provider import IdentityProvider
@@ -100,6 +101,7 @@ def create_app(
     register_error_handlers(app)
     app.include_router(router)
     app.include_router(review_router)
+    app.include_router(job_router)
 
     @app.get("/api/v1/health", tags=["health"])
     def health() -> dict[str, str]:

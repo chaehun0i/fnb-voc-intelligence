@@ -6,9 +6,12 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
 from src.application.incidents.service import IncidentNotFound
+from src.application.jobs.queries import JobNotFound
 from src.application.ports.incident_repository import IncidentConflict
+from src.application.ports.job_repository import JobConflict
 from src.application.security.principal import AccessError
 from src.domain.incidents.transitions import DomainRuleViolation
+from src.domain.jobs.models import JobRuleViolation
 
 
 def error_response(
@@ -28,6 +31,18 @@ def error_response(
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(JobNotFound)
+    async def job_not_found(request: Request, _: JobNotFound) -> JSONResponse:
+        return error_response(request, 404, "NOT_FOUND", "작업을 찾을 수 없습니다.")
+
+    @app.exception_handler(JobConflict)
+    async def job_conflict(request: Request, _: JobConflict) -> JSONResponse:
+        return error_response(request, 409, "CONFLICT", "작업 상태가 변경되었습니다. 최신 정보를 다시 불러와 주세요.")
+
+    @app.exception_handler(JobRuleViolation)
+    async def job_rule(request: Request, exc: JobRuleViolation) -> JSONResponse:
+        return error_response(request, 409, exc.code, "현재 상태에서는 처리할 수 없습니다. 실행 중인 작업의 중단은 지원하지 않습니다.")
+
     @app.exception_handler(AccessError)
     async def access_error(request: Request, exc: AccessError) -> JSONResponse:
         message = (
