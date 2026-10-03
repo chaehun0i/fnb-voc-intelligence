@@ -121,6 +121,8 @@ jobs:
         run: uv run --extra dev python -m scripts.serviq_security_smoke
       - name: 독립 Job 실행과 Queue 운영 안전 검증
         run: uv run --extra dev python -m scripts.serviq_queue_smoke
+      - name: Dashboard 집계와 Tenant·매장 범위 검증
+        run: uv run --extra dev python -m scripts.serviq_dashboard_smoke
 
   docker:
     name: 이미지와 Compose 운영 흐름 검증

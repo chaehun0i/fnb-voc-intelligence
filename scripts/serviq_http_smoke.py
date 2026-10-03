@@ -135,6 +135,9 @@ def verify_frontend(client: SmokeClient) -> None:
 
 
 def verify_incident_flow(client: SmokeClient) -> None:
+    baseline_dashboard = client.api("GET", "/dashboard?window=7d")
+    check(baseline_dashboard["window"] == "7d" and baseline_dashboard["timezone"] == "UTC", "Dashboard 기간·날짜 기준이 필요합니다.")
+    client.api("GET", "/dashboard?window=all", status=422, error_code="VALIDATION_ERROR")
     suffix = uuid4().hex
     store = f"CI 검증-{suffix[:12]}"
     client.api(
@@ -159,6 +162,8 @@ def verify_incident_flow(client: SmokeClient) -> None:
     )
     check(isinstance(incident, dict), "생성 응답은 Incident 객체여야 합니다.")
     identifier = incident["id"]
+    created_dashboard = client.api("GET", "/dashboard?window=7d")
+    check(created_dashboard["kpis"]["open_incidents"] == baseline_dashboard["kpis"]["open_incidents"] + 1, "생성 후 실제 Dashboard 열린 사건 수가 증가해야 합니다.")
     UUID(identifier)
     path = f"/incidents/{quote(identifier, safe='')}"
     check(
@@ -272,6 +277,7 @@ def verify_incident_flow(client: SmokeClient) -> None:
         },
     )
     command("request-approval", "PENDING_APPROVAL")
+    check(client.api("GET", "/dashboard?window=7d")["kpis"]["pending_approvals"] == baseline_dashboard["kpis"]["pending_approvals"] + 1, "실제 승인 요청이 Dashboard 대기 수에 반영되어야 합니다.")
     workspace("execute", False)
     client.api(
         "POST",
@@ -289,6 +295,7 @@ def verify_incident_flow(client: SmokeClient) -> None:
     check(client.api("POST", review_path+"/approve", approval_body, idempotency_key=approval_key) == incident, "동일 승인 재전송은 이전 결과를 반환해야 합니다.")
     client.api("POST", review_path+"/approve", {**approval_body, "reason": "다른 사유"}, idempotency_key=approval_key, status=409, error_code="IDEMPOTENCY_CONFLICT")
     check(client.api("GET", review_path)["approval"]["status"] == "APPROVED", "Review 원본의 승인 결과가 필요합니다.")
+    check(client.api("GET", "/dashboard?window=7d")["kpis"]["pending_approvals"] == baseline_dashboard["kpis"]["pending_approvals"], "승인 결정 후 Dashboard 대기 수가 복구되어야 합니다.")
     check(incident["approved"] is True, "사람 승인 기록이 반영되어야 합니다.")
     workspace("execute", True)
     command("execute", "VERIFYING")
@@ -343,6 +350,13 @@ def verify_incident_flow(client: SmokeClient) -> None:
     check(not job["actions"]["retry"]["allowed"] and not job["actions"]["cancel"]["allowed"], "완료 작업의 재시도와 취소는 서버에서 거부해야 합니다.")
     client.api("POST", "/jobs/" + job["id"] + "/retry", {"reason": "완료 작업 보호 확인", "expected_version": job["version"]}, status=409, error_code="JOB_TRANSITION_NOT_ALLOWED")
     print("[통과] nginx→Queue list/detail→Outbox dispatch→독립 Worker 완료·상관관계·terminal 보호")
+    dashboard = client.api("GET", "/dashboard?window=7d")
+    check(dashboard["kpis"]["open_incidents"] == baseline_dashboard["kpis"]["open_incidents"], "종결 후 Dashboard 열린 사건 수가 복구되어야 합니다.")
+    check(dashboard["integration_health"]["status"] == "NOT_IMPLEMENTED", "연동 Mock을 실제 Dashboard로 합치면 안 됩니다.")
+    check(len(dashboard["incident_trend"]) == 7 and isinstance(dashboard["as_of"], str), "Dashboard의 기준 시각과 7개 날짜 버킷이 필요합니다.")
+    check(sum(x["count"] for x in dashboard["root_cause_distribution"]) == sum(x["count"] for x in baseline_dashboard["root_cause_distribution"]) + 1, "실제 RCA 후보가 Dashboard에 반영되어야 합니다.")
+    check(next(x["count"] for x in dashboard["capa_status"] if x["status"] == "EXECUTED") == next(x["count"] for x in baseline_dashboard["capa_status"] if x["status"] == "EXECUTED") + 1, "실제 실행된 CAPA가 Dashboard에 반영되어야 합니다.")
+    print("[통과] nginx Dashboard 단일 Query·기준 시각·기간 검증·Incident/RCA/CAPA 변화·Mock 미혼합")
     print(f"검증용 Incident: {identifier}")
 
 
