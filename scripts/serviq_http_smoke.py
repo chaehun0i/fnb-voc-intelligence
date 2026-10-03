@@ -38,10 +38,13 @@ class SmokeClient:
         url: str,
         body: dict | None = None,
         request_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> tuple[int, bytes, dict[str, str]]:
         headers = {"Accept": "application/json"}
         if request_id:
             headers["X-Request-ID"] = request_id
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
         payload = None
         if body is not None:
             headers["Content-Type"] = "application/json"
@@ -66,11 +69,13 @@ class SmokeClient:
         *,
         status: int = 200,
         error_code: str | None = None,
+        idempotency_key: str | None = None,
     ) -> Any:
         self.sequence += 1
         request_id = f"serviq-http-smoke-{self.sequence}"
         actual, raw, headers = self.fetch(
-            method, f"{self.base_url}{path}", body, request_id
+            method, f"{self.base_url}{path}", body, request_id,
+            (idempotency_key or str(uuid4())) if method == "POST" else None,
         )
         check(actual == status, f"{method} {path}: HTTP {status} 예상, {actual} 응답")
         check(
@@ -274,7 +279,15 @@ def verify_incident_flow(client: SmokeClient) -> None:
         status=409,
         error_code="DOMAIN_RULE_VIOLATION",
     )
-    command("approve", "PENDING_APPROVAL")
+    review = next(item for item in client.api("GET", "/reviews") if item["incident_id"] == identifier)
+    review_path = f"/reviews/{review['id']}"
+    check(client.api("GET", review_path)["approval"]["actions"]["approve"]["allowed"], "서버의 승인 권한이 필요합니다.")
+    approval_body = {"reason": "CI 검토자가 증거와 조치안을 확인했습니다.", "expected_version": review["version"]}
+    approval_key = f"http-approval-{suffix}"
+    incident = client.api("POST", review_path+"/approve", approval_body, idempotency_key=approval_key)
+    check(client.api("POST", review_path+"/approve", approval_body, idempotency_key=approval_key) == incident, "동일 승인 재전송은 이전 결과를 반환해야 합니다.")
+    client.api("POST", review_path+"/approve", {**approval_body, "reason": "다른 사유"}, idempotency_key=approval_key, status=409, error_code="IDEMPOTENCY_CONFLICT")
+    check(client.api("GET", review_path)["approval"]["status"] == "APPROVED", "Review 원본의 승인 결과가 필요합니다.")
     check(incident["approved"] is True, "사람 승인 기록이 반영되어야 합니다.")
     workspace("execute", True)
     command("execute", "VERIFYING")
@@ -315,6 +328,7 @@ def verify_incident_flow(client: SmokeClient) -> None:
     )
     print("[통과] 실제 HTTP 생성→분류→조사→증거→RCA→조치→승인→실행 기록→검증→종결")
     print("[통과] Workspace Permission·목록 필터·404/422/409·버전 충돌·임의 PATCH 거부")
+    print("[통과] 실제 Review 조회·승인·멱등 재전송·내용 충돌")
     print(f"검증용 Incident: {identifier}")
 
 

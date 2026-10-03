@@ -18,6 +18,8 @@ Incident HTTP 경로는 조직에 고정된 Repository를 사용합니다. 다�
 
 ## 실행 및 검증
 
+`scripts.serviq_security_smoke`는 전용 PostgreSQL에서 승인/반려, 조직·역할 거부, 재시작 결과 재사용, 동시 요청, 키 충돌, Audit 불변성, 감사 저장 실패 시 Incident/Approval/Outbox/멱등성 전체 롤백을 확인합니다. CI의 PostgreSQL job에서도 실행합니다. HTTP smoke는 nginx를 통한 실제 Review 조회·승인·재전송·충돌을 검증합니다. 기존 assertion이나 테스트를 제거하지 않습니다.
+
 Audit은 승인과 별도인 추기 전용 기록입니다. 보호된 명령의 성공 기록은 업무 변경과 같은 트랜잭션에서 저장하고, 인증된 요청자의 권한 거부는 업무 롤백 뒤 DENIED로 기록합니다. 요청 본문·토큰·비밀은 저장하지 않습니다. PostgreSQL trigger는 기존 감사 기록의 UPDATE/DELETE를 거부합니다.
 
 승인 요청은 조치 목록 digest·위험도·요청자·기한을 별도 Approval에 저장합니다. 결정은 검토자·시각·사유를 기록하고 기존 Incident approve/reject를 재사용합니다. PostgreSQL은 같은 연결, 메모리는 잠금·복원으로 Incident와 Approval을 함께 저장합니다. `003_approval.sql`은 additive migration입니다. 기존 자료의 승인 boolean을 실제 검토 기록으로 꾸며 이관하지 않습니다.
