@@ -43,6 +43,9 @@ Outbox 전달과 Job 실행을 번갈아 처리하되 각각의 claim·ACK·실�
 ## 실행/검증
 
 도메인 검증: `uv run --extra dev pytest backend/tests/test_job_domain.py`
+전용 PostgreSQL의 `scripts.serviq_queue_smoke`는 실제 SQL·동시 claim·lease 복구·지연 재시도·DLQ·멱등 재전송·Tenant/RBAC·감사를 검증합니다.
+CI의 PostgreSQL job에 Queue smoke를 추가하고 nginx HTTP smoke도 실제 독립 작업 완료까지 확인합니다.
+프론트 회귀는 Mock 경로를 보존하며 HTTP 목록·상세·권한 사유·중복 클릭·같은 키의 네트워크 재시도를 확인합니다.
 
 ## 제한 사항
 

@@ -82,7 +82,7 @@ jobs:
         run: npm run lint
 
   postgres:
-    name: PostgreSQL Incident와 Outbox smoke
+    name: PostgreSQL Incident·보안·Job Queue smoke
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -119,6 +119,8 @@ jobs:
         run: uv run --extra dev python -m scripts.serviq_postgres_smoke
       - name: Tenant 권한과 영속 Review 실행 안전 검증
         run: uv run --extra dev python -m scripts.serviq_security_smoke
+      - name: 독립 Job 실행과 Queue 운영 안전 검증
+        run: uv run --extra dev python -m scripts.serviq_queue_smoke
 
   docker:
     name: 이미지와 Compose 운영 흐름 검증
@@ -167,6 +169,8 @@ jobs:
           done
           docker compose --project-name serviq-ci --profile serviq exec -T db psql -U serviq_ci -d serviq_ci -c "SELECT status,count(*) FROM serviq_outbox GROUP BY status;"
           exit 1
+      - name: 독립 Job 완료와 dispatch 중복 보호 확인
+        run: docker compose --project-name serviq-ci --profile serviq exec -T db psql -U serviq_ci -d serviq_ci -v ON_ERROR_STOP=1 -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM serviq_jobs WHERE status='COMPLETED') OR EXISTS (SELECT dispatch_id FROM serviq_jobs WHERE dispatch_id IS NOT NULL GROUP BY dispatch_id HAVING count(*)>1) THEN RAISE EXCEPTION 'Queue lifecycle validation failed'; END IF; END \$\$;"
       - name: 실패한 CI 스택 로그
         if: failure()
         run: |

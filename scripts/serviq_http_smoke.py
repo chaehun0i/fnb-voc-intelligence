@@ -2,6 +2,7 @@
 
 import json
 import os
+import time
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit
@@ -329,6 +330,19 @@ def verify_incident_flow(client: SmokeClient) -> None:
     print("[통과] 실제 HTTP 생성→분류→조사→증거→RCA→조치→승인→실행 기록→검증→종결")
     print("[통과] Workspace Permission·목록 필터·404/422/409·버전 충돌·임의 PATCH 거부")
     print("[통과] 실제 Review 조회·승인·멱등 재전송·내용 충돌")
+    jobs = []
+    for _ in range(20):
+        jobs = client.api("GET", "/jobs?" + urlencode({"incident_id": identifier}))
+        if jobs and jobs[0]["status"] == "COMPLETED":
+            break
+        time.sleep(0.5)
+    check(len(jobs) == 1 and jobs[0]["status"] == "COMPLETED", "Outbox dispatch와 독립 Job Worker가 작업을 완료해야 합니다.")
+    job = jobs[0]
+    check(client.api("GET", "/jobs/" + job["id"]) == job, "실제 Queue 상세 원본이 일치해야 합니다.")
+    check(job["correlation_id"] == identifier and "payload_ref" not in job, "상관관계 보존과 민감한 원본 미노출이 필요합니다.")
+    check(not job["actions"]["retry"]["allowed"] and not job["actions"]["cancel"]["allowed"], "완료 작업의 재시도와 취소는 서버에서 거부해야 합니다.")
+    client.api("POST", "/jobs/" + job["id"] + "/retry", {"reason": "완료 작업 보호 확인", "expected_version": job["version"]}, status=409, error_code="JOB_TRANSITION_NOT_ALLOWED")
+    print("[통과] nginx→Queue list/detail→Outbox dispatch→독립 Worker 완료·상관관계·terminal 보호")
     print(f"검증용 Incident: {identifier}")
 
 

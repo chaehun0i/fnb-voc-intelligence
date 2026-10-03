@@ -25,4 +25,11 @@ describe("Job 계약", () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: "AUTHORIZATION_DENIED", message: "현재 역할에서는 처리할 수 없습니다." }, request_id: "request" }), { status: 403 }));
     await expect(createHttpJobApi("http://localhost", fetcher).listJobs()).rejects.toMatchObject({ code: "AUTHORIZATION_DENIED", requestId: "request" });
   });
+  it.each([401, 403, 404, 409])("HTTP %i 오류를 구분한다", async (status) => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: `HTTP_${status}` } }), { status }));
+    await expect(createHttpJobApi("http://localhost", fetcher).getJob("job")).rejects.toMatchObject({ code: `HTTP_${status}` });
+  });
+  it("네트워크 실패를 계약 오류와 구분한다", async () => {
+    await expect(createHttpJobApi("http://localhost", vi.fn().mockRejectedValue(new Error("network"))).listJobs()).rejects.toMatchObject({ code: "NETWORK_ERROR" });
+  });
 });

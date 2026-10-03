@@ -44,7 +44,7 @@ describe("연동과 작업 대기열", () => {
     render(<Queue />);
     await screen.findByText("재고 증거 수집");
     fireEvent.click(screen.getByRole("button", { name: "재고 증거 수집 상세 보기" }));
-    expect(screen.getByText(job.error_summary!)).toBeInTheDocument();
+    expect(await screen.findByText(job.error_summary!)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "취소" })).toBeDisabled();
     expect(screen.getByText(job.actions.cancel.reason)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "재시도" }));
