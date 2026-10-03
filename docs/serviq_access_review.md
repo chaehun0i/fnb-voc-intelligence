@@ -6,6 +6,8 @@ Day 16의 Incident 업무 흐름에 요청자·조직·권한·승인·감사·�
 
 ## 구성
 
+`GET /api/v1/reviews`와 `GET /api/v1/reviews/{approval_id}`는 Approval 원본과 조직에 제한된 Incident를 투영합니다. status/limit(최대 100)/offset으로 조회하며 서버가 역할·기한·조치 변경·결정 여부를 판단해 action availability와 사유를 반환합니다. 증거 충족도는 현재 등록된 증거 중 AVAILABLE 비율이며 별도 품질 정책의 평가 점수가 아닙니다.
+
 `Principal`은 요청자·조직·역할·매장 범위·인증 출처를 표현하고 `IdentityProvider` Port에서 전달합니다. `LocalIdentityProvider`는 서버에 설정한 계정만 반환하며 브라우저의 조직·역할 헤더를 신뢰하지 않습니다.
 
 Incident HTTP 경로는 조직에 고정된 Repository를 사용합니다. 다른 조직의 ID는 존재 여부를 노출하지 않는 404, 같은 조직 내 역할·매장 권한 부족은 403으로 구분합니다. 조회·운영·검토·관리 역할은 중앙 Authorization에서 판정하며 Reviewer는 조사 명령을 실행할 수 없습니다. `002_tenant_security.sql`은 기존 자료를 `legacy-local` 조직으로 보존합니다.
