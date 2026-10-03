@@ -10,9 +10,11 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.errors import register_error_handlers
+from src.api.routes.dashboard import router as dashboard_router
 from src.api.routes.incidents import router
 from src.api.routes.jobs import router as job_router
 from src.api.routes.reviews import router as review_router
+from src.application.dashboard.queries import DashboardQueries
 from src.application.incidents.service import IncidentService
 from src.application.ports.identity_provider import IdentityProvider
 from src.application.ports.incident_repository import IncidentRepository
@@ -20,8 +22,15 @@ from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.models import Incident, StateTransition
 from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.auth.local_identity_provider import configured_identity_provider
+from src.infrastructure.dashboard_projection import (
+    MemoryDashboardProjection,
+    PostgresDashboardProjection,
+)
 from src.infrastructure.repositories.in_memory_incident_repository import (
     InMemoryIncidentRepository,
+)
+from src.infrastructure.repositories.postgres_incident_repository import (
+    PostgresIncidentRepository,
 )
 
 
@@ -78,6 +87,8 @@ def create_app(
             if repo.get(item.id) is None:
                 repo.save(item)
     app.state.service = IncidentService(repo, clock=clock, id_generator=id_generator)
+    projection = PostgresDashboardProjection(repo.dsn) if isinstance(repo, PostgresIncidentRepository) else MemoryDashboardProjection(app.state.access_persistence)
+    app.state.dashboard_queries = DashboardQueries(projection, clock=lambda: app.state.service.clock())
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -102,6 +113,7 @@ def create_app(
     app.include_router(router)
     app.include_router(review_router)
     app.include_router(job_router)
+    app.include_router(dashboard_router)
 
     @app.get("/api/v1/health", tags=["health"])
     def health() -> dict[str, str]:

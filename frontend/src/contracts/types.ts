@@ -18,7 +18,17 @@ export type ReviewDetail = { approval_id: string; incident_display_id: string; i
 export type IncidentTask = { id: string; title: string; owner: string; due_at: string; status: "PENDING" | "RUNNING" | "COMPLETED" };
 export type IncidentWorkspace = { priority: "P1" | "P2" | "P3"; tasks: IncidentTask[]; actions: Record<"investigate" | "propose_action" | "execute", ActionPermission>; commands?: Record<string, ActionPermission> };
 export type Integration = { id: string; name: string; category: string; description: string; status: "HEALTHY" | "DEGRADED" | "DISCONNECTED"; last_success_at: string; error_summary?: string; canonical_model: string; mappings: Array<{ source: string; target: string }>; sync: { started_at: string; ended_at: string; read_count: number; written_count: number; skipped_count: number; error_count: number; cursor_before: string; cursor_after: string }; actions: Record<"sync", ActionPermission> };
-export type DashboardSnapshot = { as_of: string; incident_trend: Array<{ day: string; detected: number; resolved: number }>; root_cause_distribution: Array<{ label: string; count: number }>; capa_status: Array<{ status: "PROPOSED" | "APPROVED" | "EXECUTED"; count: number }> };
+export type DashboardSnapshot = {
+  as_of: string;
+  window: "7d";
+  timezone: "UTC";
+  kpis: { open_incidents: number; critical_incidents: number; pending_approvals: number; failed_jobs: number; dlq_jobs: number; queue_depth: number; running_jobs: number };
+  incident_trend: Array<{ day: string; detected: number; resolved: number }>;
+  root_cause_distribution: Array<{ label: string; count: number }>;
+  capa_status: Array<{ status: "PROPOSED" | "APPROVED" | "EXECUTED"; count: number }>;
+  integration_health: { status: "NOT_IMPLEMENTED"; reason: string };
+  priority_incidents: Array<Pick<Incident, "id" | "title" | "store" | "owner" | "severity">>;
+};
 export type ConfigFieldRule = { min: number; max: number; integer: boolean };
 export type ConfigRevision = { version: number; created_at: string; actor: string; reason: string; changes: Array<{ field: string; before: string; after: string }>; snapshot: ControlPlaneConfig };
 export type ConfigWorkspace = { config: ControlPlaneConfig; revisions: ConfigRevision[]; rules: Partial<Record<keyof ControlPlaneConfig, ConfigFieldRule>>; save_permission: ActionPermission; rollback_permission: ActionPermission; scope: string; allowed_tools: string[]; verification_window_hours: number };

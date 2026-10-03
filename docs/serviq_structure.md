@@ -30,6 +30,8 @@ Day 17~18 이후 초기화 로더는 `001`~`006` migration을 번호순으로 �
 
 ### 백엔드 실행
 
+Day 19의 집계 경계는 `application/dashboard`, `infrastructure/dashboard_projection.py`, `api/routes/dashboard.py`와 `frontend/src/api/dashboard`입니다. 원본 Incident/Approval/Job을 복제하지 않으며 상세 책임과 KPI 규칙은 [Dashboard Projection 문서](serviq_dashboard.md)를 참고하세요.
+
 저장소 루트에서 `backend/`로 이동한 후 다음 명령을 그대로 실행합니다.
 
 ```bash

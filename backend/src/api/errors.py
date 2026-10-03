@@ -5,6 +5,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
+from src.application.dashboard.models import (
+    DashboardUnavailable,
+    InvalidDashboardWindow,
+)
 from src.application.incidents.service import IncidentNotFound
 from src.application.jobs.queries import JobNotFound
 from src.application.ports.incident_repository import IncidentConflict
@@ -31,6 +35,14 @@ def error_response(
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(DashboardUnavailable)
+    async def dashboard_unavailable(request: Request, _: DashboardUnavailable) -> JSONResponse:
+        return error_response(request, 503, "DASHBOARD_UNAVAILABLE", "현재 운영 현황을 조회할 수 없습니다. 잠시 후 다시 불러와 주세요.")
+
+    @app.exception_handler(InvalidDashboardWindow)
+    async def dashboard_window(request: Request, _: InvalidDashboardWindow) -> JSONResponse:
+        return error_response(request, 422, "VALIDATION_ERROR", "Dashboard 조회 기간은 7d를 사용해 주세요.")
+
     @app.exception_handler(JobNotFound)
     async def job_not_found(request: Request, _: JobNotFound) -> JSONResponse:
         return error_response(request, 404, "NOT_FOUND", "작업을 찾을 수 없습니다.")

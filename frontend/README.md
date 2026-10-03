@@ -10,6 +10,7 @@ ServIQ의 운영 콘솔입니다. Day 13 v0.4.1 기반을 유지하며 현재 �
 - `src/api/incidents/`: 같은 Incident Contract를 사용하는 Mock/HTTP 경계입니다.
 - `src/api/reviews/`: 실제 Approval 원본의 조회·승인·반려와 기존 Mock 경로를 분리합니다.
 - `src/api/jobs/`: PostgreSQL Job 조회·재시도·취소의 HTTP 계약과 기존 Mock 경로를 분리합니다.
+- `src/api/dashboard/`: 단일 서버 Snapshot의 운영 지표·UTC 추세·기준 시각과 Mock 경로를 분리합니다.
 - `src/features/`: 대시보드, 인시던트, 검토, 실행 추적, 연동, 대기열, 운영 설정입니다.
 - Tailwind CSS, Radix Select/Dialog/Tabs, Framer Motion, lucide-react로 화면·키보드 조작·상태를 구성합니다.
 - 인시던트 팝업은 진행 이력·증거·RCA·CAPA·담당 작업·검증·추적의 7개 탭과 서버 Permission에 따른 운영 명령을 제공합니다.
@@ -51,10 +52,12 @@ Queue도 HTTP 모드에서는 실제 Job 목록과 상세 팝업을 사용합니
 
 ## 제한 사항
 
-기본 Mock 모드의 자료는 새로고침하면 초기화됩니다. HTTP 모드에서는 Incident·Review·Queue가 실제 API를 사용하지만 운영 집계·연동·Agent Trace·설정 변경은 여전히 Mock입니다. 예시 집계와 실제 자료를 혼동하지 않도록 안내를 구분합니다. 날짜가 없는 검증은 `기록 없음`으로 표시합니다. PostgreSQL 영속 기록은 Backend의 PostgreSQL 모드에서만 보장합니다.
+Dashboard HTTP 모드는 `GET /api/v1/dashboard?window=7d` 한 응답으로 실제 KPI·추세·RCA·CAPA를 표시합니다. `as_of`는 서버 정보 기준 시각이며 추세 날짜는 UTC입니다. 브라우저에서 Incident/Review/Queue를 합산하지 않고 실패 시 예시로 대체하지 않습니다. 연동 상태는 실제 원본이 없어 준비 중으로 구분합니다. KPI 계산 규칙과 Tenant/store 범위는 [Day 19 문서](../docs/serviq_dashboard.md)를 참고하세요.
+
+기본 Mock 모드의 자료는 새로고침하면 초기화됩니다. HTTP 모드에서는 Incident·Review·Queue·Dashboard가 실제 API를 사용하지만 연동·Agent Trace·설정 변경은 여전히 Mock입니다. 예시 자료와 실제 자료를 혼동하지 않도록 안내를 구분합니다. 날짜가 없는 검증은 `기록 없음`으로 표시합니다. PostgreSQL 영속 기록은 Backend의 PostgreSQL 모드에서만 보장합니다.
 
 Jev·Gemini/Ollama Runtime·LangGraph·Multi-Agent·MCP는 아직 호출하지 않습니다. 향후 Agent는 Provider에 직접 의존하지 않고 공통 LLM Gateway 뒤의 Gemini(기본), Ollama(로컬·대체)를 사용합니다.
 
 ## 다음 단계
 
-다음 후보는 Dashboard의 실제 서버 집계 연결 또는 persistent Job 기반 Worker 정책 확장입니다. 다음 Day 시작 시 최신 main과 Drive 설계를 다시 확인합니다. Day 17~18의 서버 Permission·Tenant/RBAC·Audit·멱등성 경계를 재사용하며 OIDC/SSO는 별도 완료 기준으로 추적합니다. 이후 Jev → LLM Gateway → LangGraph → Multi-Agent → Harness/Loop → MCP를 순차 연결합니다. 실행·배포는 [배포 문서](../docs/serviq_delivery.md), 구조는 [실행 구조 문서](../docs/serviq_structure.md)를 참고하세요.
+다음 UI 후보는 Settings의 실제 versioned API입니다. 다음 Day 시작 시 최신 main과 Drive 설계를 다시 확인합니다. Day 17~19의 서버 Permission·Tenant/store·Audit·멱등성 경계를 재사용하며 Worker 운영 정책과 OIDC/SSO는 별도 완료 기준으로 추적합니다. 이후 Jev → LLM Gateway → LangGraph → Multi-Agent → Harness/Loop → MCP를 순차 연결합니다. 실행·배포는 [배포 문서](../docs/serviq_delivery.md), 구조는 [실행 구조 문서](../docs/serviq_structure.md)를 참고하세요.

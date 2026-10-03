@@ -14,6 +14,8 @@ Day 18에는 [작업 대기열 운영](serviq_job_queue.md)의 PostgreSQL Queue 
 
 ### 로컬 실행 구성
 
+Day 19에는 [Dashboard Projection](serviq_dashboard.md)의 실제 PostgreSQL 집계 smoke와 nginx Dashboard 지표 변화 검증을 추가했습니다. 스키마 변경 없이 읽기 전용 Query를 제공하며 CI는 기존 PostgreSQL→security→Queue 이후 Dashboard를 검증합니다.
+
 새 서비스는 `serviq` 프로필에만 포함됩니다. 기존 `db`, `app`, `init-db`, `cli`, `dashboard`의 역할과 데이터 볼륨을 유지합니다. Streamlit의 실행 경로만 이동한 `backend/src/dashboard/app.py`로 맞춥니다.
 
 | 서비스 | 역할 | 접근 방식 |
