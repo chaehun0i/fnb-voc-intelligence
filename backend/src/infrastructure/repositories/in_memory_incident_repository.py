@@ -22,6 +22,7 @@ class InMemoryIncidentRepository(IncidentRepository):
         status: IncidentStatus | None = None,
         severity: Severity | None = None,
         store: str | None = None,
+        *, tenant_id: str | None = None,
     ) -> list[Incident]:
         with self._lock:
             return deepcopy(
@@ -29,20 +30,25 @@ class InMemoryIncidentRepository(IncidentRepository):
                     item
                     for item in self._items.values()
                     if (status is None or item.status == status)
+                    and (tenant_id is None or item.tenant_id == tenant_id)
                     and (severity is None or item.severity == severity)
                     and (store is None or item.store == store)
                 ]
             )
 
-    def get(self, incident_id: str) -> Incident | None:
+    def get(self, incident_id: str, *, tenant_id: str | None = None) -> Incident | None:
         with self._lock:
-            return deepcopy(self._items.get(incident_id))
+            item = self._items.get(incident_id)
+            return deepcopy(item) if item and (
+                tenant_id is None or item.tenant_id == tenant_id
+            ) else None
 
     def save(self, incident: Incident) -> Incident:
         with self._lock:
             previous = self._items.get(incident.id)
             if (previous is None and incident.version != 0) or (
-                previous is not None and previous.version != incident.version
+                previous is not None and (previous.version != incident.version
+                                         or previous.tenant_id != incident.tenant_id)
             ):
                 raise IncidentConflict("인시던트가 변경되었습니다. 다시 읽어 주세요.")
             saved = replace(incident, version=incident.version + 1)

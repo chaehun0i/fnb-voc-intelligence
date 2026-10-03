@@ -8,6 +8,8 @@ Day 16의 Incident 업무 흐름에 요청자·조직·권한·승인·감사·�
 
 `Principal`은 요청자·조직·역할·매장 범위·인증 출처를 표현하고 `IdentityProvider` Port에서 전달합니다. `LocalIdentityProvider`는 서버에 설정한 계정만 반환하며 브라우저의 조직·역할 헤더를 신뢰하지 않습니다.
 
+Incident HTTP 경로는 조직에 고정된 Repository를 사용합니다. 다른 조직의 ID는 존재 여부를 노출하지 않는 404, 같은 조직 내 역할·매장 권한 부족은 403으로 구분합니다. 조회·운영·검토·관리 역할은 중앙 Authorization에서 판정하며 Reviewer는 조사 명령을 실행할 수 없습니다. `002_tenant_security.sql`은 기존 자료를 `legacy-local` 조직으로 보존합니다.
+
 ## 실행 및 검증
 
 `uv run --extra dev pytest backend/tests/test_authentication.py`로 로컬 계정 매핑과 인증 거부를 확인합니다.

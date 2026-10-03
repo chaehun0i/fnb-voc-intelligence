@@ -4,9 +4,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 
+from src.api.dependencies.auth import request_context
 from src.application.incidents.service import IncidentService
 from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.models import CorrectiveAction, Evidence, RootCauseCandidate
+from src.infrastructure.repositories.scoped_incident_repository import (
+    ScopedIncidentRepository,
+)
 
 from ..mappers import incident_response
 from ..schemas.incidents import (
@@ -26,7 +30,12 @@ router = APIRouter(prefix="/api/v1/incidents", tags=["incidents"])
 
 
 def get_service(request: Request) -> IncidentService:
-    return request.app.state.service
+    original = request.app.state.service
+    principal = request_context(request).principal
+    return IncidentService(
+        ScopedIncidentRepository(original.repo, principal.tenant_id),
+        original.clock, original.id_generator, principal,
+    )
 
 
 Service = Annotated[IncidentService, Depends(get_service)]

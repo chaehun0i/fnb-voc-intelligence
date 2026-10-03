@@ -11,6 +11,8 @@ from src.application.ports.incident_repository import (
     IncidentConflict,
     IncidentRepository,
 )
+from src.application.security.authorization import allowed, require
+from src.application.security.principal import Principal
 from src.domain.incidents.enums import (
     ActionStatus,
     EvidenceStatus,
@@ -44,8 +46,10 @@ class IncidentService:
         repo: IncidentRepository,
         clock: Callable[[], datetime] | None = None,
         id_generator: Callable[[], str] | None = None,
+        principal: Principal | None = None,
     ) -> None:
         self.repo = repo
+        self.principal = principal
         self.clock = clock or (lambda: datetime.now(UTC))
         self.id_generator = id_generator or (lambda: str(uuid4()))
 
@@ -61,16 +65,24 @@ class IncidentService:
         severity: Severity | None = None,
         store: str | None = None,
     ) -> list[Incident]:
-        return self.repo.list(status=status, severity=severity, store=store)
+        items = self.repo.list(status=status, severity=severity, store=store)
+        if self.principal is not None:
+            require(self.principal, "read")
+            items = [item for item in items if allowed(self.principal, "read", item.store)]
+        return items
 
     def get(self, incident_id: str) -> Incident:
         item = self.repo.get(incident_id)
         if item is None:
             raise IncidentNotFound(incident_id)
+        if self.principal is not None:
+            require(self.principal, "read", item.store)
         return item
 
-    def _load(self, incident_id: str, expected_version: int | None) -> Incident:
+    def _load(self, incident_id: str, expected_version: int | None, action: str = "operate") -> Incident:
         item = self.get(incident_id)
+        if self.principal is not None:
+            require(self.principal, action, item.store)
         if expected_version is not None and item.version != expected_version:
             raise IncidentConflict("인시던트의 최신 버전을 다시 확인해 주세요.")
         return item
@@ -85,6 +97,8 @@ class IncidentService:
         priority: Priority = Priority.P2,
     ) -> Incident:
         now = self._now()
+        if self.principal is not None:
+            require(self.principal, "operate", store)
         identifier = self.id_generator()
         if self.repo.get(identifier) is not None:
             raise IncidentConflict("이미 등록된 인시던트입니다.")
@@ -107,6 +121,7 @@ class IncidentService:
                 sla_due_at=due_at,
                 timeline=[StateTransition(IncidentStatus.DETECTED, now)],
                 priority=priority,
+                tenant_id=self.principal.tenant_id if self.principal else "legacy-local",
             )
         )
 
@@ -228,7 +243,7 @@ class IncidentService:
         incident_id: str,
         expected_version: int | None = None,
     ) -> Incident:
-        item = self._load(incident_id, expected_version)
+        item = self._load(incident_id, expected_version, "review")
         require_status(item, IncidentStatus.PENDING_APPROVAL)
         if item.approved:
             raise DomainRuleViolation("이미 승인한 조치입니다.")
@@ -248,7 +263,7 @@ class IncidentService:
         incident_id: str,
         expected_version: int | None = None,
     ) -> Incident:
-        item = self._load(incident_id, expected_version)
+        item = self._load(incident_id, expected_version, "review")
         require_status(item, IncidentStatus.PENDING_APPROVAL)
         rejected = transition(
             item,
@@ -371,12 +386,16 @@ class IncidentService:
         def permissions(values: dict[str, bool]) -> dict:
             return {
                 action: {
-                    "allowed": allowed,
+                    "allowed": enabled and (self.principal is None or allowed(
+                        self.principal, "review" if action in {"approve", "reject"}
+                        else "operate", item.store)),
                     "reason": "진행할 수 있습니다."
-                    if allowed
+                    if enabled and (self.principal is None or allowed(
+                        self.principal, "review" if action in {"approve", "reject"}
+                        else "operate", item.store))
                     else "현재 단계의 선행 작업을 완료해 주세요.",
                 }
-                for action, allowed in values.items()
+                for action, enabled in values.items()
             }
 
         return {
