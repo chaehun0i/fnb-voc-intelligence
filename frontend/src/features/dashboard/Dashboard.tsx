@@ -4,9 +4,10 @@ import { apiMode } from "../../api/incidents";
 import { Button, PageHeading, PreviewNotice, StateMessage, StatCard } from "../../components/ui";
 import { dateTime } from "../../lib/display";
 import { useQuery } from "../../lib/useQuery";
+import { Badge } from "../../components/IncidentBadge";
 
 const load = () => dashboardApi.getSnapshot();
-export function Dashboard({ onIncidents, onReviews, onQueue }: { onIncidents: () => void; onReviews: () => void; onQueue: () => void; onIncident: (id: string) => void }) {
+export function Dashboard({ onIncidents, onReviews, onQueue, onIncident }: { onIncidents: () => void; onReviews: () => void; onQueue: () => void; onIncident: (id: string) => void }) {
   const query = useQuery(load);
   if (query.loading) return <section className="page"><StateMessage kind="loading" title="운영 현황을 불러오는 중입니다" /></section>;
   if (query.error || !query.data) return <section className="page"><StateMessage kind="error" title="운영 현황을 불러오지 못했습니다" onRetry={query.reload}>{query.error}</StateMessage></section>;
@@ -41,6 +42,7 @@ export function Dashboard({ onIncidents, onReviews, onQueue }: { onIncidents: ()
         <h2 className="mt-6">시정·예방 조치 현황</h2><div className="flex gap-5">{snapshot.capa_status.map((item) => <div key={item.status}><span className="muted text-xs">{{ PROPOSED: "제안", APPROVED: "승인", EXECUTED: "실행" }[item.status]}</span><div className="font-bold">{item.count}건</div></div>)}</div>
       </article>
     </div>
+    <article className="panel"><h2>우선 확인할 인시던트</h2>{snapshot.priority_incidents.length ? snapshot.priority_incidents.map((item) => <div key={item.id} className="record-row"><div><button className="text-link" onClick={() => onIncident(item.id)}>{item.title}</button><p>{item.store} · 담당 {item.owner}</p></div><Badge value={item.severity} /></div>) : <p className="muted">진행 중인 인시던트가 없습니다.</p>}</article>
     <div className="panels"><article className="panel"><h2>운영 처리 상태</h2>
       <div className="record-row"><span>대기 {kpis.queue_depth}건 / 처리 중 {kpis.running_jobs}건</span><Button onClick={onQueue}>대기열 보기</Button></div>
       <div className="record-row"><span>승인 대기 {kpis.pending_approvals}건</span><Button onClick={onReviews}>검토 대기함</Button></div>

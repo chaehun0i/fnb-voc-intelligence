@@ -38,6 +38,15 @@ class CapaCount:
 
 
 @dataclass(frozen=True)
+class PriorityIncident:
+    id: str
+    title: str
+    store: str
+    owner: str
+    severity: str
+
+
+@dataclass(frozen=True)
 class DashboardSnapshot:
     as_of: str
     incident_trend: list[TrendBucket]
@@ -46,6 +55,7 @@ class DashboardSnapshot:
     timezone: str = "UTC"
     root_cause_distribution: list[CauseCount] = field(default_factory=list)
     capa_status: list[CapaCount] = field(default_factory=list)
+    priority_incidents: list[PriorityIncident] = field(default_factory=list)
     integration_health: dict[str, str] = field(default_factory=lambda: {
         "status": "NOT_IMPLEMENTED", "reason": "실제 연동 상태 집계는 준비 중입니다.",
     })

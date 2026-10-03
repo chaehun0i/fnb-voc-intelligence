@@ -11,6 +11,7 @@ from src.application.dashboard.models import (
     DashboardKpis,
     DashboardSnapshot,
     DashboardUnavailable,
+    PriorityIncident,
     TrendBucket,
 )
 from src.application.dashboard.queries import store_scope
@@ -54,7 +55,11 @@ class MemoryDashboardProjection:
                 queue_depth=sum(j.status == "PENDING" for j in jobs),
                 running_jobs=sum(j.status == "RUNNING" for j in jobs)))
             causes = sum(len(item.root_cause_candidates) for item in incidents)
-            return replace(snapshot, root_cause_distribution=[CauseCount("미분류", causes)] if causes else [],
+            priorities = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+            opened = sorted([i for i in incidents if i.status not in {"RESOLVED", "CLOSED"}],
+                            key=lambda i: (priorities[i.severity], -timestamp(i.created_at).timestamp(), i.id))[:4]
+            return replace(snapshot, priority_incidents=[PriorityIncident(i.id, i.title, i.store, i.owner, i.severity) for i in opened],
+                root_cause_distribution=[CauseCount("미분류", causes)] if causes else [],
                 capa_status=[CapaCount(status, sum(action.status == status for item in incidents for action in item.corrective_actions))
                              for status in ["PROPOSED", "APPROVED", "EXECUTED"]])
 
@@ -99,17 +104,17 @@ class PostgresDashboardProjection:
         rows = connection.execute(f"""WITH scoped AS (
             SELECT document FROM serviq_incidents WHERE {predicates}
         ), detected AS (
-            SELECT ((document->>'created_at')::timestamptz AT TIME ZONE 'UTC')::date day, count(*) n
+            SELECT ((document->>'created_at')::timestamptz AT TIME ZONE 'UTC')::date AS bucket_date, count(*) AS n
             FROM scoped WHERE (document->>'created_at')::timestamptz>=%s GROUP BY 1
         ), resolved_times AS (
             SELECT (SELECT max((t->>'occurred_at')::timestamptz)
                 FROM jsonb_array_elements(COALESCE(document->'timeline','[]'::jsonb)) t
-                WHERE t->>'status'='RESOLVED' AND (t->>'occurred_at')::timestamptz<=%s) at FROM scoped
+                WHERE t->>'status'='RESOLVED' AND (t->>'occurred_at')::timestamptz<=%s) AS resolved_at FROM scoped
         ), resolved AS (
-            SELECT (at AT TIME ZONE 'UTC')::date day,count(*) n FROM resolved_times WHERE at>=%s GROUP BY 1
-        ) SELECT to_char(d.day,'YYYY-MM-DD'), COALESCE(a.n,0),COALESCE(r.n,0)
-        FROM generate_series(%s::timestamp,%s::timestamp,interval '1 day') d(day)
-        LEFT JOIN detected a ON a.day=d.day::date LEFT JOIN resolved r ON r.day=d.day::date ORDER BY d.day""",
+            SELECT (resolved_at AT TIME ZONE 'UTC')::date AS bucket_date,count(*) AS n FROM resolved_times WHERE resolved_at>=%s GROUP BY 1
+        ) SELECT to_char(d.bucket_date,'YYYY-MM-DD'), COALESCE(a.n,0),COALESCE(r.n,0)
+        FROM generate_series(%s::timestamp,%s::timestamp,interval '1 day') d(bucket_date)
+        LEFT JOIN detected a ON a.bucket_date=d.bucket_date::date LEFT JOIN resolved r ON r.bucket_date=d.bucket_date::date ORDER BY d.bucket_date""",
             (*params, start, as_of, start, start.replace(tzinfo=None), as_of.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None))).fetchall()
         return DashboardSnapshot(as_of.isoformat(), [TrendBucket(*row) for row in rows],
                                  DashboardKpis(open_incidents=opened, critical_incidents=critical))
@@ -139,5 +144,10 @@ class PostgresDashboardProjection:
             CROSS JOIN LATERAL jsonb_array_elements(COALESCE(document->'corrective_actions','[]'::jsonb)) action
             GROUP BY 1""", params).fetchall()
         counts = dict(rows)
-        return replace(snapshot, root_cause_distribution=[CauseCount("미분류", causes)] if causes else [],
+        priorities = connection.execute(f"""SELECT id,document->>'title',store,document->>'owner',severity
+            FROM serviq_incidents WHERE {predicates} AND status NOT IN ('RESOLVED','CLOSED')
+            ORDER BY CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 ELSE 3 END,
+            (document->>'created_at')::timestamptz DESC,id LIMIT 4""", params).fetchall()
+        return replace(snapshot, priority_incidents=[PriorityIncident(*row) for row in priorities],
+                       root_cause_distribution=[CauseCount("미분류", causes)] if causes else [],
                        capa_status=[CapaCount(status, counts.get(status, 0)) for status in ["PROPOSED", "APPROVED", "EXECUTED"]])

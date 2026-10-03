@@ -30,7 +30,8 @@ export function decodeDashboard(value: unknown): DashboardSnapshot {
     !Array.isArray(value.root_cause_distribution) || !value.root_cause_distribution.every((item) => record(item) && typeof item.label === "string" && count(item.count)) ||
     !Array.isArray(value.capa_status) || value.capa_status.length !== 3 || !value.capa_status.every((item) => record(item) && ["PROPOSED", "APPROVED", "EXECUTED"].includes(String(item.status)) && count(item.count)) ||
     new Set(value.capa_status.map((item) => item.status)).size !== 3 ||
-    !record(value.integration_health) || value.integration_health.status !== "NOT_IMPLEMENTED" || typeof value.integration_health.reason !== "string") invalid();
+    !record(value.integration_health) || value.integration_health.status !== "NOT_IMPLEMENTED" || typeof value.integration_health.reason !== "string" ||
+    !Array.isArray(value.priority_incidents) || value.priority_incidents.length > 4 || !value.priority_incidents.every((item) => record(item) && ["id", "title", "store", "owner"].every((key) => typeof item[key] === "string") && ["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(String(item.severity)))) invalid();
   const asOf = new Date(value.as_of as string);
   const today = Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate());
   if (!value.incident_trend.every((item, index) => item.day === new Date(today - (6 - index) * 86400000).toISOString().slice(0, 10))) invalid();

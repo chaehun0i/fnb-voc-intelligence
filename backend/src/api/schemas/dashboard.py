@@ -35,6 +35,14 @@ class IntegrationAvailability(BaseModel):
     reason: str
 
 
+class PriorityIncidentResponse(BaseModel):
+    id: str
+    title: str
+    store: str
+    owner: str
+    severity: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+
+
 class DashboardResponse(BaseModel):
     as_of: str
     window: Literal["7d"]
@@ -44,3 +52,4 @@ class DashboardResponse(BaseModel):
     root_cause_distribution: list[CauseResponse]
     capa_status: list[CapaResponse]
     integration_health: IntegrationAvailability
+    priority_incidents: list[PriorityIncidentResponse]

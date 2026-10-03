@@ -27,6 +27,7 @@ export type DashboardSnapshot = {
   root_cause_distribution: Array<{ label: string; count: number }>;
   capa_status: Array<{ status: "PROPOSED" | "APPROVED" | "EXECUTED"; count: number }>;
   integration_health: { status: "NOT_IMPLEMENTED"; reason: string };
+  priority_incidents: Array<Pick<Incident, "id" | "title" | "store" | "owner" | "severity">>;
 };
 export type ConfigFieldRule = { min: number; max: number; integer: boolean };
 export type ConfigRevision = { version: number; created_at: string; actor: string; reason: string; changes: Array<{ field: string; before: string; after: string }>; snapshot: ControlPlaneConfig };

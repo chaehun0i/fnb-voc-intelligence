@@ -6,6 +6,8 @@ Day 18 이후 실제 Incident·Approval·Job 원본을 읽는 운영 Dashboard�
 
 ## 구성
 
+서버 Snapshot의 우선 확인 목록은 조회 범위 안의 열린 사건 최대 4개입니다. severity 우선, 생성 시각 최신순으로 결정적으로 정렬하며 상세 팝업으로 연결합니다. 기존 Review 승인·Job 취소 후 새 Dashboard 조회가 실제 원본 변화를 반영합니다. 새로운 writable projection/event consumer를 만들지 않았습니다.
+
 Dashboard HTTP 모드는 GET dashboard 한 요청으로 KPI·추세·RCA·CAPA를 표시합니다. 기존 여러 Incident/Approval/Job/Integration API를 브라우저에서 조합하지 않습니다. Mock은 독립 Adapter이며 HTTP 오류는 오류 화면을 표시합니다. 기준 시각·UTC 안내·새로고침과 명시적인 연동 ‘준비 중’ 안내를 제공합니다.
 
 Frontend-first 계약은 `DashboardSnapshot`과 `api/dashboard`입니다. `as_of`, `window=7d`, UTC 날짜 추세, 명시적 KPI·RCA·CAPA를 사용합니다. Integration Health는 실제 원본이 없어 NOT_IMPLEMENTED로 구분합니다. 초기 계약 단계이며 서버 구현은 후속 커밋에서 연결합니다.
