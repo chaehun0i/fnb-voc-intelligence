@@ -10,6 +10,8 @@ Frontend-first 계약은 `DashboardSnapshot`과 `api/dashboard`입니다. `as_of
 
 ## 실행/검증
 
+`GET /api/v1/dashboard?window=7d`는 기존 Principal 경계를 거칩니다. 잘못된 기간은 422 VALIDATION_ERROR, 집계 실패는 503 DASHBOARD_UNAVAILABLE입니다. PostgreSQL 모드의 실패를 memory/fixture로 대체하지 않습니다. 새 mutation endpoint나 migration은 없습니다.
+
 Frontend의 기존 lint/test/build 명령으로 계약 호환성을 검증합니다. 최종 실제 결과는 Day 마감 때 기록합니다.
 
 ## 제한 사항
