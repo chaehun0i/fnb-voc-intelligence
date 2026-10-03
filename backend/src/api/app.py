@@ -80,7 +80,7 @@ def create_app(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", "X-Request-ID", "Authorization"],
+        allow_headers=["Content-Type", "X-Request-ID", "Authorization", "Idempotency-Key"],
         expose_headers=["X-Request-ID"],
     )
 

@@ -35,6 +35,12 @@ def register_error_handlers(app: FastAPI) -> None:
             if exc.status == 401
             else "현재 역할 또는 매장 범위에서는 이 작업을 수행할 수 없습니다."
         )
+        message = {
+            "IDEMPOTENCY_CONFLICT": "같은 요청 키에 다른 내용이 전달되었습니다. 내용을 확인해 주세요.",
+            "PROCESSING": "같은 요청을 처리 중입니다. 잠시 후 동일한 키로 다시 시도해 주세요.",
+            "IDEMPOTENCY_KEY_REQUIRED": "중복 실행을 방지하는 요청 키가 필요합니다.",
+            "VALIDATION_ERROR": "요청 키 형식을 확인해 주세요.",
+        }.get(exc.code, message)
         return error_response(request, exc.status, exc.code, message)
 
     @app.exception_handler(IncidentNotFound)

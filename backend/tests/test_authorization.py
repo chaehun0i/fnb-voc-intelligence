@@ -1,5 +1,7 @@
 """테넌트 ID를 알고 있어도 범위를 벗어나면 조회·변경하지 못합니다."""
 
+from uuid import uuid4
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -24,7 +26,7 @@ def client():
 
 
 def auth(token):
-    return {"Authorization": f"Bearer {token}"}
+    return {"Authorization": f"Bearer {token}", "Idempotency-Key": str(uuid4())}
 
 
 def test_tenant_isolation_and_role_guard(client):

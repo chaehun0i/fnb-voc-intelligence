@@ -33,6 +33,7 @@ class RequestContext:
     principal: Principal
     request_id: str
     correlation_id: str
+    idempotency_key: str | None = None
 
 
 class AccessError(Exception):
