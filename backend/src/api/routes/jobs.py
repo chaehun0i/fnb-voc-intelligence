@@ -4,8 +4,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request
 
 from src.api.dependencies.auth import request_context
-from src.api.schemas.jobs import JobResponse
-from src.application.jobs.queries import JobQueries
+from src.api.schemas.jobs import JobCommandRequest, JobResponse
+from src.application.jobs.commands import JobCommands
+from src.application.jobs.queries import JobQueries, job_response
 from src.domain.jobs.models import JobPriority, JobStatus
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
@@ -34,3 +35,19 @@ def get_job(job_id: str, context: Context):
     persistence, request = context
     with persistence.transaction(request.principal.tenant_id) as uow:
         return JobQueries(uow.jobs, request.principal).get(job_id)
+
+
+def command(action, job_id, body, context):
+    persistence, request = context
+    result = JobCommands(persistence, request).execute(action, job_id, body.reason, body.expected_version)
+    return job_response(result, request.principal)
+
+
+@router.post("/{job_id}/retry", response_model=JobResponse)
+def retry_job(job_id: str, body: JobCommandRequest, context: Context):
+    return command("retry", job_id, body, context)
+
+
+@router.post("/{job_id}/cancel", response_model=JobResponse)
+def cancel_job(job_id: str, body: JobCommandRequest, context: Context):
+    return command("cancel", job_id, body, context)

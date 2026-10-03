@@ -25,6 +25,10 @@ Job Worker는 우선순위·실행 가능 시각 순으로 `FOR UPDATE SKIP LOCK
 status·priority·job_type·incident_id·correlation_id 필터와 최대 100건 limit/offset을 제공합니다.
 서버에서 조직·역할·매장·상태에 따른 retry/cancel permission과 사유를 계산합니다.
 API는 payload reference와 Worker 소유자 등 불필요한 내부 정보를 공개하지 않습니다.
+`POST /api/v1/jobs/{job_id}/retry`와 `/cancel`은 사유·expected_version·Idempotency-Key가 필요합니다.
+기존 Day 17 멱등성 저장소는 Incident 결과 호환을 유지하면서 Job snapshot도 저장합니다.
+조직·역할 검사를 replay 전에 수행하고, Job 저장·사유가 있는 Audit·멱등성 완료를 한 트랜잭션으로 처리합니다.
+취소는 PENDING만 가능하며, 실패/DLQ 재시도는 새 Job의 parent_job_id로 원본 이력을 연결합니다.
 상태는 `PENDING → RUNNING → COMPLETED`이며 실패는 `FAILED` 또는 `DLQ`로 남깁니다.
 자동 재시도는 횟수와 대기 시간을 제한합니다. 운영 재시도는 원본을 보존한 새 Job을 만듭니다.
 취소는 `PENDING`에만 허용하며 실행 중인 작업을 중단한 것처럼 표시하지 않습니다.
