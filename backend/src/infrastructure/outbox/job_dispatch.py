@@ -2,7 +2,7 @@
 from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, uuid5
 
-from src.domain.jobs.models import Job
+from src.domain.jobs.models import Job, JobPriority
 from src.infrastructure.outbox.worker import InvalidOutboxEvent, validate_and_log
 from src.infrastructure.repositories.job_repository import PostgresJobRepository
 
@@ -21,7 +21,7 @@ def dispatch_job(event, repository, incident, now):
         job_id=job_id, tenant_id=incident.tenant_id, job_type="incident.snapshot",
         correlation_id=event.payload["correlation_id"], created_at=now, available_at=now,
         incident_id=incident.id, store=incident.store, payload_ref=event.event_id,
-        dispatch_id=event.event_id,
+        dispatch_id=event.event_id, priority=JobPriority(incident.priority),
     ))
 
 

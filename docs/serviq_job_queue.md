@@ -32,6 +32,10 @@ API는 payload reference와 Worker 소유자 등 불필요한 내부 정보를 �
 Queue 화면은 `api/jobs` 어댑터를 사용합니다. `VITE_API_MODE=mock|http`와 기존 API URL 설정을 재사용합니다.
 HTTP 데이터와 Mock 예시를 섞지 않으며 서버 permission과 사유를 표시합니다.
 처리 사유·버전·동작이 같은 네트워크 재시도에는 같은 요청 키를 사용하고 중복 클릭은 즉시 차단합니다.
+Compose의 `worker`는 `src.infrastructure.queue.runtime`을 실행합니다.
+Outbox 전달과 Job 실행을 번갈아 처리하되 각각의 claim·ACK·실패 상태는 별도 테이블에 남깁니다.
+`incident.snapshot`은 조직별 Incident 원본과 매장 계약만 확인하는 안전한 첫 비동기 경로입니다.
+기존 Outbox 단독 Worker 명령도 보존합니다. 종료 신호는 현재 처리 후 다음 인수를 중단합니다.
 상태는 `PENDING → RUNNING → COMPLETED`이며 실패는 `FAILED` 또는 `DLQ`로 남깁니다.
 자동 재시도는 횟수와 대기 시간을 제한합니다. 운영 재시도는 원본을 보존한 새 Job을 만듭니다.
 취소는 `PENDING`에만 허용하며 실행 중인 작업을 중단한 것처럼 표시하지 않습니다.

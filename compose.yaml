@@ -106,7 +106,7 @@ services:
   worker:
     build: .
     profiles: ["serviq"]
-    command: ["python", "-m", "src.infrastructure.outbox.worker", "--poll-seconds", "2"]
+    command: ["python", "-m", "src.infrastructure.queue.runtime", "--poll-seconds", "2"]
     restart: unless-stopped
     environment:
       SERVIQ_DATABASE_URL: postgresql://${POSTGRES_USER:-fnb}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-fnb_voc}

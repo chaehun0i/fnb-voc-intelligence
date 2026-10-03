@@ -33,6 +33,11 @@ export function Queue() {
   const tenants = Array.from(new Set(jobs?.map((job) => job.tenant_id) ?? []));
   const filtered = jobs?.filter((job) => (status === "ALL" || job.status === status) && (tenant === "ALL" || job.tenant_id === tenant) && (priority === "ALL" || job.priority === priority)) ?? [];
 
+  function refresh() {
+    detailRequest.current++;
+    setExpandedId(undefined); setDetail(undefined); reload();
+  }
+
   async function openDetail(job: QueueJob) {
     const request = ++detailRequest.current;
     setExpandedId(job.id); setDetail(undefined); setDetailLoading(true); setReason("");
@@ -52,13 +57,13 @@ export function Queue() {
     try {
       const updated = await jobApi.jobAction(job.id, action, reason, attempt.current.key, job.version);
       attempt.current = undefined;
-      if (updated.id === job.id) setDetail(updated);
-      else setExpandedId(undefined);
+      setExpandedId(undefined);
+      setDetail(undefined);
       setFeedback(`${updated.type}: ${action === "retry" ? "재시도 요청" : "취소 요청"}이 ${apiMode === "http" ? "서버에 기록되었습니다" : "미리보기에 반영되었습니다"}.`);
       reload();
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "요청을 처리하지 못했습니다. 다시 시도하세요.");
-      if (error instanceof JobApiError && ["CONFLICT", "IDEMPOTENCY_CONFLICT", "JOB_TRANSITION_NOT_ALLOWED"].includes(error.code)) reload();
+      if (error instanceof JobApiError && ["CONFLICT", "IDEMPOTENCY_CONFLICT", "JOB_TRANSITION_NOT_ALLOWED"].includes(error.code)) refresh();
     } finally {
       setPendingId(undefined);
       busy.current = false;
@@ -68,7 +73,7 @@ export function Queue() {
   return (
     <section className="page">
       <PageHeading title="작업 대기열" description="매장별 작업 진행, 실패 사유와 재시도 가능 여부를 확인하세요.">
-        <Button onClick={reload} disabled={loading}><RefreshCw size={15} aria-hidden="true" /> 새로고침</Button>
+        <Button onClick={refresh} disabled={loading}><RefreshCw size={15} aria-hidden="true" /> 새로고침</Button>
       </PageHeading>
       {apiMode === "http" ? <p className="preview-notice">실제 서버 작업 · 재시도와 취소는 권한 검사와 감사 기록을 거칩니다.</p> : <PreviewNotice />}
       {feedback && <p className="action-feedback" role="status">{feedback}</p>}
