@@ -6,6 +6,8 @@ Day 18 이후 실제 Incident·Approval·Job 원본을 읽는 운영 Dashboard�
 
 ## 구성
 
+Dashboard HTTP 모드는 GET dashboard 한 요청으로 KPI·추세·RCA·CAPA를 표시합니다. 기존 여러 Incident/Approval/Job/Integration API를 브라우저에서 조합하지 않습니다. Mock은 독립 Adapter이며 HTTP 오류는 오류 화면을 표시합니다. 기준 시각·UTC 안내·새로고침과 명시적인 연동 ‘준비 중’ 안내를 제공합니다.
+
 Frontend-first 계약은 `DashboardSnapshot`과 `api/dashboard`입니다. `as_of`, `window=7d`, UTC 날짜 추세, 명시적 KPI·RCA·CAPA를 사용합니다. Integration Health는 실제 원본이 없어 NOT_IMPLEMENTED로 구분합니다. 초기 계약 단계이며 서버 구현은 후속 커밋에서 연결합니다.
 
 ## 실행/검증
