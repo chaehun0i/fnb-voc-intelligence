@@ -6,6 +6,8 @@ Day 20 Config 뒤에서 외부 AI 없이 정규화된 사실로 판단합니다.
 
 ## 구성
 
+고정 순서 route profile에서 allowlist·data availability를 적용하고 max parallelism으로 후보 수를 제한합니다. 데이터가 없거나 허용 후보가 없으면 모든 Agent 대신 수동 경로입니다.
+
 순수 safety/risk 규칙은 타입·시간대·Config 상한을 검사하고 식품 안전·재발·근거 부족 위험을 계산합니다. 긴급/blocked/자동화 off/수동 요청/조사 불가 상태는 이후 라우팅이 해제할 수 없는 gate입니다.
 
 `decision/jev`의 불변 Context/Result와 Frontend Decision 계약은 Shadow를 실행 결과와 구분합니다. ID·시각·저장은 pure core 밖의 경계 책임입니다.
