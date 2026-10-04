@@ -8,6 +8,8 @@ Day 19 이후 Settings를 실제 서버 설정 계약으로 전환합니다. Dri
 
 `RuntimeConfig`는 React/FastAPI와 독립적인 타입이고 `ConfigVersion`은 변경자·사유·부모 버전·복원 원본을 가진 불변 스냅샷입니다. 기존 Frontend 표시 필드를 유지하되 raw와 effective, source를 구분하는 계약을 추가했습니다.
 
+서버 `ConfigResolver`는 수치 상한·타입·승인 정책·예약 읽기 도구를 검증합니다. 상한 초과를 조용히 낮추지 않고 필드별 오류로 거부하므로 raw/effective는 검증 성공 시 동일하며 `adjusted_fields`는 비어 있습니다. HIGH/CRITICAL 승인과 요청자·승인자 분리 계약은 설정으로 해제할 수 없습니다. 실제 Runtime enforcement는 별도 후속 과제입니다.
+
 ## 실행/검증
 
 각 단계에서 관련 테스트와 린트를 실행하며 최종 결과는 Day 마감 시 기록합니다.
