@@ -64,6 +64,18 @@ class ConfigResolver:
                 errors.append({"field": key, "type": "JEV_POLICY", "reason": "등록된 분류·조사 후보만 중복 없이 설정해 주세요."})
         if "RESTRICTED" not in config.blocked_categories:
             errors.append({"field": "blocked_categories", "type": "JEV_POLICY", "reason": "제한된 자료 분류는 자동 조사 차단을 유지해야 합니다."})
+        if len(set(config.llm_enabled_providers)) != len(config.llm_enabled_providers) or not set(config.llm_enabled_providers) <= {"gemini", "ollama"}:
+            errors.append({"field": "llm_enabled_providers", "type": "PROVIDER", "reason": "등록된 Provider만 중복 없이 허용해 주세요."})
+        bindings = set()
+        for binding in config.llm_models:
+            key = (binding.provider, binding.model_class)
+            if (key in bindings or binding.provider not in {"gemini", "ollama"}
+                    or binding.model_class not in {"FAST", "STANDARD", "REASONING"}
+                    or not binding.model.strip() or len(binding.model) > 128
+                    or any(type(rate) not in (float, int) or not math.isfinite(rate) or rate < 0
+                           for rate in (binding.input_usd_per_million, binding.output_usd_per_million))):
+                errors.append({"field": "llm_models", "type": "MODEL_MAPPING", "reason": "고유한 Provider/모델 등급과 유효한 모델·요금이 필요합니다."})
+            bindings.add(key)
         if errors:
             raise ConfigValidationFailed(errors)
         # 초과 값을 조용히 clamp하지 않고 거부하므로 조정된 값은 없습니다.

@@ -10,6 +10,7 @@ Day 21 Jev Shadow 뒤에 Provider 중립 실행 경계를 추가합니다. 기�
 - 2단계: 비동기 Gateway와 FakeProvider로 정상 응답·일시 오류·rate limit·timeout을 외부 네트워크 없이 재현합니다. deadline이 만료되면 호출하지 않습니다.
 - 3단계: JSON Schema 검증과 업무 검증 hook을 분리합니다. 외부 `$ref`를 차단하고 schema repair는 설정값과 관계없이 최대 한 번입니다. 이전 응답을 repair prompt에 복제하지 않습니다.
 - 4단계: Data Policy를 호출 전에 강제합니다. canonical PII/credential/raw document 필드를 재귀적으로 제거하며 RESTRICTED는 차단합니다. 자유 텍스트의 PII 탐지는 제공하지 않으므로 PII/CONFIDENTIAL 입력은 Application의 검토 표시도 필요합니다.
+- 5단계: 기존 versioned Runtime Config에 Provider 허용·등급별 모델/요금·fallback 허용을 추가합니다. 이전 버전은 기본적으로 실제 호출이 비활성입니다. Router는 정책/capability/token·비용 예약량을 확인합니다. 실제 가격은 운영자가 검토한 설정값이며 제품 가격을 코드에 고정하지 않습니다.
 
 ## 실행/검증
 

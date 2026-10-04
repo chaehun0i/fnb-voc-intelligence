@@ -15,12 +15,23 @@ class RiskApprovalInput(StrictModel):
     CRITICAL: bool
 
 
+class LLMModelBindingInput(StrictModel):
+    provider: Literal["gemini", "ollama"]
+    model_class: Literal["FAST", "STANDARD", "REASONING"]
+    model: str = Field(min_length=1, max_length=128)
+    input_usd_per_million: float = Field(ge=0, allow_inf_nan=False)
+    output_usd_per_million: float = Field(ge=0, allow_inf_nan=False)
+
+
 class RuntimeConfigInput(StrictModel):
     default_llm_provider: Literal["gemini", "ollama"]
     fallback_llm_provider: Literal["gemini", "ollama"]
     jev_enabled: bool
     critical_manual_only: bool = True
     hosted_ai_allowed: bool = False
+    llm_enabled_providers: list[Literal["gemini", "ollama"]] = []
+    llm_models: list[LLMModelBindingInput] = []
+    llm_fallback_allowed: bool = False
     allowed_agent_types: list[str] = ["TEMPERATURE", "INVENTORY", "LOT", "SUPPLIER", "HISTORY", "TRANSACTION"]
     blocked_categories: list[str] = ["RESTRICTED"]
     max_agent_iterations: int
