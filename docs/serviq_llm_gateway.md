@@ -12,6 +12,7 @@ Day 21 Jev Shadow 뒤에 Provider 중립 실행 경계를 추가합니다. 기�
 - 4단계: Data Policy를 호출 전에 강제합니다. canonical PII/credential/raw document 필드를 재귀적으로 제거하며 RESTRICTED는 차단합니다. 자유 텍스트의 PII 탐지는 제공하지 않으므로 PII/CONFIDENTIAL 입력은 Application의 검토 표시도 필요합니다.
 - 5단계: 기존 versioned Runtime Config에 Provider 허용·등급별 모델/요금·fallback 허용을 추가합니다. 이전 버전은 기본적으로 실제 호출이 비활성입니다. Router는 정책/capability/token·비용 예약량을 확인합니다. 실제 가격은 운영자가 검토한 설정값이며 제품 가격을 코드에 고정하지 않습니다.
 - 6단계: 공식 `google-genai` SDK를 Gemini 어댑터에만 추가했습니다. v1 API·밀리초 timeout·SDK retry 1회(추가 재시도 없음)·JSON Schema·reasoning 포함 usage를 공통 계약으로 변환합니다. 키는 환경에서만 읽으며 실제 외부 호출은 검증하지 않았습니다.
+- 7단계: [Ollama 공식 chat API](https://docs.ollama.com/api/chat)를 httpx로 연결합니다. 현재 주소는 loopback만 허용하고 redirect/proxy를 사용하지 않습니다. 별도 Ollama SDK/서비스 시작 의존성이 없습니다. Fallback은 사용자 요청·Config·capability·정책·예산·deadline을 모두 검사하며 정책/schema 오류에는 수행하지 않습니다.
 
 기술 선택 근거: 기존 RAG의 `generate(str) -> str`는 Tenant/정책/schema/usage 계약이 없어 유지하고 ServIQ 경계를 추가합니다. 공식 [Google Gen AI SDK](https://googleapis.github.io/python-genai/)는 Provider 교체 가능한 어댑터 뒤에 격리합니다. 별도 Agent 프레임워크·서비스는 늘리지 않으며 mock 계약 테스트와 lockfile로 도입 위험을 줄입니다.
 
