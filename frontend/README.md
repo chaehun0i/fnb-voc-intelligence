@@ -12,6 +12,7 @@ ServIQ의 운영 콘솔입니다. Day 13 v0.4.1 기반을 유지하며 현재 �
 - `src/api/jobs/`: PostgreSQL Job 조회·재시도·취소의 HTTP 계약과 기존 Mock 경로를 분리합니다.
 - `src/api/dashboard/`: 단일 서버 Snapshot의 운영 지표·UTC 추세·기준 시각과 Mock 경로를 분리합니다.
 - `src/api/settings/`: 서버 Config Version·해석값·이력·변경·복원을 기존 Mock 경로와 분리합니다.
+- `src/api/decisions/`: Incident의 실제 Jev Shadow 판단 이력과 명시적 빈 Mock 경로를 분리합니다.
 - `src/features/`: 대시보드, 인시던트, 검토, 실행 추적, 연동, 대기열, 운영 설정입니다.
 - Tailwind CSS, Radix Select/Dialog/Tabs, Framer Motion, lucide-react로 화면·키보드 조작·상태를 구성합니다.
 - 인시던트 팝업은 진행 이력·증거·RCA·CAPA·담당 작업·검증·추적의 7개 탭과 서버 Permission에 따른 운영 명령을 제공합니다.
@@ -59,7 +60,9 @@ Dashboard HTTP 모드는 `GET /api/v1/dashboard?window=7d` 한 응답으로 실�
 
 기본 Mock 모드의 자료는 새로고침하면 초기화됩니다. HTTP 모드에서는 Incident·Review·Queue·Dashboard·Settings가 실제 API를 사용하지만 연동·Agent Trace는 여전히 Mock입니다. 예시 자료와 실제 자료를 혼동하지 않도록 안내를 구분합니다. 날짜가 없는 검증은 `기록 없음`으로 표시합니다. PostgreSQL 영속 기록은 Backend의 PostgreSQL 모드에서만 보장합니다.
 
-Jev·Gemini/Ollama Runtime·LangGraph·Multi-Agent·MCP는 아직 호출하지 않습니다. 향후 Agent는 Provider에 직접 의존하지 않고 공통 LLM Gateway 뒤의 Gemini(기본), Ollama(로컬·대체)를 사용합니다.
+Incident 상세의 실행 추적 탭에는 실제 Jev Shadow 판단 이력이 별도로 표시됩니다. 설정의 Jev 사용 이후 처리한 Job에서만 생성되며 후보·근거·Config/ruleset 버전을 확인할 수 있습니다. 판단은 실행 경로를 변경하지 않고 기존 Agent Trace 예시는 분리합니다. HTTP 실패를 Mock으로 대체하지 않습니다. 자세한 범위는 [Day 21 문서](../docs/serviq_jev.md)를 참고하세요.
+
+Gemini/Ollama Runtime·LangGraph·Multi-Agent·MCP는 아직 호출하지 않습니다. 향후 Agent는 Provider에 직접 의존하지 않고 공통 LLM Gateway 뒤의 Gemini(기본), Ollama(로컬·대체)를 사용합니다.
 
 ## 다음 단계
 

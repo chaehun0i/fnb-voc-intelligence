@@ -1,5 +1,7 @@
 # Day 20 Versioned Control Plane과 Settings
 
+이 문서는 Day 20 종료 시점의 스냅샷입니다. 이후 Jev의 Shadow 연결과 설정 계약 확장은 [Day 21 문서](serviq_jev.md)를 참고하세요. LLM/Agent 실행 Runtime은 여전히 미연결입니다.
+
 ## 목적
 
 Day 19의 실제 Dashboard 다음으로 Settings를 서버의 버전 설정 원본에 연결합니다.
