@@ -57,6 +57,13 @@ class ConfigResolver:
                 errors.append({"field": key, "type": "PROVIDER", "reason": "Gemini 또는 Ollama를 선택해 주세요."})
         if config.priority_policy != "STRICT_PRIORITY":
             errors.append({"field": "priority_policy", "type": "PRIORITY_POLICY", "reason": "현재는 우선순위 순서 정책만 지원합니다."})
+        for key, choices in (("allowed_agent_types", {"TEMPERATURE", "INVENTORY", "LOT", "SUPPLIER", "HISTORY", "TRANSACTION"}),
+                             ("blocked_categories", {"COLD_CHAIN", "FOOD_SAFETY", "SUPPLIER_LOT", "TRANSACTION", "GENERAL", "UNKNOWN", "RESTRICTED"})):
+            values = getattr(config, key)
+            if len(set(values)) != len(values) or not set(values) <= choices:
+                errors.append({"field": key, "type": "JEV_POLICY", "reason": "등록된 분류·조사 후보만 중복 없이 설정해 주세요."})
+        if "RESTRICTED" not in config.blocked_categories:
+            errors.append({"field": "blocked_categories", "type": "JEV_POLICY", "reason": "제한된 자료 분류는 자동 조사 차단을 유지해야 합니다."})
         if errors:
             raise ConfigValidationFailed(errors)
         # 초과 값을 조용히 clamp하지 않고 거부하므로 조정된 값은 없습니다.

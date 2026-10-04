@@ -1,5 +1,6 @@
 """시간·저장소·외부 서비스 없이 안전 gate와 위험도를 판정합니다."""
 from dataclasses import dataclass
+from datetime import datetime
 
 from src.decision.jev.models import (
     AgentType,
@@ -30,7 +31,9 @@ class SafetyResult:
 def validate(context: DecisionContext):
     if (not isinstance(context, DecisionContext) or not context.tenant_id or not context.incident_id
             or type(context.config_version) is not int or context.config_version < 0
-            or context.occurred_at.tzinfo is None or type(context.recurrence_hint) is not bool
+            or not isinstance(context.occurred_at, datetime)
+            or context.occurred_at.tzinfo is None or context.occurred_at.utcoffset() is None
+            or type(context.recurrence_hint) is not bool
             or not isinstance(context.policy, ResolvedConfig)):
         raise DecisionValidationError("DECISION_VALIDATION_ERROR")
     for value, enum in ((context.incident_status, IncidentStatus), (context.severity, Severity),

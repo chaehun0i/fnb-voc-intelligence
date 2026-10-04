@@ -6,6 +6,8 @@ Day 20 Config 뒤에서 외부 AI 없이 정규화된 사실로 판단합니다.
 
 ## 구성
 
+Engine은 Config snapshot의 승인·병렬·자동화·budget을 재사용합니다. 기존 RuntimeConfig에 critical_manual_only·hosted_ai_allowed·allowed_agent_types·blocked_categories를 additive 계약으로 추가하고 과거 snapshot은 안전 기본값으로 읽습니다. 외부 AI는 기본 거부이며 requires_llm은 호출 명령이 아닙니다.
+
 고정 순서 route profile에서 allowlist·data availability를 적용하고 max parallelism으로 후보 수를 제한합니다. 데이터가 없거나 허용 후보가 없으면 모든 Agent 대신 수동 경로입니다.
 
 순수 safety/risk 규칙은 타입·시간대·Config 상한을 검사하고 식품 안전·재발·근거 부족 위험을 계산합니다. 긴급/blocked/자동화 off/수동 요청/조사 불가 상태는 이후 라우팅이 해제할 수 없는 gate입니다.

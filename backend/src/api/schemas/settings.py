@@ -19,6 +19,10 @@ class RuntimeConfigInput(StrictModel):
     default_llm_provider: Literal["gemini", "ollama"]
     fallback_llm_provider: Literal["gemini", "ollama"]
     jev_enabled: bool
+    critical_manual_only: bool = True
+    hosted_ai_allowed: bool = False
+    allowed_agent_types: list[str] = ["TEMPERATURE", "INVENTORY", "LOT", "SUPPLIER", "HISTORY", "TRANSACTION"]
+    blocked_categories: list[str] = ["RESTRICTED"]
     max_agent_iterations: int
     max_tool_calls: int
     parallelism: int
