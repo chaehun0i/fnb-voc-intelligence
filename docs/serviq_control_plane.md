@@ -24,6 +24,8 @@ Day 19 이후 Settings를 실제 서버 설정 계약으로 전환합니다. Dri
 
 ## 다음 단계
 
+Rollback은 조직 안의 target version을 읽고 현재 상한으로 다시 검증한 뒤 새 버전을 추가합니다. `parent_version`은 변경 직전 버전, `rollback_source`는 복원 원본입니다. 재전송은 동일 결과만 반환하며 과거 버전·감사·이벤트를 중복 생성하지 않습니다.
+
 설정 변경은 HQ_ADMIN, `expected_version`, 필수 사유, Idempotency-Key를 검사하고 Config/Audit/Outbox/replay 결과를 같은 UoW에 저장합니다. `008_config_outbox.sql`은 기존 Incident FK를 유지하면서 독립 `config.changed` 이벤트를 허용합니다. 해당 이벤트에는 설정 원문 대신 버전 참조만 담고 기존 Worker는 계약 확인만 수행합니다. Jev/LLM 실행이나 새 Job 생성은 하지 않습니다.
 
 서버 안전 상한, append-only 저장소, 조회·변경·복원 API와 실제 Settings 화면을 순서대로 연결합니다.

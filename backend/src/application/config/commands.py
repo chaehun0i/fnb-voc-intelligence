@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import psycopg
 
-from src.application.ports.config_repository import SettingsUnavailable
+from src.application.ports.config_repository import ConfigNotFound, SettingsUnavailable
 from src.application.security.authorization import require
 from src.application.security.principal import AccessError
 from src.domain.approvals.audit import AuditRecord
@@ -30,6 +30,11 @@ class SettingsCommands:
     def update(self, config, expected_version, reason):
         return self._execute("update", expected_version, reason, config=config)
 
+    def rollback(self, target_version, expected_version, reason):
+        if type(target_version) is not int or target_version < 1:
+            raise ConfigValidationFailed([{"field": "target_version", "type": "INPUT", "reason": "복원할 버전은 양의 정수여야 합니다."}])
+        return self._execute("rollback", expected_version, reason, target=target_version)
+
     def _execute(self, action, expected_version, reason, *, config=None, target=None):
         principal = self.context.principal
         try:
@@ -48,6 +53,11 @@ class SettingsCommands:
                     # 현재 상한이 달라진 경우 과거 replay도 안전 검증을 통과해야 합니다.
                     self.resolver.resolve(cached.config)
                     return cached
+                if action == "rollback":
+                    original = uow.configs.get(target)
+                    if original is None:
+                        raise ConfigNotFound()
+                    config = original.config
                 self.resolver.resolve(config)
                 now = self.clock()
                 if now.tzinfo is None:
