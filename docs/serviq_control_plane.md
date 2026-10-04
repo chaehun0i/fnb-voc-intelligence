@@ -12,6 +12,8 @@ Day 19 이후 Settings를 실제 서버 설정 계약으로 전환합니다. Dri
 
 ## 실행/검증
 
+Settings API는 `GET /api/v1/settings/runtime`, `GET /api/v1/settings/runtime/history`, `POST /api/v1/settings/runtime`, `POST /api/v1/settings/runtime/rollback`입니다. HTTP Adapter는 strict 응답 검증·stable error·request id·필드별 검증 사유를 보존하고 HTTP 실패에 Mock을 반환하지 않습니다. 전체 config 입력은 API DTO에서 타입을 검사하고 Domain에서 상한과 정책을 검사합니다.
+
 `007_control_plane.sql`은 조직·버전 복합 키와 부모/복원 원본 참조를 추가합니다. DB trigger가 과거 row의 UPDATE/DELETE를 금지합니다. 첫 버전부터 조직 advisory lock과 `expected_version` 비교로 동시 수정 충돌을 방지합니다. 기존 보안 UoW에 Config Repository를 추가해 기존 Incident/Review/Job 저장소를 보존합니다.
 
 각 단계에서 관련 테스트와 린트를 실행하며 최종 결과는 Day 마감 시 기록합니다.

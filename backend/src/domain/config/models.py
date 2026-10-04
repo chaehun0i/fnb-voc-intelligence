@@ -67,7 +67,10 @@ class ResolvedConfig:
 
 
 def config_document(config: RuntimeConfig) -> dict:
-    return asdict(config)
+    document = asdict(config)
+    for key in ("required_roles", "allowed_tools"):
+        document[key] = list(document[key])
+    return document
 
 
 def config_from_document(document: dict) -> RuntimeConfig:
