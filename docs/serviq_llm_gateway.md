@@ -7,6 +7,7 @@ Day 21 Jev Shadow 뒤에 Provider 중립 실행 경계를 추가합니다. 기�
 ## 구성
 
 - 1단계: `src/llm/contracts.py`에 불변 Intent/Request/Response/Usage 계약과 Provider Protocol을 정의했습니다. SDK 타입과 credential을 포함하지 않습니다.
+- 2단계: 비동기 Gateway와 FakeProvider로 정상 응답·일시 오류·rate limit·timeout을 외부 네트워크 없이 재현합니다. deadline이 만료되면 호출하지 않습니다.
 
 ## 실행/검증
 
