@@ -274,6 +274,7 @@ version = "0.1.0"
 source = { editable = "../" }
 dependencies = [
     { name = "fastapi", extra = ["standard"] },
+    { name = "jsonschema" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "pgvector" },
@@ -295,6 +296,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", extras = ["standard"] },
     { name = "httpx", marker = "extra == 'dev'" },
+    { name = "jsonschema", specifier = ">=4.23,<5" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "pgvector" },

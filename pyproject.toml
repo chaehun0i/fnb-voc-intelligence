@@ -18,6 +18,7 @@ dependencies = [
     "streamlit",
     "fastapi[standard]",
     "uvicorn",
+    "jsonschema>=4.23,<5",
 ]
 
 [project.scripts]
