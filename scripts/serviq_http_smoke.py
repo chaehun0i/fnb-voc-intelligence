@@ -367,6 +367,34 @@ def main() -> None:
     client = SmokeClient(base_url)
     verify_frontend(client)
     verify_incident_flow(client)
+    verify_settings_flow(client)
+
+
+def verify_settings_flow(client):
+    path = "/settings/runtime"
+    current = client.api("GET", path)
+    version = current["config"]["version"]
+    config = {key: value for key, value in current["config"].items() if key != "version"}
+    initial = client.api("POST", path, {"config": config, "expected_version": version, "reason": "HTTP 초기 설정 기록"})
+    target = initial["config"]["version"]
+    changed = {**config, "max_tool_calls": 10 if config["max_tool_calls"] != 10 else 15}
+    key = str(uuid4())
+    body = {"config": changed, "expected_version": target, "reason": "HTTP 실행 예산 검증"}
+    saved = client.api("POST", path, body, idempotency_key=key)
+    check(client.api("POST", path, body, idempotency_key=key) == saved, "설정 재전송은 이전 버전 결과여야 합니다.")
+    client.api("POST", path, {**body, "reason": "다른 내용"}, idempotency_key=key, status=409, error_code="IDEMPOTENCY_CONFLICT")
+    client.api("POST", path, body, status=409, error_code="VERSION_CONFLICT")
+    client.api("POST", path, {**body, "expected_version": target+1, "config": {**changed, "max_tool_calls": 100}}, status=422, error_code="CONFIG_VALIDATION_FAILED")
+    history = client.api("GET", path+"/history")
+    check(history["revisions"][0]["version"] == target+1 and history["revisions"][0]["changes"], "설정 변경 이력과 diff가 필요합니다.")
+    rollback_key = str(uuid4())
+    rollback_body = {"target_version": target, "expected_version": target+1, "reason": "HTTP 원래 예산 복원"}
+    restored = client.api("POST", path+"/rollback", rollback_body, idempotency_key=rollback_key)
+    check(client.api("POST", path+"/rollback", rollback_body, idempotency_key=rollback_key) == restored, "복원 재전송이 버전을 중복 생성하면 안 됩니다.")
+    check(restored["config"]["version"] == target+2 and restored["effective"] == config, "복원은 원래 값으로 새 버전을 만들어야 합니다.")
+    check(restored["runtime_status"] == "NOT_CONNECTED", "설정 저장이 Runtime 활성화처럼 표시되면 안 됩니다.")
+    check(client.api("GET", path)["config"]["version"] == target+2, "현재 버전은 실제 DB 결과여야 합니다.")
+    print("[통과] nginx Settings current/update/history/diff/rollback·버전 충돌·상한·멱등성·Runtime 미연결")
 
 
 if __name__ == "__main__":
