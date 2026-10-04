@@ -126,6 +126,34 @@ HTTP smoke는 별도 Compose 테스트 스택의 `SERVIQ_TEST_API_BASE_URL=http:
 
 ## 제한 사항
 
+### 추가 요청: 프로젝트의 실제 LLM 기본 방향
+
+Day 22 PR 생성 후 사용자 요청에 따라 보강 커밋 1개를 추가합니다. 최초 10개 커밋을 재작성하지 않으므로 이 PR의 최종 커밋 수는 11개입니다.
+
+프로젝트의 실제 LLM 경로는 **필요한 명시적 요청 → 공통 Gateway → Gemini 기본**, Ollama는 정책상 허용한 경우에만 대체 Provider라는 방향입니다. 단순히 키가 존재한다고 모든 화면·Job이 LLM을 호출하지 않습니다. Jev Shadow와 승인 경계는 그대로 유지합니다.
+
+`backend/main.py`가 `backend/.env`를 읽으므로 해당 폴더에서 `uv run fastapi run`으로 시작할 수 있습니다. 이미 지정한 프로세스 환경변수는 덮어쓰지 않습니다. 실제 키는 로컬 `.env`에만 저장하며 Git/예제/Config Version에는 포함하지 않습니다.
+
+```dotenv
+GEMINI_API_KEY=로컬에서만_입력
+MODEL=gemini-3.5-flash-lite
+SERVIQ_LLM_ENABLED=true
+GENERATOR_PROVIDER=gateway
+RAG_LLM_INPUT_REVIEWED=false
+```
+
+`SERVIQ_LLM_ENABLED=true`는 local/development에서만 최초 실행 Config를 만듭니다. FAST/STANDARD/REASONING 요청을 현재 지정 모델로 매핑하지만 모델 자체의 reasoning 품질을 보장하는 의미는 아닙니다. 기본 fallback은 꺼져 있습니다. Tenant Config Version이 이미 있으면 version 0 bootstrap 사용을 거부하며, 저장된 version의 Provider·모델·hosted 정책을 그대로 사용합니다. 운영 환경은 이 로컬 경로 대신 승인된 versioned 설정을 사용해야 합니다.
+
+로컬 예산 예약 단가는 보수적인 입력 10 / 출력 100 USD per million tokens입니다. 공식 청구 단가를 의미하지 않습니다. `LLM_INPUT_USD_PER_MILLION`/`LLM_OUTPUT_USD_PER_MILLION` 또는 Tenant의 검토된 versioned 단가로 조정할 수 있습니다.
+
+기존 RAG `TextGenerator` 계약을 유지하는 `GatewayTextGenerator`를 추가했습니다. `GENERATOR_PROVIDER=gateway`로 선택하며 SDK를 직접 호출하지 않습니다. 자유 텍스트 VOC는 자동 PII 검출이 없으므로 **비식별화·전송 검토가 끝난 입력에 한해서만** `RAG_LLM_INPUT_REVIEWED=true`로 명시해야 합니다. 그렇지 않으면 `POLICY_DENIED`로 전송을 차단합니다. Fake는 테스트/명시적 demo 모드로 보존합니다. 로컬 RAG 경로는 Tenant 영속 audit 없는 standalone CLI 경계이며, 운영 Incident의 호출은 기존 `LLMApplication`과 영속 trace를 사용해야 합니다.
+
+연결 확인에서 지정 Gemini 모델에 공개 테스트 요청 1회를 실제 전송했고 structured 응답 검증에 성공했습니다(입력 23 / 출력 5 tokens, retry 0회). 이는 연결 확인이지 production 품질·자동 Agent 완성을 의미하지 않습니다. 아래 최초 Day 마감의 외부 호출 0회 기록은 당시 CI/Mock 검증 결과입니다.
+
+보강 후에는 `.env` → local Config → HQ_ADMIN/Tenant Application → Router → Gemini → 안전한 usage 기록 경로도 실제 공개 요청으로 확인했습니다(총 25 tokens, fallback 없음). 전체 lint 통과, **491 passed**, backend lock sync·FastAPI CLI·모델 로드 검증 통과입니다. 테스트에서는 외부 모델을 호출하지 않으며 실제 연결 확인은 별도의 수동 요청입니다.
+
+기존 실제 PostgreSQL Gateway smoke도 재실행하여 3개 기록·Tenant 격리·immutable trace 검증이 통과했습니다. Windows `localhost` 연결 지연은 확인된 IPv4 검증 주소 `127.0.0.1`로 동일 테스트를 실행하여 해결했으며 assertion이나 timeout을 완화하지 않았습니다. 프론트엔드/Compose 코드는 이 보강에서 바꾸지 않았고 최종 원격 CI에서 전체 회귀를 다시 확인합니다.
+
 IMPLEMENTED는 Provider 중립 계약, FakeProvider, Gemini SDK/Ollama HTTP 어댑터, schema/업무 검증·한 번 repair, 최소 Data Policy, Config routing, 공유 예산·deadline·제한 retry/fallback, 안전한 영속 usage와 Tenant/store 읽기 API입니다.
 
 다음은 완료로 선언하지 않습니다.

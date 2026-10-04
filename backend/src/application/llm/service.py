@@ -8,9 +8,10 @@ from src.llm.errors import LLMError, LLMErrorCode
 
 
 class LLMApplication:
-    def __init__(self, persistence, executor_factory, resolver=None):
+    def __init__(self, persistence, executor_factory, resolver=None, *, default_config=None):
         self.persistence, self.executor_factory = persistence, executor_factory
         self.resolver = resolver or ConfigResolver()
+        self.default_config = default_config or RuntimeConfig()
 
     async def execute(self, principal, intent, *, domain_validator=None):
         require(principal, "admin")
@@ -25,7 +26,10 @@ class LLMApplication:
             version = uow.configs.get(intent.config_version) if intent.config_version else None
             if intent.config_version and version is None:
                 raise LLMError(LLMErrorCode.INVALID_REQUEST)
-            resolved = self.resolver.resolve(version.config if version else RuntimeConfig())
+            if not intent.config_version and uow.configs.current() is not None:
+                # 로컬 bootstrap으로 저장된 Tenant 정책을 우회하지 않습니다.
+                raise LLMError(LLMErrorCode.INVALID_REQUEST)
+            resolved = self.resolver.resolve(version.config if version else self.default_config)
         # 외부 네트워크 동안 DB transaction/lock을 유지하지 않습니다.
         def record(call):
             with self.persistence.transaction(principal.tenant_id) as uow:

@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     rag_context_max_chars: int = Field(default=6000, ge=1)
     generator_provider: str = "fake"
     generator_model: str = "fake-v1"
+    rag_llm_input_reviewed: bool = False
     rag_minimum_evidence: int = Field(default=1, ge=1)
     evaluation_dataset_path: Path = PROCESSED_DATA_DIR / "rag_evaluation.jsonl"
     evaluation_retrieval_k: int = Field(default=5, ge=1, le=100)

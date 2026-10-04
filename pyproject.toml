@@ -13,6 +13,7 @@ dependencies = [
     "numpy",
     "pydantic",
     "pydantic-settings",
+    "python-dotenv>=1,<2",
     "pgvector",
     "psycopg[binary]",
     "streamlit",
