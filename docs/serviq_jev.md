@@ -6,6 +6,8 @@ Day 20 Config 뒤에서 외부 AI 없이 정규화된 사실로 판단합니다.
 
 ## 구성
 
+009 migration은 tenant/incident/job/config 복합 참조와 Job/ruleset 유일성을 갖는 append-only 판단 감사를 추가합니다. version 0만 플랫폼 기본값이며 FK는 실제 저장 버전에 적용됩니다. raw context는 저장하지 않습니다.
+
 Engine은 Config snapshot의 승인·병렬·자동화·budget을 재사용합니다. 기존 RuntimeConfig에 critical_manual_only·hosted_ai_allowed·allowed_agent_types·blocked_categories를 additive 계약으로 추가하고 과거 snapshot은 안전 기본값으로 읽습니다. 외부 AI는 기본 거부이며 requires_llm은 호출 명령이 아닙니다.
 
 고정 순서 route profile에서 allowlist·data availability를 적용하고 max parallelism으로 후보 수를 제한합니다. 데이터가 없거나 허용 후보가 없으면 모든 Agent 대신 수동 경로입니다.
