@@ -127,6 +127,8 @@ jobs:
         run: uv run --extra dev python -m scripts.serviq_settings_smoke
       - name: Jev Shadow 판단·불변 감사·중복 전달 검증
         run: uv run --extra dev python -m scripts.serviq_jev_smoke
+      - name: 외부 AI 없는 LLM Gateway·PII·사용 기록 검증
+        run: uv run --extra dev python -m scripts.serviq_llm_gateway_smoke
 
   docker:
     name: 이미지와 Compose 운영 흐름 검증

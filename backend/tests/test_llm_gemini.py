@@ -17,13 +17,13 @@ def request():
 
 def test_sdk_mapping_and_normalized_response():
     active = AsyncMock()
-    active.models.generate_content.return_value = Mock(text='{"summary":"正常"}', candidates=[],
+    active.models.generate_content.return_value = Mock(text='{"summary":"정상"}', candidates=[],
         usage_metadata=Mock(prompt_token_count=10, candidates_token_count=5, total_token_count=18))
     client = Mock(aio=AsyncMock())
     client.aio.__aenter__.return_value = active
     factory = Mock(return_value=client)
     result = asyncio.run(GeminiProvider(client_factory=factory).generate(request()))
-    assert json.loads(result.content)["summary"] == "正常"
+    assert json.loads(result.content)["summary"] == "정상"
     assert result.usage.total_tokens == 18
     assert factory.call_args.args[0].timeout == 2000
     assert factory.call_args.args[0].retry_options.attempts == 1
@@ -36,3 +36,16 @@ def test_missing_credential_is_safe(monkeypatch):
     with pytest.raises(LLMError) as error:
         asyncio.run(GeminiProvider().generate(request()))
     assert error.value.code == LLMErrorCode.PROVIDER_NOT_CONFIGURED
+
+
+@pytest.mark.parametrize("status,code", [(429, LLMErrorCode.RATE_LIMITED), (503, LLMErrorCode.PROVIDER_TEMPORARY),
+    (400, LLMErrorCode.INVALID_REQUEST), (401, LLMErrorCode.PROVIDER_NOT_CONFIGURED), (403, LLMErrorCode.PROVIDER_NOT_CONFIGURED)])
+def test_sdk_errors_never_expose_provider_message(status, code):
+    from google.genai.errors import APIError
+    active = AsyncMock()
+    active.models.generate_content.side_effect = APIError(status, {"error": {"code": status, "message": "SECRET"}})
+    client = Mock(aio=AsyncMock())
+    client.aio.__aenter__.return_value = active
+    with pytest.raises(LLMError) as error:
+        asyncio.run(GeminiProvider(client_factory=lambda _: client).generate(request()))
+    assert error.value.code == code and "SECRET" not in str(error.value)

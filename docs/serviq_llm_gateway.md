@@ -21,6 +21,8 @@ Day 21 Jev Shadow 뒤에 Provider 중립 실행 경계를 추가합니다. 기�
 
 각 단계에서 관련 pytest와 전체 ruff를 실행합니다. 전체 검증 결과는 Day 마감 시 기록합니다.
 
+9단계에서는 Provider/정책/예산/timeout/fallback/SDK 격리 행렬과 실제 PostgreSQL 사용 기록 smoke를 CI에 추가합니다. Fake/SDK mock만 사용하며 외부 AI 비용이 발생하지 않습니다.
+
 ## 제한 사항
 
 아직 외부 모델을 호출하지 않습니다. Jev Shadow는 자동 Agent/LLM 실행 명령이 아닙니다.

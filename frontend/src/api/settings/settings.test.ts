@@ -2,6 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { createHttpSettingsApi, decodeWorkspace, mockSettingsApi } from "./index";
 
 describe("운영 설정 Adapter", () => {
+  it("LLM mapping을 보존하되 자동 Agent 실행으로 해석하지 않는다", async () => {
+    const workspace = await mockSettingsApi.current();
+    const additions = { llm_enabled_providers: ["gemini"], llm_fallback_allowed: false, llm_models: [{ provider: "gemini", model_class: "FAST", model: "configured-model", input_usd_per_million: 1, output_usd_per_million: 2 }] };
+    const next = { ...workspace, config: { ...workspace.config, ...additions }, effective: { ...workspace.effective, ...additions }, sources: { ...workspace.sources, llm_enabled_providers: "TENANT", llm_fallback_allowed: "TENANT", llm_models: "TENANT" } };
+    expect(decodeWorkspace(next).effective.llm_models).toEqual(additions.llm_models);
+    expect(decodeWorkspace(next).runtime_status).toBe("NOT_CONNECTED");
+    expect(() => decodeWorkspace({ ...next, effective: { ...next.effective, llm_models: [{ ...additions.llm_models[0], input_usd_per_million: -1 }] } })).toThrow("응답 형식");
+  });
   it("HTTP current/history/save/rollback을 동일 계약으로 반환한다", async () => {
     const workspace = await mockSettingsApi.current();
     const history = await mockSettingsApi.history();
