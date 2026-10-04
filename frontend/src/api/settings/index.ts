@@ -12,7 +12,7 @@ const text = (v: unknown): v is string => typeof v === "string";
 const date = (v: unknown) => text(v) && /(?:Z|[+-]\d{2}:\d{2})$/.test(v) && Number.isFinite(Date.parse(v));
 const integer = (v: unknown) => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
 const booleans = ["jev_enabled", "auto_investigation", "auto_rca_draft", "auto_capa_draft", "auto_execute", "separation_of_duties"];
-const numbers = ["max_agent_iterations", "max_tool_calls", "parallelism", "timeout_seconds", "token_budget", "gemini_concurrency", "gemini_rate_limit", "gemini_timeout_seconds", "structured_output_retry", "critical_approver_count", "tenant_queue_concurrency", "retry_limit", "backoff_seconds", "verification_window_hours"];
+const numbers = ["max_agent_iterations", "max_tool_calls", "parallelism", "timeout_seconds", "token_budget", "gemini_concurrency", "gemini_rate_limit", "gemini_timeout_seconds", "provider_concurrency", "provider_timeout_seconds", "structured_output_retry", "critical_approver_count", "tenant_queue_concurrency", "retry_limit", "backoff_seconds", "verification_window_hours"];
 function invalid(): never { throw new SettingsApiError("CONTRACT_ERROR", "운영 설정 응답 형식을 확인할 수 없습니다. API와 화면 버전을 확인해 주세요."); }
 export function decodeRuntimeConfig(v: unknown): RuntimeConfig {
   if (!record(v) || !booleans.every((k) => typeof v[k] === "boolean") || !numbers.every((k) => integer(v[k])) ||
@@ -40,6 +40,7 @@ export function decodeHistory(v: unknown): RuntimeHistory {
       !(r.parent_version === null || integer(r.parent_version)) || !(r.rollback_source === null || integer(r.rollback_source)) || !Array.isArray(r.changes) ||
       !r.changes.every((c) => record(c) && text(c.field) && text(c.before) && text(c.after))) invalid();
     decodeRuntimeConfig(r.snapshot);
+    if (r.rollback_changes !== undefined && (!integer(r.compared_to_version) || !Array.isArray(r.rollback_changes) || !r.rollback_changes.every((c) => record(c) && text(c.field) && text(c.before) && text(c.after)))) invalid();
   }
   return v as unknown as RuntimeHistory;
 }
@@ -70,7 +71,7 @@ export function createHttpSettingsApi(baseUrl: string, fetcher: typeof fetch = f
 
 function previewConfig(config: ControlPlaneConfig): RuntimeConfig {
   const { version: _version, ...raw } = config; void _version;
-  return { structured_output_retry: 2, required_roles: ["HQ_ADMIN", "REVIEWER"], separation_of_duties: true, critical_approver_count: 2, priority_policy: "STRICT_PRIORITY", backoff_seconds: 2, allowed_tools: [], verification_window_hours: 24, ...raw };
+  return { provider_concurrency: 3, provider_timeout_seconds: 60, structured_output_retry: 2, required_roles: ["HQ_ADMIN", "REVIEWER"], separation_of_duties: true, critical_approver_count: 2, priority_policy: "STRICT_PRIORITY", backoff_seconds: 2, allowed_tools: [], verification_window_hours: 24, ...raw };
 }
 function previewWorkspace(w: ConfigWorkspace): RuntimeWorkspace {
   const raw = previewConfig(w.config);

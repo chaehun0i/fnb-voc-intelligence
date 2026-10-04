@@ -11,6 +11,7 @@ DEFAULT_RULES = {
     "token_budget": (100, 100000, True), "cost_budget_usd": (0.01, 20, False),
     "gemini_concurrency": (1, 10, True), "gemini_rate_limit": (1, 300, True),
     "gemini_timeout_seconds": (5, 300, True), "structured_output_retry": (0, 3, True),
+    "provider_concurrency": (1, 10, True), "provider_timeout_seconds": (5, 300, True),
     "tenant_queue_concurrency": (1, 10, True), "retry_limit": (0, 10, True),
     "backoff_seconds": (1, 60, True), "critical_approver_count": (2, 5, True),
     "verification_window_hours": (1, 168, True),

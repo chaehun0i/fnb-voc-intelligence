@@ -5,6 +5,8 @@ export type RuntimeConfig = Omit<ControlPlaneConfig, "version" | "default_llm_pr
   default_llm_provider: "gemini" | "ollama";
   fallback_llm_provider: "gemini" | "ollama";
   structured_output_retry: number;
+  provider_concurrency: number;
+  provider_timeout_seconds: number;
   required_roles: string[];
   separation_of_duties: boolean;
   critical_approver_count: number;
@@ -14,7 +16,7 @@ export type RuntimeConfig = Omit<ControlPlaneConfig, "version" | "default_llm_pr
   verification_window_hours: number;
   approval_policy_by_risk: Record<Severity, boolean>;
 };
-export type RuntimeRevision = { version: number; parent_version: number | null; rollback_source: number | null; created_at: string; actor: string; reason: string; changes: Array<{ field: string; before: string; after: string }>; snapshot: RuntimeConfig };
+export type RuntimeRevision = { version: number; parent_version: number | null; rollback_source: number | null; created_at: string; actor: string; reason: string; changes: Array<{ field: string; before: string; after: string }>; snapshot: RuntimeConfig; compared_to_version?: number; rollback_changes?: Array<{ field: string; before: string; after: string }> };
 export type RuntimeWorkspace = {
   config: RuntimeConfig & { version: number };
   effective: RuntimeConfig;

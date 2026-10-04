@@ -57,6 +57,7 @@ class SettingsQueries:
         try:
             with self.persistence.transaction(self.principal.tenant_id) as uow:
                 versions = uow.configs.history(limit+1, offset)
+                current = uow.configs.current()
                 items = []
                 for version in versions[:limit]:
                     parent = uow.configs.get(version.parent_version) if version.parent_version else None
@@ -64,6 +65,8 @@ class SettingsQueries:
                                   "rollback_source": version.rollback_source, "actor": version.created_by,
                                   "created_at": version.created_at.isoformat(), "reason": version.reason,
                                   "snapshot": config_document(version.config),
+                                  "compared_to_version": current.config_version if current else 0,
+                                  "rollback_changes": config_diff(current.config if current else RuntimeConfig(), version.config),
                                   "changes": config_diff(parent.config if parent else RuntimeConfig(), version.config)})
                 return {"revisions": items, "limit": limit, "offset": offset, "has_more": len(versions) > limit}
         except (psycopg.Error, ValueError, TypeError, KeyError) as error:

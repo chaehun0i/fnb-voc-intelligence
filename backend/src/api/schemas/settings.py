@@ -28,6 +28,8 @@ class RuntimeConfigInput(StrictModel):
     gemini_concurrency: int
     gemini_rate_limit: int
     gemini_timeout_seconds: int
+    provider_concurrency: int
+    provider_timeout_seconds: int
     structured_output_retry: int
     auto_investigation: bool
     auto_rca_draft: bool
@@ -115,6 +117,8 @@ class ConfigRevisionResponse(BaseModel):
     actor: str
     reason: str
     changes: list[ConfigChange]
+    compared_to_version: int
+    rollback_changes: list[ConfigChange]
     snapshot: RuntimeConfigInput
 
 

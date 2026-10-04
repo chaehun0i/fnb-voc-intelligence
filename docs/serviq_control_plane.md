@@ -6,6 +6,8 @@ Day 19 이후 Settings를 실제 서버 설정 계약으로 전환합니다. Dri
 
 ## 구성
 
+Settings UI는 현재 버전·변경자·사유·effective/source·서버 상한·이력 페이지·서버 계산 복원 diff를 표시합니다. 입력은 서버 permission을 따르며 submit 중 이중 클릭을 막고 같은 입력의 네트워크 재시도에는 같은 Idempotency-Key를 재사용합니다. 409는 최신 설정 재조회 안내, 필드 오류와 request id는 한국어로 표시합니다. Runtime 미연결을 명확히 표시합니다.
+
 `RuntimeConfig`는 React/FastAPI와 독립적인 타입이고 `ConfigVersion`은 변경자·사유·부모 버전·복원 원본을 가진 불변 스냅샷입니다. 기존 Frontend 표시 필드를 유지하되 raw와 effective, source를 구분하는 계약을 추가했습니다.
 
 서버 `ConfigResolver`는 수치 상한·타입·승인 정책·예약 읽기 도구를 검증합니다. 상한 초과를 조용히 낮추지 않고 필드별 오류로 거부하므로 raw/effective는 검증 성공 시 동일하며 `adjusted_fields`는 비어 있습니다. HIGH/CRITICAL 승인과 요청자·승인자 분리 계약은 설정으로 해제할 수 없습니다. 실제 Runtime enforcement는 별도 후속 과제입니다.

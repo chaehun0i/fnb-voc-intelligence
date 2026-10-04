@@ -71,8 +71,11 @@ class SettingsCommands:
                 return saved
         except AccessError as error:
             if error.code == "AUTHORIZATION_DENIED":
-                with self.persistence.transaction(principal.tenant_id) as uow:
-                    self._audit(uow, action, "DENIED")
+                try:
+                    with self.persistence.transaction(principal.tenant_id) as uow:
+                        self._audit(uow, action, "DENIED")
+                except psycopg.Error as audit_error:
+                    raise SettingsUnavailable() from audit_error
             raise
         except psycopg.errors.LockNotAvailable as error:
             raise AccessError("PROCESSING", 409) from error

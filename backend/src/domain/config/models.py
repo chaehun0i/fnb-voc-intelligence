@@ -28,6 +28,8 @@ class RuntimeConfig:
     gemini_concurrency: int = 3
     gemini_rate_limit: int = 60
     gemini_timeout_seconds: int = 60
+    provider_concurrency: int = 3
+    provider_timeout_seconds: int = 60
     structured_output_retry: int = 2
     auto_investigation: bool = False
     auto_rca_draft: bool = False
@@ -43,6 +45,12 @@ class RuntimeConfig:
     backoff_seconds: int = 2
     allowed_tools: tuple[str, ...] = ()
     verification_window_hours: int = 24
+
+    def __post_init__(self):
+        if not isinstance(self.approval_policy_by_risk, RiskApproval):
+            raise TypeError("승인 정책은 불변 RiskApproval 타입이어야 합니다.")
+        object.__setattr__(self, "required_roles", tuple(self.required_roles))
+        object.__setattr__(self, "allowed_tools", tuple(self.allowed_tools))
 
 
 @dataclass(frozen=True)
