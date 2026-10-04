@@ -5,6 +5,10 @@ export type RuntimeConfig = Omit<ControlPlaneConfig, "version" | "default_llm_pr
   default_llm_provider: "gemini" | "ollama";
   fallback_llm_provider: "gemini" | "ollama";
   structured_output_retry: number;
+  critical_manual_only: boolean;
+  hosted_ai_allowed: boolean;
+  allowed_agent_types: string[];
+  blocked_categories: string[];
   provider_concurrency: number;
   provider_timeout_seconds: number;
   required_roles: string[];

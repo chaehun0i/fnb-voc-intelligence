@@ -89,3 +89,5 @@ Day 18 Persistent Job·독립 Worker·실제 Queue 조회와 재시도·취소�
 Day 19 실제 운영 KPI·추세·RCA/CAPA와 Tenant 범위 Dashboard는 [Dashboard Projection 문서](docs/serviq_dashboard.md)를 참고하세요.
 
 Day 20 버전 설정·서버 안전 상한·변경 이력과 안전 복원·실제 Settings 연결은 [Control Plane 문서](docs/serviq_control_plane.md)를 참고하세요.
+
+Day 21 외부 AI 없는 Jev 위험·라우팅 판단과 실제 Job Shadow 감사·조회는 [Decision Layer 문서](docs/serviq_jev.md)를 참고하세요.

@@ -11,7 +11,7 @@ const record = (v: unknown): v is Record<string, unknown> => typeof v === "objec
 const text = (v: unknown): v is string => typeof v === "string";
 const date = (v: unknown) => text(v) && /(?:Z|[+-]\d{2}:\d{2})$/.test(v) && Number.isFinite(Date.parse(v));
 const integer = (v: unknown) => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
-const booleans = ["jev_enabled", "auto_investigation", "auto_rca_draft", "auto_capa_draft", "auto_execute", "separation_of_duties"];
+const booleans = ["critical_manual_only", "hosted_ai_allowed", "jev_enabled", "auto_investigation", "auto_rca_draft", "auto_capa_draft", "auto_execute", "separation_of_duties"];
 const numbers = ["max_agent_iterations", "max_tool_calls", "parallelism", "timeout_seconds", "token_budget", "gemini_concurrency", "gemini_rate_limit", "gemini_timeout_seconds", "provider_concurrency", "provider_timeout_seconds", "structured_output_retry", "critical_approver_count", "tenant_queue_concurrency", "retry_limit", "backoff_seconds", "verification_window_hours"];
 function invalid(): never { throw new SettingsApiError("CONTRACT_ERROR", "운영 설정 응답 형식을 확인할 수 없습니다. API와 화면 버전을 확인해 주세요."); }
 export function decodeRuntimeConfig(v: unknown): RuntimeConfig {
@@ -19,7 +19,7 @@ export function decodeRuntimeConfig(v: unknown): RuntimeConfig {
     typeof v.cost_budget_usd !== "number" || !Number.isFinite(v.cost_budget_usd) || v.cost_budget_usd < 0 ||
     !["gemini", "ollama"].includes(String(v.default_llm_provider)) || !["gemini", "ollama"].includes(String(v.fallback_llm_provider)) || v.priority_policy !== "STRICT_PRIORITY" ||
     !record(v.approval_policy_by_risk) || !["LOW", "MEDIUM", "HIGH", "CRITICAL"].every((k) => typeof (v.approval_policy_by_risk as Record<string, unknown>)[k] === "boolean") ||
-    !["required_roles", "allowed_tools"].every((k) => Array.isArray(v[k]) && (v[k] as unknown[]).every(text))) invalid();
+    !["required_roles", "allowed_tools", "allowed_agent_types", "blocked_categories"].every((k) => Array.isArray(v[k]) && (v[k] as unknown[]).every(text))) invalid();
   return v as unknown as RuntimeConfig;
 }
 export function decodeWorkspace(v: unknown): RuntimeWorkspace {
@@ -71,7 +71,7 @@ export function createHttpSettingsApi(baseUrl: string, fetcher: typeof fetch = f
 
 function previewConfig(config: ControlPlaneConfig): RuntimeConfig {
   const { version: _version, ...raw } = config; void _version;
-  return { provider_concurrency: 3, provider_timeout_seconds: 60, structured_output_retry: 2, required_roles: ["HQ_ADMIN", "REVIEWER"], separation_of_duties: true, critical_approver_count: 2, priority_policy: "STRICT_PRIORITY", backoff_seconds: 2, allowed_tools: [], verification_window_hours: 24, ...raw };
+  return { critical_manual_only: true, hosted_ai_allowed: false, allowed_agent_types: ["TEMPERATURE", "INVENTORY", "LOT", "SUPPLIER", "HISTORY", "TRANSACTION"], blocked_categories: ["RESTRICTED"], provider_concurrency: 3, provider_timeout_seconds: 60, structured_output_retry: 2, required_roles: ["HQ_ADMIN", "REVIEWER"], separation_of_duties: true, critical_approver_count: 2, priority_policy: "STRICT_PRIORITY", backoff_seconds: 2, allowed_tools: [], verification_window_hours: 24, ...raw };
 }
 function previewWorkspace(w: ConfigWorkspace): RuntimeWorkspace {
   const raw = previewConfig(w.config);

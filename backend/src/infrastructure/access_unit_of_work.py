@@ -20,6 +20,10 @@ from src.infrastructure.repositories.config_repository import (
     MemoryConfigRepository,
     PostgresConfigRepository,
 )
+from src.infrastructure.repositories.decision_repository import (
+    MemoryDecisionRepository,
+    PostgresDecisionRepository,
+)
 from src.infrastructure.repositories.idempotency_repository import (
     MemoryIdempotencyRepository,
     PostgresIdempotencyRepository,
@@ -46,6 +50,7 @@ class AccessUnitOfWork:
     jobs: object = None
     configs: object = None
     config_events: object = None
+    decisions: object = None
 
 
 class AccessPersistence:
@@ -65,7 +70,8 @@ class AccessPersistence:
                                        PostgresIdempotencyRepository(connection, tenant_id), connection,
                                        PostgresJobRepository(connection, tenant_id),
                                        PostgresConfigRepository(connection, tenant_id),
-                                       ConfigEvents(tenant_id, connection=connection))
+                                       ConfigEvents(tenant_id, connection=connection),
+                                       PostgresDecisionRepository(connection, tenant_id))
         else:
             with self.incidents._lock, self.memory.lock:
                 incidents = deepcopy(self.incidents._items)
@@ -79,6 +85,7 @@ class AccessPersistence:
                         jobs=MemoryJobRepository(self.memory, tenant_id),
                         configs=MemoryConfigRepository(self.memory, tenant_id),
                         config_events=ConfigEvents(tenant_id, state=self.memory),
+                        decisions=MemoryDecisionRepository(self.memory, tenant_id),
                     )
                 except Exception:
                     self.incidents._items = incidents

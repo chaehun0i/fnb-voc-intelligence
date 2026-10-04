@@ -19,6 +19,10 @@ class RuntimeConfig:
     default_llm_provider: Provider = "gemini"
     fallback_llm_provider: Provider = "ollama"
     jev_enabled: bool = False
+    critical_manual_only: bool = True
+    hosted_ai_allowed: bool = False
+    allowed_agent_types: tuple[str, ...] = ("TEMPERATURE", "INVENTORY", "LOT", "SUPPLIER", "HISTORY", "TRANSACTION")
+    blocked_categories: tuple[str, ...] = ("RESTRICTED",)
     max_agent_iterations: int = 5
     max_tool_calls: int = 20
     parallelism: int = 3
@@ -51,6 +55,8 @@ class RuntimeConfig:
             raise TypeError("승인 정책은 불변 RiskApproval 타입이어야 합니다.")
         object.__setattr__(self, "required_roles", tuple(self.required_roles))
         object.__setattr__(self, "allowed_tools", tuple(self.allowed_tools))
+        object.__setattr__(self, "allowed_agent_types", tuple(self.allowed_agent_types))
+        object.__setattr__(self, "blocked_categories", tuple(self.blocked_categories))
 
 
 @dataclass(frozen=True)
@@ -76,7 +82,7 @@ class ResolvedConfig:
 
 def config_document(config: RuntimeConfig) -> dict:
     document = asdict(config)
-    for key in ("required_roles", "allowed_tools"):
+    for key in ("required_roles", "allowed_tools", "allowed_agent_types", "blocked_categories"):
         document[key] = list(document[key])
     return document
 
