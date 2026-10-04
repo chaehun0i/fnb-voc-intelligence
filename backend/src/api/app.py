@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.errors import register_error_handlers
 from src.api.routes.dashboard import router as dashboard_router
+from src.api.routes.decisions import router as decision_router
 from src.api.routes.incidents import router
 from src.api.routes.jobs import router as job_router
 from src.api.routes.reviews import router as review_router
@@ -118,6 +119,7 @@ def create_app(
     app.include_router(job_router)
     app.include_router(dashboard_router)
     app.include_router(settings_router)
+    app.include_router(decision_router)
 
     @app.get("/api/v1/health", tags=["health"])
     def health() -> dict[str, str]:

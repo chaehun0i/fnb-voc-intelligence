@@ -20,6 +20,8 @@ Engine은 Config snapshot의 승인·병렬·자동화·budget을 재사용합�
 
 ## 실행/검증
 
+GET /api/v1/incidents/{id}/decisions와 /decisions/latest는 read-only이며 Principal/Tenant/store 검사를 재사용합니다. 이력은 limit 1~100/offset 0~10000, 빈 latest는 null입니다. public 생성 API는 없으며 raw context/digest는 응답하지 않습니다.
+
 각 기능 커밋에서 관련 pytest·ruff와 Frontend 타입·린트를 확인합니다. 전체 결과는 Day 마감에 기록합니다.
 
 ## 제한 사항
