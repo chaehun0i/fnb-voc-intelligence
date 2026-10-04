@@ -22,6 +22,8 @@ Engine은 Config snapshot의 승인·병렬·자동화·budget을 재사용합�
 
 ## 실행/검증
 
+판단 회귀 표 24개와 입력/정책 오류·순수 계층 검증을 추가합니다. `scripts.serviq_jev_smoke`는 실제 PostgreSQL의 Worker, 재시작, 동시 중복 전달, 불변 감사, Tenant/store, PII 미노출과 실패 격리를 검증합니다. CI와 nginx HTTP smoke에도 Shadow 경로를 포함합니다.
+
 GET /api/v1/incidents/{id}/decisions와 /decisions/latest는 read-only이며 Principal/Tenant/store 검사를 재사용합니다. 이력은 limit 1~100/offset 0~10000, 빈 latest는 null입니다. public 생성 API는 없으며 raw context/digest는 응답하지 않습니다.
 
 각 기능 커밋에서 관련 pytest·ruff와 Frontend 타입·린트를 확인합니다. 전체 결과는 Day 마감에 기록합니다.

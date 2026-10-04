@@ -368,6 +368,7 @@ def main() -> None:
     verify_frontend(client)
     verify_incident_flow(client)
     verify_settings_flow(client)
+    verify_jev_flow(client)
 
 
 def verify_settings_flow(client):
@@ -395,6 +396,27 @@ def verify_settings_flow(client):
     check(restored["runtime_status"] == "NOT_CONNECTED", "설정 저장이 Runtime 활성화처럼 표시되면 안 됩니다.")
     check(client.api("GET", path)["config"]["version"] == target+2, "현재 버전은 실제 DB 결과여야 합니다.")
     print("[통과] nginx Settings current/update/history/diff/rollback·버전 충돌·상한·멱등성·Runtime 미연결")
+
+
+def verify_jev_flow(client):
+    current = client.api("GET", "/settings/runtime")
+    config = {key: value for key, value in current["config"].items() if key != "version"}
+    enabled = client.api("POST", "/settings/runtime", {"config": {**config, "jev_enabled": True}, "expected_version": current["config"]["version"], "reason": "HTTP Shadow 판단 검증"})
+    incident = client.api("POST", "/incidents", {"title": "Shadow HTTP 검증", "severity": "MEDIUM", "store": "검증 매장", "owner": "검증 담당"}, status=201)
+    path = "/incidents/"+incident["id"]+"/decisions"
+    latest = None
+    for _ in range(20):
+        latest = client.api("GET", path+"/latest")
+        if latest is not None:
+            break
+        time.sleep(.5)
+    check(latest is not None and latest["mode"] == "SHADOW", "실제 Worker가 Shadow 판단을 저장해야 합니다.")
+    check(latest["config_version"] == enabled["config"]["version"] and not latest["requires_llm"], "판단은 실제 Config 버전을 보존하고 LLM을 호출하지 않아야 합니다.")
+    check(latest["route"] == "MANUAL_REVIEW" and not latest["investigation_agents"], "데이터가 없는 작업에서 모든 Agent를 후보로 실행하면 안 됩니다.")
+    check(client.api("GET", "/incidents/"+incident["id"]) == incident, "Shadow 판단은 Incident 업무 상태를 변경하면 안 됩니다.")
+    history = client.api("GET", path)
+    check(len(history["decisions"]) == 1 and "input_digest" not in latest and "tenant_id" not in latest, "읽기 전용 안전 계약과 판단 이력이 필요합니다.")
+    print("[통과] nginx→실제 Job Worker→Jev Shadow 저장→history/latest·Config 버전·업무 상태 보존")
 
 
 if __name__ == "__main__":

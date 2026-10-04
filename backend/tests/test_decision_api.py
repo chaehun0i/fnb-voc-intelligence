@@ -1,5 +1,6 @@
 from dataclasses import replace
 
+import psycopg
 from fastapi.testclient import TestClient
 
 from src.api.app import create_app
@@ -27,3 +28,30 @@ def test_decision_api_is_readonly_bounded_and_tenant_store_safe():
     assert http.get(path, headers={"Authorization": "Bearer store"}).status_code == 403
     assert http.get(path+"?limit=101", headers={"Authorization": "Bearer a"}).status_code == 422
     assert http.post(path, headers={"Authorization": "Bearer a"}).status_code == 405
+
+
+def test_empty_history_and_latest_are_not_mock_fallback():
+    repo, persistence, _, _ = setup_shadow()
+    provider = LocalIdentityProvider({"a": Principal("read", "t", frozenset({Role.AUDITOR}))}, environment="test")
+    app = create_app(repo, identity_provider=provider)
+    app.state.access_persistence = persistence
+    http = TestClient(app)
+    headers = {"Authorization": "Bearer a"}
+    path = "/api/v1/incidents/i/decisions"
+    assert http.get(path, headers=headers).json() == {"decisions": [], "limit": 20, "offset": 0, "has_more": False}
+    assert http.get(path+"/latest", headers=headers).json() is None
+    assert http.get(path+"?offset=10001", headers=headers).status_code == 422
+    assert http.get("/api/v1/incidents/missing/decisions", headers=headers).status_code == 404
+
+
+def test_storage_failure_is_safe_and_never_returns_mock(monkeypatch):
+    repo, persistence, _, _ = setup_shadow()
+    provider = LocalIdentityProvider({"a": Principal("read", "t", frozenset({Role.AUDITOR}))}, environment="test")
+    app = create_app(repo, identity_provider=provider)
+    app.state.access_persistence = persistence
+    def unavailable(_tenant):
+        raise psycopg.OperationalError("credential secret-internal")
+    monkeypatch.setattr(persistence, "transaction", unavailable)
+    response = TestClient(app).get("/api/v1/incidents/i/decisions", headers={"Authorization": "Bearer a", "X-Request-ID": "request-safe"})
+    assert response.status_code == 503 and response.json()["error"]["code"] == "DECISIONS_UNAVAILABLE"
+    assert response.json()["request_id"] == "request-safe" and "secret" not in response.text

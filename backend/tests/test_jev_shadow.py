@@ -2,6 +2,8 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from unittest.mock import Mock
 
+import psycopg
+
 from src.application.decisions.shadow import ShadowDecisions
 from src.decision.jev.models import DecisionReasonCode
 from src.domain.config.models import ConfigVersion, RuntimeConfig
@@ -38,6 +40,11 @@ def test_shadow_is_deduplicated_and_does_not_change_business_state():
     assert "email" not in str(persistence.memory.data["decisions"])
     snapshot_processor(repo, shadow)(job)
     assert repo.get("i") == before
+    with persistence.transaction("t") as uow:
+        current = uow.configs.current()
+        uow.configs.append(replace(current, config_version=2, parent_version=1, config=RuntimeConfig(jev_enabled=True, parallelism=1)), 1)
+    assert shadow.record(job) == first and first.result.config_version == 1
+    assert len(persistence.memory.data["audit"]) == 1
 
 
 def test_shadow_failure_is_explicit_safe_and_isolated(caplog):
@@ -56,3 +63,15 @@ def test_shadow_failure_is_explicit_safe_and_isolated(caplog):
         current = uow.configs.current()
         uow.configs.append(replace(current, config_version=2, parent_version=1, config=RuntimeConfig()), 1)
     assert shadow.record(replace(job, job_id="off")) is None
+
+
+def test_persistence_failure_logs_safe_failure_without_incident_mutation(monkeypatch, caplog):
+    repo, persistence, job, shadow = setup_shadow()
+    before = repo.get("i")
+    def unavailable(_tenant):
+        raise psycopg.OperationalError("secret credential")
+    monkeypatch.setattr(persistence, "transaction", unavailable)
+    snapshot_processor(repo, shadow)(job)
+    assert repo.get("i") == before
+    assert "DECISION_PERSISTENCE_UNAVAILABLE" in caplog.text and "secret" not in caplog.text
+    assert not persistence.memory.data.get("decisions")

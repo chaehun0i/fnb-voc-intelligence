@@ -125,6 +125,8 @@ jobs:
         run: uv run --extra dev python -m scripts.serviq_dashboard_smoke
       - name: Control Plane 버전·권한·원자 저장 검증
         run: uv run --extra dev python -m scripts.serviq_settings_smoke
+      - name: Jev Shadow 판단·불변 감사·중복 전달 검증
+        run: uv run --extra dev python -m scripts.serviq_jev_smoke
 
   docker:
     name: 이미지와 Compose 운영 흐름 검증
