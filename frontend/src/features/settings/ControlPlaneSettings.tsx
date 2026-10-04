@@ -11,7 +11,7 @@ import { Button, PageHeading, PreviewNotice, StateMessage } from "../../componen
 import { dateTime, severityLabels } from "../../lib/display";
 import { useQuery } from "../../lib/useQuery";
 
-type EditableKey = { [Key in keyof RuntimeConfig]: RuntimeConfig[Key] extends boolean | number ? Key : never }[keyof RuntimeConfig];
+type EditableKey = { [Key in keyof RuntimeConfig]-?: RuntimeConfig[Key] extends boolean | number ? Key : never }[keyof RuntimeConfig];
 type SettingField = { key: EditableKey; label: string; description: string };
 
 const groups: Array<{ title: string; description: string; fields: SettingField[] }> = [
@@ -214,7 +214,8 @@ export function ControlPlaneSettings() {
       !workspace || !draft ? <StateMessage title="등록된 운영 설정이 없습니다" /> : <>
         <section className="panel mb-4">
           <h2><Settings2 size={17} /> 제공자와 적용 범위</h2>
-          <p><strong>향후 Runtime 적용 설정 · 현재 Runtime 미연결</strong></p>
+           <p><strong>향후 Runtime 적용 설정 · 현재 Runtime 미연결</strong></p>
+           <p>LLM Gateway 호출 경계는 준비되었습니다. Jev/Agent 자동 실행은 아직 연결하지 않았습니다. 허용 제공자: {workspace.effective.llm_enabled_providers?.join(", ") || "없음(호출 비활성)"} · 모델 매핑 {workspace.effective.llm_models?.length ?? 0}개 · 정책 기반 대체 호출 {workspace.effective.llm_fallback_allowed ? "허용" : "사용 안 함"}</p>
           <p>Jev만 Shadow 판단으로 연결되었습니다. 아래 제공자·Agent 자동 실행 설정은 실제 실행 기능이 아닙니다.</p>
           <fieldset disabled={busy || !workspace.save_permission.allowed} className="flex flex-wrap gap-4">
             <SelectField label="기본 LLM 제공자" value={draft.default_llm_provider} options={[{ value: "gemini", label: "Gemini" }, { value: "ollama", label: "Ollama" }]} onValueChange={(value) => setDraft({ ...draft, default_llm_provider: value as RuntimeConfig["default_llm_provider"] })} />

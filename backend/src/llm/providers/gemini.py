@@ -2,6 +2,7 @@
 import json
 import os
 
+import httpx
 from google import genai
 from google.genai import errors, types
 
@@ -41,8 +42,8 @@ class GeminiProvider:
                 output_tokens=output), finish_reason=reason)
         except errors.APIError as error:
             code = error.code
-            normalized = LLMErrorCode.RATE_LIMITED if code == 429 else (
+            normalized = LLMErrorCode.PROVIDER_NOT_CONFIGURED if code in {401, 403} else LLMErrorCode.RATE_LIMITED if code == 429 else (
                 LLMErrorCode.PROVIDER_TEMPORARY if code in {500, 502, 503, 504} else LLMErrorCode.INVALID_REQUEST)
             raise LLMError(normalized) from None
-        except TimeoutError:
+        except (TimeoutError, httpx.TimeoutException):
             raise LLMError(LLMErrorCode.TIMEOUT) from None

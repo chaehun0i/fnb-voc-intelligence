@@ -72,6 +72,14 @@ class LLMIntent(FrozenModel):
             raise ValueError("시간대가 포함된 deadline이 필요합니다.")
         return value
 
+    @field_validator("request_id", "correlation_id", "tenant_id", "prompt_template", "prompt_version", "schema_version")
+    @classmethod
+    def safe_identity(cls, value):
+        import re
+        if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", value):
+            raise ValueError("원문·개인정보 대신 안전한 식별자를 사용해 주세요.")
+        return value
+
 
 class ProviderCapability(FrozenModel):
     provider: Literal["fake", "gemini", "ollama"]

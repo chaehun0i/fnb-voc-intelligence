@@ -20,6 +20,9 @@ export function decodeRuntimeConfig(v: unknown): RuntimeConfig {
     !["gemini", "ollama"].includes(String(v.default_llm_provider)) || !["gemini", "ollama"].includes(String(v.fallback_llm_provider)) || v.priority_policy !== "STRICT_PRIORITY" ||
     !record(v.approval_policy_by_risk) || !["LOW", "MEDIUM", "HIGH", "CRITICAL"].every((k) => typeof (v.approval_policy_by_risk as Record<string, unknown>)[k] === "boolean") ||
     !["required_roles", "allowed_tools", "allowed_agent_types", "blocked_categories"].every((k) => Array.isArray(v[k]) && (v[k] as unknown[]).every(text))) invalid();
+  if (v.llm_enabled_providers !== undefined && (!Array.isArray(v.llm_enabled_providers) || !v.llm_enabled_providers.every((p) => p === "gemini" || p === "ollama"))) invalid();
+  if (v.llm_fallback_allowed !== undefined && typeof v.llm_fallback_allowed !== "boolean") invalid();
+  if (v.llm_models !== undefined && (!Array.isArray(v.llm_models) || !v.llm_models.every((m) => record(m) && ["gemini", "ollama"].includes(String(m.provider)) && ["FAST", "STANDARD", "REASONING"].includes(String(m.model_class)) && text(m.model) && m.model.length > 0 && typeof m.input_usd_per_million === "number" && Number.isFinite(m.input_usd_per_million) && m.input_usd_per_million >= 0 && typeof m.output_usd_per_million === "number" && Number.isFinite(m.output_usd_per_million) && m.output_usd_per_million >= 0))) invalid();
   return v as unknown as RuntimeConfig;
 }
 export function decodeWorkspace(v: unknown): RuntimeWorkspace {

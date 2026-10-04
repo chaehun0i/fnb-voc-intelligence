@@ -14,8 +14,9 @@ def schema_validator(schema_json):
         # 외부 URL ref는 검증 중 네트워크/임의 자료 접근을 유발할 수 있습니다.
         def local_refs(value):
             if isinstance(value, dict):
-                if "$ref" in value and not value["$ref"].startswith("#"):
-                    raise LLMError(LLMErrorCode.INVALID_REQUEST)
+                for key in ("$ref", "$dynamicRef", "$recursiveRef"):
+                    if key in value and not value[key].startswith("#"):
+                        raise LLMError(LLMErrorCode.INVALID_REQUEST)
                 for nested in value.values():
                     local_refs(nested)
             elif isinstance(value, list):
@@ -28,8 +29,10 @@ def schema_validator(schema_json):
 
 
 def validate_output(content, validator, domain_validator=None):
+    def reject_non_json_number(_):
+        raise ValueError("JSON에서 NaN/Infinity는 지원하지 않습니다.")
     try:
-        value = json.loads(content, parse_constant=lambda _: None)
+        value = json.loads(content, parse_constant=reject_non_json_number)
         validator.validate(value)
     except (ValueError, ValidationError):
         raise LLMError(LLMErrorCode.OUTPUT_SCHEMA_INVALID) from None

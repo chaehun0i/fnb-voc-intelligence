@@ -14,6 +14,7 @@ from src.api.routes.dashboard import router as dashboard_router
 from src.api.routes.decisions import router as decision_router
 from src.api.routes.incidents import router
 from src.api.routes.jobs import router as job_router
+from src.api.routes.llm_calls import router as llm_calls_router
 from src.api.routes.reviews import router as review_router
 from src.api.routes.settings import router as settings_router
 from src.application.dashboard.queries import DashboardQueries
@@ -82,6 +83,7 @@ def create_app(
     identity_provider: IdentityProvider | None = None,
 ) -> FastAPI:
     app = FastAPI(title="ServIQ API", version="0.4.1")
+    app.include_router(llm_calls_router)
     app.state.identity_provider = identity_provider or configured_identity_provider()
     repo = repository if repository is not None else configured_repository()
     app.state.access_persistence = AccessPersistence(repo)

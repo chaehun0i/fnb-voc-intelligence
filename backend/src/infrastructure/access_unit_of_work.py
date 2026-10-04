@@ -32,6 +32,10 @@ from src.infrastructure.repositories.job_repository import (
     MemoryJobRepository,
     PostgresJobRepository,
 )
+from src.infrastructure.repositories.llm_call_repository import (
+    MemoryLLMCallRepository,
+    PostgresLLMCallRepository,
+)
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )
@@ -51,6 +55,7 @@ class AccessUnitOfWork:
     configs: object = None
     config_events: object = None
     decisions: object = None
+    llm_calls: object = None
 
 
 class AccessPersistence:
@@ -71,7 +76,8 @@ class AccessPersistence:
                                        PostgresJobRepository(connection, tenant_id),
                                        PostgresConfigRepository(connection, tenant_id),
                                        ConfigEvents(tenant_id, connection=connection),
-                                       PostgresDecisionRepository(connection, tenant_id))
+                                       PostgresDecisionRepository(connection, tenant_id),
+                                       PostgresLLMCallRepository(connection, tenant_id))
         else:
             with self.incidents._lock, self.memory.lock:
                 incidents = deepcopy(self.incidents._items)
@@ -86,6 +92,7 @@ class AccessPersistence:
                         configs=MemoryConfigRepository(self.memory, tenant_id),
                         config_events=ConfigEvents(tenant_id, state=self.memory),
                         decisions=MemoryDecisionRepository(self.memory, tenant_id),
+                        llm_calls=MemoryLLMCallRepository(self.memory, tenant_id),
                     )
                 except Exception:
                     self.incidents._items = incidents
