@@ -62,8 +62,8 @@ Dashboard HTTP 모드는 `GET /api/v1/dashboard?window=7d` 한 응답으로 실�
 
 Incident 상세의 실행 추적 탭에는 실제 Jev Shadow 판단 이력이 별도로 표시됩니다. 설정의 Jev 사용 이후 처리한 Job에서만 생성되며 후보·근거·Config/ruleset 버전을 확인할 수 있습니다. 판단은 실행 경로를 변경하지 않고 기존 Agent Trace 예시는 분리합니다. HTTP 실패를 Mock으로 대체하지 않습니다. 자세한 범위는 [Day 21 문서](../docs/serviq_jev.md)를 참고하세요.
 
-Gemini/Ollama Runtime·LangGraph·Multi-Agent·MCP는 아직 호출하지 않습니다. 향후 Agent는 Provider에 직접 의존하지 않고 공통 LLM Gateway 뒤의 Gemini(기본), Ollama(로컬·대체)를 사용합니다.
+Day 22에서 Backend의 공통 LLM Gateway와 Gemini/Ollama 어댑터가 추가됐습니다. Settings는 versioned Provider 허용·모델 mapping·fallback 상태를 보존하고 표시합니다. HTTP 실패를 Mock으로 대체하지 않습니다. Jev/Agent 자동 외부 호출은 아직 연결되지 않았고 실제 모델도 이번 검증에서는 호출하지 않았습니다. LangGraph·Multi-Agent·MCP 역시 미구현입니다. 자세한 계약과 제한은 [LLM Gateway 문서](../docs/serviq_llm_gateway.md)를 참고하세요.
 
 ## 다음 단계
 
-Settings의 실제 versioned API까지 연결했습니다. 다음 Day 시작 시 최신 main과 Drive 설계를 다시 확인합니다. Day 17~20의 서버 Permission·Tenant/store·Audit·멱등성·Config 안전 상한을 재사용하며 Worker 정책과 OIDC/SSO는 별도 완료 기준으로 추적합니다. 이후 작은 Jev 결정 계층 → LLM Gateway → LangGraph → Multi-Agent → Harness/Loop → MCP를 순차 검토하며 Integration/SyncJob도 실제 원본을 먼저 정의합니다. 실행·배포는 [배포 문서](../docs/serviq_delivery.md), 구조는 [실행 구조 문서](../docs/serviq_structure.md)를 참고하세요.
+Settings·Jev Shadow·LLM Gateway 경계까지 연결했습니다. 다음 Day 시작 시 최신 main과 Drive 설계를 다시 확인합니다. 기존 서버 Permission·Tenant/store·Audit·멱등성·Config 안전 상한을 재사용하며 Worker 정책과 OIDC/SSO는 별도 완료 기준으로 추적합니다. 다음 후보는 LangGraph single History Investigation이며 이후 Multi-Agent → Harness/Loop → MCP를 순차 검토합니다. Integration/SyncJob도 실제 원본을 먼저 정의합니다. 실행·배포는 [배포 문서](../docs/serviq_delivery.md), 구조는 [실행 구조 문서](../docs/serviq_structure.md)를 참고하세요.
