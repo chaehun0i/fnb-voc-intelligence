@@ -48,6 +48,10 @@ Day 19에는 [Dashboard Projection](serviq_dashboard.md)의 실제 PostgreSQL �
 - HTTP Review 원본 조회·승인·같은 키 재전송·다른 내용 충돌
 - PostgreSQL Job의 Tenant 격리·동시 claim·lease 복구·재시도/취소·Audit·멱등성·DLQ 검증
 - nginx Queue 목록·상세 조회, Outbox dispatch와 Job Worker 완료 및 terminal 상태 보호
+- Day 20 Config Version의 Tenant/RBAC·상한·동시 수정·멱등성·Audit 원자 롤백·불변 이력과 안전 복원 smoke
+- nginx Settings current/update/history/diff/rollback과 기존 Worker의 `config.changed` 완료 기록
+
+Day 20의 [Control Plane](serviq_control_plane.md)은 `007`/`008` additive migration을 사용합니다. 설정 이벤트에는 버전 참조만 담고 Worker는 전달 계약만 검증합니다. Settings 저장이 실제 Agent 실행이나 Queue concurrency/retry 정책 적용을 의미하지는 않습니다. CI PostgreSQL 단계는 기존 Incident→security→Queue→Dashboard 뒤에 Settings smoke를 실행합니다.
 
 RAG smoke는 실제 DB 자료나 외부 LLM을 준비해야 하는 CLI 운영 실행 대신 기존 CLI 및 파이프라인 테스트를 실행합니다. 테스트의 Fake 연결과 생성기를 사용하므로 API Key와 외부 네트워크가 필요하지 않습니다. PostgreSQL smoke는 CI 전용 DB와 테스트용 비밀번호를 사용합니다.
 

@@ -4,12 +4,19 @@ from copy import deepcopy
 from psycopg.types.json import Jsonb
 
 from src.application.security.principal import AccessError
+from src.domain.config.models import (
+    ConfigVersion,
+    version_document,
+    version_from_document,
+)
 from src.domain.jobs.models import Job
 from src.infrastructure.incident_codec import incident_document, incident_from_document
 from src.infrastructure.job_codec import job_document, job_from_document
 
 
 def result_document(result):
+    if isinstance(result, ConfigVersion):
+        return {"resource_type": "runtime_config", "document": version_document(result)}
     return {"resource_type": "job", "document": job_document(result)} if isinstance(result, Job) else incident_document(result)
 
 
@@ -20,6 +27,8 @@ def replay(record, fingerprint):
         raise AccessError("PROCESSING", 409)
     if record[1].get("resource_type") == "job":
         return job_from_document(record[1]["document"])
+    if record[1].get("resource_type") == "runtime_config":
+        return version_from_document(record[1]["document"])
     return incident_from_document(record[1])
 
 

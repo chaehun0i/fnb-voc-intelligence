@@ -14,10 +14,12 @@ from src.api.routes.dashboard import router as dashboard_router
 from src.api.routes.incidents import router
 from src.api.routes.jobs import router as job_router
 from src.api.routes.reviews import router as review_router
+from src.api.routes.settings import router as settings_router
 from src.application.dashboard.queries import DashboardQueries
 from src.application.incidents.service import IncidentService
 from src.application.ports.identity_provider import IdentityProvider
 from src.application.ports.incident_repository import IncidentRepository
+from src.domain.config.resolution import ConfigResolver
 from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.models import Incident, StateTransition
 from src.infrastructure.access_unit_of_work import AccessPersistence
@@ -82,6 +84,7 @@ def create_app(
     app.state.identity_provider = identity_provider or configured_identity_provider()
     repo = repository if repository is not None else configured_repository()
     app.state.access_persistence = AccessPersistence(repo)
+    app.state.config_resolver = ConfigResolver()
     if seed_demo:
         for item in demo_incidents():
             if repo.get(item.id) is None:
@@ -114,6 +117,7 @@ def create_app(
     app.include_router(review_router)
     app.include_router(job_router)
     app.include_router(dashboard_router)
+    app.include_router(settings_router)
 
     @app.get("/api/v1/health", tags=["health"])
     def health() -> dict[str, str]:

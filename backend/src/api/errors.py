@@ -11,9 +11,15 @@ from src.application.dashboard.models import (
 )
 from src.application.incidents.service import IncidentNotFound
 from src.application.jobs.queries import JobNotFound
+from src.application.ports.config_repository import (
+    ConfigNotFound,
+    ConfigVersionConflict,
+    SettingsUnavailable,
+)
 from src.application.ports.incident_repository import IncidentConflict
 from src.application.ports.job_repository import JobConflict
 from src.application.security.principal import AccessError
+from src.domain.config.resolution import ConfigValidationFailed
 from src.domain.incidents.transitions import DomainRuleViolation
 from src.domain.jobs.models import JobRuleViolation
 
@@ -35,6 +41,22 @@ def error_response(
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(ConfigValidationFailed)
+    async def config_validation(request: Request, exc: ConfigValidationFailed):
+        return error_response(request, 422, "CONFIG_VALIDATION_FAILED", "설정의 안전 범위와 승인 정책을 확인해 주세요.", exc.details)
+
+    @app.exception_handler(ConfigVersionConflict)
+    async def config_conflict(request: Request, _: ConfigVersionConflict):
+        return error_response(request, 409, "VERSION_CONFLICT", "다른 운영자가 설정을 변경했습니다. 최신 설정을 다시 불러와 주세요.")
+
+    @app.exception_handler(ConfigNotFound)
+    async def config_missing(request: Request, _: ConfigNotFound):
+        return error_response(request, 404, "NOT_FOUND", "현재 조직에서 복원할 설정 버전을 찾을 수 없습니다.")
+
+    @app.exception_handler(SettingsUnavailable)
+    async def settings_unavailable(request: Request, _: SettingsUnavailable):
+        return error_response(request, 503, "SETTINGS_UNAVAILABLE", "운영 설정 저장소를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.")
+
     @app.exception_handler(DashboardUnavailable)
     async def dashboard_unavailable(request: Request, _: DashboardUnavailable) -> JSONResponse:
         return error_response(request, 503, "DASHBOARD_UNAVAILABLE", "현재 운영 현황을 조회할 수 없습니다. 잠시 후 다시 불러와 주세요.")
