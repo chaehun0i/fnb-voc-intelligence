@@ -7,6 +7,8 @@ import threading
 
 import psycopg
 
+from src.application.decisions.shadow import ShadowDecisions
+from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.outbox.job_dispatch import PostgresJobDispatcher
 from src.infrastructure.outbox.worker import OutboxWorker, _positive_seconds
 from src.infrastructure.queue.worker import JobWorker
@@ -17,7 +19,7 @@ from src.infrastructure.repositories.postgres_incident_repository import (
 logger = logging.getLogger(__name__)
 
 
-def snapshot_processor(repository):
+def snapshot_processor(repository, shadow=None):
     def process(job):
         if job.job_type != "incident.snapshot":
             raise ValueError("지원하지 않는 작업 종류입니다.")
@@ -26,6 +28,8 @@ def snapshot_processor(repository):
             raise ValueError("작업 대상의 조직과 매장 계약을 확인해 주세요.")
         # 외부 조치 없이 원본 계약을 확인하므로 중복 인수에도 업무 효과가 발생하지 않습니다.
         logger.info("Job 계약 확인 job_id=%s correlation_id=%s", job.job_id, job.correlation_id)
+        if shadow is not None:
+            shadow.record(job)
     return process
 
 
@@ -62,7 +66,7 @@ def main(argv=None):
             repository = PostgresIncidentRepository(dsn)
             runtime = QueueRuntime(
                 OutboxWorker(connection, PostgresJobDispatcher(connection, repository), lease_seconds=arguments.lease_seconds),
-                JobWorker(connection, snapshot_processor(repository), lease_seconds=arguments.lease_seconds))
+                JobWorker(connection, snapshot_processor(repository, ShadowDecisions(AccessPersistence(repository))), lease_seconds=arguments.lease_seconds))
             if arguments.once:
                 runtime.run_once()
             else:

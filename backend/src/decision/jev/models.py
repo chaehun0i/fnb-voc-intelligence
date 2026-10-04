@@ -42,6 +42,7 @@ class Category(StrEnum):
 
 
 class DecisionReasonCode(StrEnum):
+    ENGINE_FAILURE = "ENGINE_FAILURE"
     CRITICAL_MANUAL_GATE = "CRITICAL_MANUAL_GATE"
     CATEGORY_BLOCKED = "CATEGORY_BLOCKED"
     AUTOMATION_DISABLED = "AUTOMATION_DISABLED"
@@ -108,6 +109,7 @@ class DecisionRecord:
     decided_at: datetime
     duration_ms: float
     incident_version: int
+    error_code: str | None = None
 
 
 class DecisionValidationError(Exception):

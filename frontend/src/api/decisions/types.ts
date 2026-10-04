@@ -21,6 +21,7 @@ export interface ShadowDecision {
   decided_at: string;
   duration_ms: number;
   incident_version: number;
+  error_code: string | null;
 }
 export interface DecisionHistory { decisions: ShadowDecision[]; limit: number; offset: number; has_more: boolean }
 export interface DecisionApi { history(id: string, limit?: number, offset?: number): Promise<DecisionHistory>; latest(id: string): Promise<ShadowDecision | null> }
