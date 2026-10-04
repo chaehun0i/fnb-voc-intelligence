@@ -56,7 +56,7 @@ FAIL_SQL = """
 @dataclass(frozen=True)
 class OutboxEvent:
     event_id: str
-    incident_id: str
+    incident_id: str | None
     event_type: str
     payload: dict[str, Any]
     attempts: int
@@ -91,6 +91,21 @@ def validate_and_log(event: OutboxEvent) -> None:
     payload = event.payload
     if not isinstance(payload, dict):
         raise InvalidOutboxEvent("이벤트 본문은 객체여야 합니다.")
+    if event.event_type == "config.changed":
+        try:
+            if (event.incident_id is not None or payload["event_type"] != event.event_type
+                    or payload["event_id"] != event.event_id or type(payload["event_version"]) is not int
+                    or payload["event_version"] != 1 or payload["resource_type"] != "runtime_config"
+                    or not isinstance(payload["tenant_id"], str) or not payload["tenant_id"]
+                    or payload["aggregate_id"] != payload["tenant_id"] + ":runtime"
+                    or type(payload["aggregate_version"]) is not int or payload["aggregate_version"] < 1
+                    or not isinstance(payload["correlation_id"], str) or not payload["correlation_id"]
+                    or datetime.fromisoformat(payload["occurred_at"]).tzinfo is None):
+                raise ValueError("설정 이벤트 참조가 올바르지 않습니다.")
+        except (KeyError, TypeError, ValueError) as error:
+            raise InvalidOutboxEvent("설정 이벤트 계약을 확인해 주세요.") from error
+        _log(event, "validated")
+        return
     if (
         event.event_type not in {"incident.created", "incident.state_changed"}
         or payload.get("event_type") != event.event_type
