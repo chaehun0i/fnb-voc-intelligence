@@ -3,6 +3,7 @@ import asyncio
 from datetime import UTC, datetime
 
 from src.llm.contracts import LLMResult, LLMUsage, ProviderRequest
+from src.llm.data_policy import evaluate_policy
 from src.llm.errors import LLMError, LLMErrorCode
 from src.llm.structured import schema_validator, validate_output
 
@@ -12,13 +13,14 @@ class LLMGateway:
         self.provider = provider
         self.clock = clock
 
-    async def execute(self, intent, *, model, timeout_seconds=60, repair_limit=0, domain_validator=None):
+    async def execute(self, intent, *, model, timeout_seconds=60, repair_limit=0, domain_validator=None, hosted_ai_allowed=False):
+        policy = evaluate_policy(intent, self.provider.capability, hosted_ai_allowed=hosted_ai_allowed)
         validator = schema_validator(intent.output_schema_json)
         remaining = (intent.deadline - self.clock()).total_seconds()
         if remaining <= 0:
             raise LLMError(LLMErrorCode.DEADLINE_EXHAUSTED)
         request = ProviderRequest(request_id=intent.request_id, tenant_id=intent.tenant_id,
-            model=model, prompt=intent.payload_json, output_schema_json=intent.output_schema_json,
+            model=model, prompt=policy.payload_json, output_schema_json=intent.output_schema_json,
             timeout_seconds=min(timeout_seconds, remaining), max_output_tokens=intent.max_output_tokens)
         response = await self.invoke(request)
         usage = response.usage
