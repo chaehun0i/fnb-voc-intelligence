@@ -18,6 +18,8 @@ Day 19 이후 Settings를 실제 서버 설정 계약으로 전환합니다. Dri
 
 ## 제한 사항
 
+현재값은 `config`(raw)·`effective`·`sources`·`rules`·서버 permission을 함께 제공합니다. 아직 저장하지 않은 조직은 version 0 플랫폼 기본값이며 GET이 버전을 생성하지 않습니다. 이력은 limit 1~100, offset 0~10000으로 제한하고 부모와의 typed field diff를 서버에서 계산합니다. AUDITOR는 읽을 수 있지만 수정 permission은 없습니다.
+
 설정 계약의 존재는 Jev/Gemini/Ollama/Agent Runtime 구현을 의미하지 않습니다. 이번 Day에는 해당 Runtime과 production OIDC/SSO를 추가하지 않습니다.
 
 ## 다음 단계
