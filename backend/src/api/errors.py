@@ -19,6 +19,7 @@ from src.application.ports.config_repository import (
 from src.application.ports.decision_repository import DecisionsUnavailable
 from src.application.ports.incident_repository import IncidentConflict
 from src.application.ports.job_repository import JobConflict
+from src.application.ports.llm_call_repository import LLMCallsUnavailable
 from src.application.security.principal import AccessError
 from src.domain.config.resolution import ConfigValidationFailed
 from src.domain.incidents.transitions import DomainRuleViolation
@@ -42,6 +43,10 @@ def error_response(
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(LLMCallsUnavailable)
+    async def llm_calls_unavailable(request: Request, _: LLMCallsUnavailable):
+        return error_response(request, 503, "LLM_CALLS_UNAVAILABLE", "AI 호출 기록을 조회할 수 없습니다. 잠시 후 다시 시도해 주세요.")
+
     @app.exception_handler(DecisionsUnavailable)
     async def decisions_unavailable(request: Request, _: DecisionsUnavailable):
         return error_response(request, 503, "DECISIONS_UNAVAILABLE", "판단 기록 저장소를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.")

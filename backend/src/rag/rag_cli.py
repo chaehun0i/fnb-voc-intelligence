@@ -21,6 +21,14 @@ def build_embedding_provider() -> EmbeddingProvider:
 
 
 def build_generator() -> TextGenerator:
+    if settings.generator_provider == "gateway":
+        from src.infrastructure.llm_config import local_llm_config
+        from src.infrastructure.llm_runtime import configured_llm_executor
+
+        from .gateway_generator import GatewayTextGenerator
+
+        return GatewayTextGenerator(local_llm_config(), configured_llm_executor(),
+            reviewed=settings.rag_llm_input_reviewed)
     if settings.generator_provider != "fake":
         raise ValueError(f"unsupported generator provider: {settings.generator_provider}")
     return FakeTextGenerator(model=settings.generator_model)

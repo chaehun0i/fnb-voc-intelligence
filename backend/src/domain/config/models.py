@@ -15,12 +15,24 @@ class RiskApproval:
 
 
 @dataclass(frozen=True)
+class LLMModelBinding:
+    provider: Provider
+    model_class: Literal["FAST", "STANDARD", "REASONING"]
+    model: str
+    input_usd_per_million: float
+    output_usd_per_million: float
+
+
+@dataclass(frozen=True)
 class RuntimeConfig:
     default_llm_provider: Provider = "gemini"
     fallback_llm_provider: Provider = "ollama"
     jev_enabled: bool = False
     critical_manual_only: bool = True
     hosted_ai_allowed: bool = False
+    llm_enabled_providers: tuple[Provider, ...] = ()
+    llm_models: tuple[LLMModelBinding, ...] = ()
+    llm_fallback_allowed: bool = False
     allowed_agent_types: tuple[str, ...] = ("TEMPERATURE", "INVENTORY", "LOT", "SUPPLIER", "HISTORY", "TRANSACTION")
     blocked_categories: tuple[str, ...] = ("RESTRICTED",)
     max_agent_iterations: int = 5
@@ -57,6 +69,8 @@ class RuntimeConfig:
         object.__setattr__(self, "allowed_tools", tuple(self.allowed_tools))
         object.__setattr__(self, "allowed_agent_types", tuple(self.allowed_agent_types))
         object.__setattr__(self, "blocked_categories", tuple(self.blocked_categories))
+        object.__setattr__(self, "llm_enabled_providers", tuple(self.llm_enabled_providers))
+        object.__setattr__(self, "llm_models", tuple(self.llm_models))
 
 
 @dataclass(frozen=True)
@@ -82,13 +96,14 @@ class ResolvedConfig:
 
 def config_document(config: RuntimeConfig) -> dict:
     document = asdict(config)
-    for key in ("required_roles", "allowed_tools", "allowed_agent_types", "blocked_categories"):
+    for key in ("required_roles", "allowed_tools", "allowed_agent_types", "blocked_categories", "llm_enabled_providers", "llm_models"):
         document[key] = list(document[key])
     return document
 
 
 def config_from_document(document: dict) -> RuntimeConfig:
     values = dict(document)
+    values["llm_models"] = tuple(LLMModelBinding(**item) for item in values.get("llm_models", ()))
     values["approval_policy_by_risk"] = RiskApproval(**values["approval_policy_by_risk"])
     for key in ("required_roles", "allowed_tools"):
         values[key] = tuple(values[key])

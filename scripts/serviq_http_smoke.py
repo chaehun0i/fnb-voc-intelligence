@@ -417,6 +417,10 @@ def verify_jev_flow(client):
     history = client.api("GET", path)
     check(len(history["decisions"]) == 1 and "input_digest" not in latest and "tenant_id" not in latest, "읽기 전용 안전 계약과 판단 이력이 필요합니다.")
     print("[통과] nginx→실제 Job Worker→Jev Shadow 저장→history/latest·Config 버전·업무 상태 보존")
+    calls_path = "/incidents/"+incident["id"]+"/llm-calls"
+    check(client.api("GET", calls_path)["calls"] == [], "Jev Shadow는 외부 LLM 호출을 생성하지 않아야 합니다.")
+    client.api("GET", calls_path+"?limit=101", status=422, error_code="VALIDATION_ERROR")
+    print("[통과] nginx LLM 사용 기록 읽기 경계·조회 상한·Shadow 자동 AI 호출 없음")
 
 
 if __name__ == "__main__":

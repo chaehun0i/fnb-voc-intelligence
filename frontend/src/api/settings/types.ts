@@ -7,6 +7,9 @@ export type RuntimeConfig = Omit<ControlPlaneConfig, "version" | "default_llm_pr
   structured_output_retry: number;
   critical_manual_only: boolean;
   hosted_ai_allowed: boolean;
+  llm_enabled_providers?: Array<"gemini" | "ollama">;
+  llm_models?: Array<{ provider: "gemini" | "ollama"; model_class: "FAST" | "STANDARD" | "REASONING"; model: string; input_usd_per_million: number; output_usd_per_million: number }>;
+  llm_fallback_allowed?: boolean;
   allowed_agent_types: string[];
   blocked_categories: string[];
   provider_concurrency: number;

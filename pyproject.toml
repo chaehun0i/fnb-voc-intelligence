@@ -13,11 +13,15 @@ dependencies = [
     "numpy",
     "pydantic",
     "pydantic-settings",
+    "python-dotenv>=1,<2",
     "pgvector",
     "psycopg[binary]",
     "streamlit",
     "fastapi[standard]",
     "uvicorn",
+    "jsonschema>=4.23,<5",
+    "google-genai>=1.0,<2",
+    "httpx>=0.28,<1",
 ]
 
 [project.scripts]
