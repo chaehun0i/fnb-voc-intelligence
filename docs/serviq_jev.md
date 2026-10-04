@@ -1,5 +1,7 @@
 # Day 21 Jev Decision Layer와 Shadow 실행
 
+Incident 상세의 실행 추적 탭에서 실제 Shadow 판단 이력을 별도로 조회합니다. HTTP 오류는 표시하며 Mock으로 대체하지 않습니다. 기존 Agent 실행 추적 예시는 별도 준비 중 영역으로 유지합니다.
+
 ## 목적
 
 Day 20 Config 뒤에서 외부 AI 없이 정규화된 사실로 판단합니다. 기준 main은 `9e2d947`이며 Drive v0.5 정본을 사용합니다.

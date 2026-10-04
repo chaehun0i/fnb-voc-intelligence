@@ -32,7 +32,9 @@ const groups: Array<{ title: string; description: string; fields: SettingField[]
     { key: "structured_output_retry", label: "구조화 응답 재시도 한도", description: "향후 Gateway 응답 검증 재시도 한도" },
   ] },
   { title: "자동화 범위", description: "자동으로 작성하거나 실행할 단계의 운영 정책입니다.", fields: [
-    { key: "jev_enabled", label: "Jev 판단 엔진 사용", description: "조사 흐름을 선택하는 판단 단계" },
+    { key: "jev_enabled", label: "Jev 판단 엔진 사용", description: "실제 Job에서 Shadow 판단만 기록하며 실행 경로를 변경하지 않습니다." },
+    { key: "critical_manual_only", label: "긴급 위험 사람 검토 제한", description: "긴급 위험에서는 자동 조사 후보를 선택하지 않습니다." },
+    { key: "hosted_ai_allowed", label: "향후 외부 AI 사용 허용", description: "판단 계약에만 반영합니다. 실제 LLM 전송은 아직 없습니다." },
     { key: "auto_investigation", label: "자동 조사", description: "인시던트의 근거 자료 조사" },
     { key: "auto_rca_draft", label: "자동 원인 분석 초안", description: "수집한 증거를 바탕으로 원인 후보 작성" },
     { key: "auto_capa_draft", label: "자동 시정·예방 조치 초안", description: "원인 분석에 대한 조치안 작성" },
@@ -213,6 +215,7 @@ export function ControlPlaneSettings() {
         <section className="panel mb-4">
           <h2><Settings2 size={17} /> 제공자와 적용 범위</h2>
           <p><strong>향후 Runtime 적용 설정 · 현재 Runtime 미연결</strong></p>
+          <p>Jev만 Shadow 판단으로 연결되었습니다. 아래 제공자·Agent 자동 실행 설정은 실제 실행 기능이 아닙니다.</p>
           <fieldset disabled={busy || !workspace.save_permission.allowed} className="flex flex-wrap gap-4">
             <SelectField label="기본 LLM 제공자" value={draft.default_llm_provider} options={[{ value: "gemini", label: "Gemini" }, { value: "ollama", label: "Ollama" }]} onValueChange={(value) => setDraft({ ...draft, default_llm_provider: value as RuntimeConfig["default_llm_provider"] })} />
             <SelectField label="대체 LLM 제공자" value={draft.fallback_llm_provider} options={[{ value: "gemini", label: "Gemini" }, { value: "ollama", label: "Ollama" }]} onValueChange={(value) => setDraft({ ...draft, fallback_llm_provider: value as RuntimeConfig["fallback_llm_provider"] })} />
@@ -240,6 +243,18 @@ export function ControlPlaneSettings() {
               </div>;
             })}</div>
           </section>)}
+          <section className="panel">
+            <h2>Jev 조사 후보와 금지 분류</h2>
+            <p>후보 선택은 서버가 데이터 가용성과 병렬 처리 한도를 적용해 결정합니다. 후보를 허용해도 Agent를 실행하지 않습니다.</p>
+            <fieldset disabled={busy || !workspace.save_permission.allowed} className="flex flex-wrap gap-4">
+              <legend className="mb-2 text-sm font-semibold">허용 조사 후보</legend>
+              {Object.entries({ TEMPERATURE: "온도", INVENTORY: "재고", LOT: "로트", SUPPLIER: "공급사", HISTORY: "이력", TRANSACTION: "거래" }).map(([value, label]) => <label key={value} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.allowed_agent_types.includes(value)} onChange={(event) => setDraft({ ...draft, allowed_agent_types: event.target.checked ? [...draft.allowed_agent_types, value] : draft.allowed_agent_types.filter((item) => item !== value) })} />{label}</label>)}
+            </fieldset>
+            <fieldset disabled={busy || !workspace.save_permission.allowed} className="mt-3 flex flex-wrap gap-4">
+              <legend className="mb-2 text-sm font-semibold">자동 조사 금지 분류</legend>
+              {Object.entries({ RESTRICTED: "보호 분류(해제 불가)", COLD_CHAIN: "콜드체인", SUPPLIER_LOT: "공급사·로트", TRANSACTION: "거래", FOOD_SAFETY: "식품 안전", GENERAL: "일반", UNKNOWN: "분류 미확정" }).map(([value, label]) => <label key={value} className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={value === "RESTRICTED"} checked={draft.blocked_categories.includes(value)} onChange={(event) => setDraft({ ...draft, blocked_categories: event.target.checked ? [...draft.blocked_categories, value] : draft.blocked_categories.filter((item) => item !== value) })} />{label}</label>)}
+            </fieldset>
+          </section>
           <section className="panel">
             <h2><CheckCircle2 size={17} /> 위험도별 사람 승인</h2>
             <p>각 위험도에서 사람의 승인을 요청할지 설정합니다. 변경 내용은 다른 설정과 함께 저장됩니다.</p>
