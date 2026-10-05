@@ -121,6 +121,39 @@ class RCACandidate(SafeModel):
         return self
 
 
+class CAPAProposal(SafeModel):
+    capa_proposal_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    tenant_id: str = Field(min_length=1, max_length=128)
+    store: str = Field(min_length=1, max_length=128)
+    incident_id: str = Field(min_length=1, max_length=128)
+    agent_run_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    rca_candidate_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    summary: Literal["관련 과거 사례와 현장 절차를 담당자가 재검토합니다."] = "관련 과거 사례와 현장 절차를 담당자가 재검토합니다."
+    risk_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    expected_effect: Literal["반복 불만의 공통 원인과 추가 조사 범위를 확인합니다."] = "반복 불만의 공통 원인과 추가 조사 범위를 확인합니다."
+    verification_criteria: Literal["담당자의 이력·절차 재검토 기록과 추가 근거 목록이 존재해야 합니다."] = "담당자의 이력·절차 재검토 기록과 추가 근거 목록이 존재해야 합니다."
+    supporting_evidence_ids: tuple[str, ...] = Field(min_length=1, max_length=20)
+    required_approval: bool = True
+    proposed_action_type: Literal["MANUAL_HISTORY_REVIEW"] = "MANUAL_HISTORY_REVIEW"
+    target_reference: str = Field(min_length=1, max_length=128)
+    assumptions: tuple[Literal["HISTORY_HYPOTHESIS_NOT_CONFIRMED"], ...] = ("HISTORY_HYPOTHESIS_NOT_CONFIRMED",)
+    uncertainties: tuple[Literal["PHYSICAL_CAUSE_UNCONFIRMED"], ...] = ("PHYSICAL_CAUSE_UNCONFIRMED",)
+    config_version: int = Field(ge=1)
+    decision_reference: str = Field(min_length=1, max_length=128)
+    status: Literal["PROPOSED", "APPLIED"] = "PROPOSED"
+
+    @field_validator("supporting_evidence_ids")
+    @classmethod
+    def validate_refs(cls, value):
+        return cls.safe_refs(value)
+
+    @model_validator(mode="after")
+    def target(self):
+        if self.target_reference != self.incident_id:
+            raise ValueError("지원되는 조치 대상은 같은 Incident의 수동 검토뿐입니다.")
+        return self
+
+
 class WorkflowState(SafeModel):
     tenant_id: str = Field(min_length=1, max_length=128)
     incident_id: str = Field(min_length=1, max_length=128)
@@ -137,6 +170,7 @@ class WorkflowState(SafeModel):
     normalized_evidence: tuple[NormalizedEvidence, ...] = Field(default=(), max_length=20)
     sufficiency: SufficiencyResult | None = None
     rca_candidates: tuple[RCACandidate, ...] = Field(default=(), max_length=5)
+    capa_proposals: tuple[CAPAProposal, ...] = Field(default=(), max_length=3)
     rca_completed: bool = False
     iteration: int = Field(default=0, ge=0, le=20)
     tool_call_count: int = Field(default=0, ge=0, le=50)
@@ -160,6 +194,13 @@ class WorkflowState(SafeModel):
                 or any(available[r].stance != "SUPPORTING" for r in candidate.supporting_refs)
                 or any(available[r].stance != "CONTRADICTING" for r in candidate.contradicting_refs)):
                 raise ValueError("RCA가 존재하지 않거나 반대 성격의 근거를 지지로 참조할 수 없습니다.")
+        causes = {c.candidate_id: c for c in self.rca_candidates}
+        for proposal in self.capa_proposals:
+            if (proposal.rca_candidate_id not in causes
+                    or proposal.tenant_id != self.tenant_id or proposal.incident_id != self.incident_id
+                    or proposal.agent_run_id != self.agent_run_id or proposal.config_version != self.config_version
+                    or not set(proposal.supporting_evidence_ids).issubset(causes[proposal.rca_candidate_id].supporting_refs)):
+                raise ValueError("CAPA는 같은 실행의 RCA와 실제 지지 근거를 참조해야 합니다.")
         return self
 
 
