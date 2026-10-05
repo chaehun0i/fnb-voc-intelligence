@@ -13,6 +13,7 @@ Day 22 Gateway 다음에 단일 History 조사 실행 경계를 연결합니다.
 - 실제 LangGraph는 `validate_context → history_investigation → persist_result`를 실행합니다. `durability="sync"`와 JSON 전용 serializer를 사용하고, PostgreSQL Checkpoint는 공식 PostgresSaver로 복구합니다.
 - History는 기존 SearchService/hybrid/pgvector 경계를 재사용합니다. `012_history_sources.sql`의 조직/매장 출처 연결이 없는 전역 VOC는 검색하지 않습니다. 검색 원문은 Checkpoint에 넣지 않고 원본 review 참조만 증거 후보로 보존합니다.
 - LLM은 Jev가 요구하고 검색 근거가 있을 때만 기존 Gateway를 통해 정규화 보조 판정을 요청합니다. 원문은 전송하지 않으며 생성 답변을 증거로 취급하지 않습니다.
+- 실행은 내부 `HistoryWorkflows.enqueue(RequestContext, incident_id, decision_id)`로 명시적으로 요청합니다. `auto_investigation`, `jev_enabled`, HISTORY 선택, `voc.search` 허용, 조사 가능한 상태를 모두 확인합니다. AgentRun은 시작 시 선택한 과거 Config Version을 계속 사용합니다. Shadow 전체를 자동 실행으로 바꾸지 않습니다.
 
 ## 실행/검증
 
