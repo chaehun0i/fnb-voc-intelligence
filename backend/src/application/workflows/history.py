@@ -98,5 +98,5 @@ class HistoryWorkflows:
             run = AgentRun(agent_run_id=rid, tenant_id=job.tenant_id, incident_id=incident.id,
                 workflow_id=wid, job_id=job.job_id, correlation_id=job.correlation_id,
                 config_version=version.config_version, jev_decision_id=decision.decision_id,
-                started_at=self.clock(), state=state)
+                started_at=self.clock(), state=state, workflow_version="history-evidence-v2")
             return uow.agent_runs.save(run), resolved, decision

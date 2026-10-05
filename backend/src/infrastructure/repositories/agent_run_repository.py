@@ -46,8 +46,10 @@ class MemoryAgentRunRepository:
         return run
 
     def append_step(self, step):
-        if self.get(step.agent_run_id) is None:
+        run = self.get(step.agent_run_id)
+        if run is None:
             raise AccessError()
+        validate_step(step, run)
         key = (self.tenant_id, step.agent_run_id, step.sequence, step.attempt)
         self.state.data.setdefault("agent_steps", {}).setdefault(key, step)
 
@@ -93,6 +95,10 @@ class PostgresAgentRunRepository:
         return self.by_job(run.job_id)
 
     def append_step(self, step):
+        run = self.get(step.agent_run_id)
+        if run is None:
+            raise AccessError()
+        validate_step(step, run)
         self.connection.execute("""INSERT INTO serviq_agent_steps(tenant_id,agent_run_id,sequence,attempt,document)
             VALUES(%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING""", (self.tenant_id, step.agent_run_id,
             step.sequence, step.attempt, Jsonb(step.model_dump(mode="json"))))
@@ -101,3 +107,10 @@ class PostgresAgentRunRepository:
         rows = self.connection.execute("SELECT document FROM serviq_agent_steps WHERE tenant_id=%s AND agent_run_id::text=%s ORDER BY sequence,attempt",
                                       (self.tenant_id, run_id)).fetchall()
         return [AgentStep.model_validate(r[0]) for r in rows]
+
+
+def validate_step(step, run):
+    AgentStep.model_validate(step.model_dump(mode="json"))
+    if step.result is not None:
+        AgentRun.model_validate(run.model_copy(update={"state": step.result,
+            "status": WorkflowStatus.RUNNING}).model_dump(mode="json"))

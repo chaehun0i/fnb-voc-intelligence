@@ -137,12 +137,30 @@ class WorkflowState(SafeModel):
     normalized_evidence: tuple[NormalizedEvidence, ...] = Field(default=(), max_length=20)
     sufficiency: SufficiencyResult | None = None
     rca_candidates: tuple[RCACandidate, ...] = Field(default=(), max_length=5)
+    rca_completed: bool = False
     iteration: int = Field(default=0, ge=0, le=20)
     tool_call_count: int = Field(default=0, ge=0, le=50)
     token_spent: int = Field(default=0, ge=0)
     cost_spent: float = Field(default=0, ge=0)
     config_version: int = Field(ge=1)
     status: WorkflowStatus = WorkflowStatus.RUNNING
+
+    @model_validator(mode="after")
+    def evidence_integrity(self):
+        available = {e.source_ref: e for e in self.normalized_evidence}
+        if len(available) != len(self.normalized_evidence) or any(
+            e.tenant_id != self.tenant_id or e.agent_run_id != self.agent_run_id for e in available.values()):
+            raise ValueError("정규화 근거의 조직·실행·중복 참조를 확인해 주세요.")
+        if self.sufficiency and not set(self.sufficiency.supporting_refs+self.sufficiency.contradicting_refs).issubset(available):
+            raise ValueError("충분성 판정은 실제 근거만 참조해야 합니다.")
+        for candidate in self.rca_candidates:
+            if not self.sufficiency or not self.sufficiency.allows_rca or candidate.config_version != self.config_version:
+                raise ValueError("RCA gate와 설정 버전을 확인해 주세요.")
+            if (not set(candidate.supporting_refs+candidate.contradicting_refs).issubset(available)
+                or any(available[r].stance != "SUPPORTING" for r in candidate.supporting_refs)
+                or any(available[r].stance != "CONTRADICTING" for r in candidate.contradicting_refs)):
+                raise ValueError("RCA가 존재하지 않거나 반대 성격의 근거를 지지로 참조할 수 없습니다.")
+        return self
 
 
 class AgentRun(SafeModel):
@@ -170,6 +188,8 @@ class AgentRun(SafeModel):
         if self.status == WorkflowStatus.COMPLETED and (
                 self.completed_at is None or self.state.status != WorkflowStatus.COMPLETED):
             raise ValueError("Graph 저장 완료 전 실행을 완료할 수 없습니다.")
+        if any(c.jev_decision_id != self.jev_decision_id for c in self.state.rca_candidates):
+            raise ValueError("RCA Decision 원본을 확인해 주세요.")
         return self
 
     @field_validator("started_at", "completed_at")
@@ -194,6 +214,7 @@ class AgentStep(SafeModel):
     cost_spent: float = Field(default=0, ge=0)
     evidence_refs: tuple[str, ...] = ()
     error_code: Literal["WORKFLOW_FAILED"] | None = None
+    result: WorkflowState | None = None
 
 
 def finish_run(run: AgentRun, state: WorkflowState, now: datetime, *, failed=False):
