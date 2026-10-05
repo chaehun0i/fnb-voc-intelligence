@@ -9,6 +9,7 @@ import psycopg
 from src.application.workflows.capa import CAPACommands
 from src.application.workflows.evidence import normalize_evidence
 from src.application.workflows.history import HistoryWorkflows
+from src.application.workflows.resume import RESUME_JOB
 from src.domain.workflows.models import AgentStep, WorkflowStatus, finish_run
 from src.domain.workflows.sufficiency import evaluate_sufficiency
 from src.infrastructure.llm_runtime import configured_llm_executor
@@ -32,7 +33,7 @@ def execution_lease(dsn, job, lease_seconds):
         return
     stop, lost = threading.Event(), threading.Event()
     with psycopg.connect(dsn, autocommit=True, connect_timeout=5) as connection:
-        lock = "history:"+job.tenant_id+":"+job.job_id
+        lock = "history:"+job.tenant_id+":"+(job.parent_job_id if job.job_type == RESUME_JOB else job.job_id)
         if not connection.execute("SELECT pg_try_advisory_lock(hashtextextended(%s,0))", (lock,)).fetchone()[0]:
             raise RetryableJobError("WORKFLOW_BUSY")
 
@@ -87,7 +88,7 @@ class HistoryProcessor:
             run, resolved, decision = HistoryWorkflows(self.persistence, self.clock).prepare(job)
             if run.status == WorkflowStatus.COMPLETED:
                 return run
-            if run.status == WorkflowStatus.WAITING_APPROVAL:
+            if run.status == WorkflowStatus.WAITING_APPROVAL and job.job_type != RESUME_JOB:
                 return run
             def record(call):
                 check()
@@ -210,13 +211,12 @@ class HistoryProcessor:
                             result = commands.request_approval(state).model_copy(update={"status": WorkflowStatus.WAITING_APPROVAL})
                             persist(result)
                             return result
-                        def approval_result(state):
-                            raise ValueError("RESUME_COMMAND_REQUIRED")
                         stages.update(capa=CAPAInvestigation(resolved, run.jev_decision_id,
                             store=job.store, incident_severity=incident.severity), apply_capa=commands.apply,
-                            request_approval=request_approval, approval_result=approval_result)
+                            request_approval=request_approval, approval_result=commands.approval_result)
                     graph = history_graph(saver, investigate, persist, observe=observe, **stages)
-                    result = invoke_or_resume(graph, run.state)
+                    result = invoke_or_resume(graph, run.state,
+                        approval_id=job.payload_ref if job.job_type == RESUME_JOB else None)
                 check()
                 with self.persistence.transaction(job.tenant_id) as uow:
                     current = uow.agent_runs.get(run.agent_run_id)

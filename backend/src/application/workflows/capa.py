@@ -10,7 +10,7 @@ from src.application.security.principal import AccessError, Principal, RequestCo
 from src.domain.approvals.audit import AuditRecord
 from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.models import CorrectiveAction, Evidence, RootCauseCandidate
-from src.domain.workflows.models import ApprovalTrace, WorkflowState
+from src.domain.workflows.models import ApprovalTrace, WorkflowState, WorkflowStatus
 from src.domain.workflows.policy import server_risk
 
 
@@ -39,6 +39,8 @@ class CAPACommands:
                 raise AccessError("CAPA_NOT_ALLOWED", 409)
             if incident.version != run.initial_incident_version:
                 raise IncidentConflict()
+            if state.rca_candidates != run.state.rca_candidates or state.normalized_evidence != run.state.normalized_evidence:
+                raise AccessError("CAPA_LINEAGE_MISMATCH", 409)
             if any(p.store != incident.store or p.decision_reference != run.jev_decision_id
                    for p in state.capa_proposals) or any(e.store != incident.store for e in state.normalized_evidence):
                 raise AccessError()
@@ -88,6 +90,8 @@ class CAPACommands:
             if approval_policy_digest(policy) != approval_policy_digest(current.config):
                 raise IncidentConflict()
             risk = server_risk(incident.severity, *(p.risk_level for p in state.capa_proposals))
+            if any(server_risk(p.risk_level) != risk for p in state.capa_proposals):
+                raise IncidentConflict()
             if risk == "CRITICAL" and policy.critical_approver_count != 1:
                 raise AccessError("APPROVAL_POLICY_UNSUPPORTED", 409)
             aid = str(uuid5(NAMESPACE_URL, "workflow-approval:"+run.agent_run_id))
@@ -105,5 +109,28 @@ class CAPACommands:
             uow.agent_runs.save(run.model_copy(update={"state": result}))
             uow.audit.append(AuditRecord(str(uuid5(NAMESPACE_URL, "approval-request:"+run.agent_run_id)),
                 run.tenant_id, principal.principal_id, "workflow_approval_request", "approval", aid,
+                "SUCCESS", run.agent_run_id, run.correlation_id, self.clock().isoformat(), approval.version))
+            return result
+
+    def approval_result(self, state):
+        from src.application.workflows.resume import validate_approval
+        with self.persistence.transaction(self.tenant_id) as uow:
+            if state.approval is None:
+                raise IncidentConflict()
+            approval = uow.approvals.get(state.approval.approval_id)
+            if approval is None:
+                raise IncidentConflict()
+            run, _ = validate_approval(uow, approval, self.clock(), decided=True)
+            if run.agent_run_id != self.run_id:
+                raise AccessError()
+            trace = state.approval.model_copy(update={"status": approval.status,
+                "phase": "READY_TO_EXECUTE" if approval.status == "APPROVED" else "REJECTED",
+                "resumed_at": self.clock(), "decision_actor": approval.decided_by,
+                "decision_reason_code": "HUMAN_APPROVED" if approval.status == "APPROVED" else "HUMAN_REJECTED"})
+            result = WorkflowState.model_validate(state.model_copy(update={"approval": trace,
+                "status": WorkflowStatus.RUNNING}).model_dump(mode="json"))
+            uow.agent_runs.save(run.model_copy(update={"state": result, "status": WorkflowStatus.RUNNING}))
+            uow.audit.append(AuditRecord(str(uuid5(NAMESPACE_URL, "approval-resumed:"+run.agent_run_id)),
+                run.tenant_id, approval.decided_by, "workflow_resume", "agent_run", run.agent_run_id,
                 "SUCCESS", run.agent_run_id, run.correlation_id, self.clock().isoformat(), approval.version))
             return result

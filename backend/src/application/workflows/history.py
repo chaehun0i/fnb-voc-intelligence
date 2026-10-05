@@ -4,6 +4,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 from src.application.incidents.service import IncidentNotFound
 from src.application.security.authorization import require
+from src.application.workflows.resume import RESUME_JOB, validate_approval
 from src.decision.jev.models import AgentType, DecisionRoute
 from src.domain.approvals.audit import AuditRecord
 from src.domain.config.resolution import ConfigResolver
@@ -75,6 +76,19 @@ class HistoryWorkflows:
             return job
 
     def prepare(self, job):
+        if job.job_type == RESUME_JOB:
+            with self.persistence.transaction(job.tenant_id) as uow:
+                approval = uow.approvals.get(job.payload_ref)
+                if approval is None:
+                    raise WorkflowNotAllowed()
+                run, incident = validate_approval(uow, approval, self.clock(), decided=True)
+                version = uow.configs.get(run.config_version)
+                decision = uow.decisions.get(run.jev_decision_id)
+                if (version is None or decision is None or run.job_id != job.parent_job_id
+                        or run.config_version != job.config_version or incident.id != job.incident_id
+                        or incident.store != job.store):
+                    raise WorkflowNotAllowed()
+                return run, ConfigResolver().resolve(version.config), decision
         if job.job_type != HISTORY_JOB:
             raise WorkflowNotAllowed()
         with self.persistence.transaction(job.tenant_id) as uow:

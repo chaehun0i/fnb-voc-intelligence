@@ -28,7 +28,7 @@ def test_unsupported_critical_two_person_policy_does_not_downgrade():
     with p.transaction("t") as uow:
         incident = uow.incidents.get("i")
         uow.incidents.save(replace(incident, severity="CRITICAL"))
-        run = run.model_copy(update={"initial_incident_version": incident.version+1})
+        run = uow.agent_runs.get(run.agent_run_id).model_copy(update={"initial_incident_version": incident.version+1})
         p.memory.data["agent_runs"][run.agent_run_id] = run
     cmd = CAPACommands(p, run.agent_run_id, "t")
     applied = cmd.apply(state)

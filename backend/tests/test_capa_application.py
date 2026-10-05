@@ -33,6 +33,8 @@ def prepared():
     from src.runtime.workflows.rca import RCAInvestigation
     state = RCAInvestigation(resolved, decision.decision_id, requires_llm=False, clock=lambda: now)(state)
     state = CAPAInvestigation(resolved, decision.decision_id, store="store", incident_severity="MEDIUM")(state)
+    with persistence.transaction("t") as uow:
+        uow.agent_runs.save(run.model_copy(update={"state": state}))
     return persistence, run, state, job, decision
 
 

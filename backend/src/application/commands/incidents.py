@@ -12,6 +12,7 @@ from src.application.incidents.service import IncidentNotFound, IncidentService
 from src.application.ports.incident_repository import IncidentConflict
 from src.application.security.authorization import require
 from src.application.security.principal import AccessError
+from src.application.workflows.resume import enqueue_resume, validate_approval
 from src.domain.approvals.audit import AuditRecord
 from src.domain.incidents.transitions import DomainRuleViolation
 
@@ -85,7 +86,11 @@ class IncidentCommands:
                     if cached is not None:
                         return cached
                 if operation.startswith("review_"):
+                    if target.agent_run_id:
+                        validate_approval(uow, target, service.clock())
                     result = approval.decide(args[0], operation.removeprefix("review_"), *args[1:], **kwargs)
+                    if target.agent_run_id:
+                        enqueue_resume(uow, uow.approvals.get(target.approval_id), service.clock())
                 elif operation == "request_approval":
                     result = approval.request(*args, **kwargs)
                 elif operation in {"approve", "reject"}:
