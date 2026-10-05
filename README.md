@@ -95,3 +95,5 @@ Day 21 외부 AI 없는 Jev 위험·라우팅 판단과 실제 Job Shadow 감사
 Day 22 Provider 중립 LLM 계약·Data Policy·Gemini/Ollama 어댑터와 안전한 사용 기록은 [LLM Gateway 문서](docs/serviq_llm_gateway.md)를 참고하세요.
 
 Day 23 단일 History 조사·AgentRun·LangGraph durable Checkpoint와 실제 실행 추적은 [History Workflow 문서](docs/serviq_langgraph_history.md)를 참고하세요.
+
+Day 24 출처가 보존된 Evidence 정규화·결정적 충분성·근거 기반 미확정 RCA와 실제 Trace는 [Evidence/RCA Workflow 문서](docs/serviq_evidence_rca.md)를 참고하세요. Incident 상태 변경이나 CAPA/승인 자동 실행은 포함하지 않습니다.
