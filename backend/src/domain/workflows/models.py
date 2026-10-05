@@ -29,11 +29,17 @@ class EvidenceCandidate(SafeModel):
     source_type: Literal["VOC_REVIEW"] = "VOC_REVIEW"
     rank: int = Field(ge=1, le=20)
     retrieved_at: datetime
+    tenant_id: str | None = Field(default=None, min_length=1, max_length=128)
+    store: str | None = Field(default=None, min_length=1, max_length=128)
+    provenance: tuple[Literal["lexical", "vector", "hybrid", "legacy_reference"], ...] = ("legacy_reference",)
+    source_at: datetime | None = None
+    stance: Literal["SUPPORTING", "CONTRADICTING", "NEUTRAL"] = "NEUTRAL"
+    observation_code: Literal["RELATED_HISTORY_MATCH", "REFERENCE_ONLY"] = "REFERENCE_ONLY"
 
-    @field_validator("retrieved_at")
+    @field_validator("retrieved_at", "source_at")
     @classmethod
     def aware(cls, value):
-        if value.utcoffset() is None:
+        if value is not None and value.utcoffset() is None:
             raise ValueError("검색 시각에 시간대를 포함해 주세요.")
         return value
 
@@ -44,7 +50,49 @@ class Finding(SafeModel):
 
 
 class EvidenceGap(SafeModel):
-    code: Literal["NO_AUTHORIZED_HISTORY", "LLM_POLICY_DENIED", "LLM_UNAVAILABLE"]
+    code: Literal["NO_AUTHORIZED_HISTORY", "LLM_POLICY_DENIED", "LLM_UNAVAILABLE",
+                  "INSUFFICIENT_SOURCE_COVERAGE", "CONFLICTING_EVIDENCE", "RCA_DISABLED", "RCA_BUDGET_EXHAUSTED"]
+
+
+class NormalizedEvidence(EvidenceCandidate):
+    tenant_id: str = Field(min_length=1, max_length=128)
+    store: str = Field(min_length=1, max_length=128)
+    agent_run_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    source_id: str = Field(pattern=r"^[A-Za-z0-9_.:-]{1,128}$")
+    step_name: Literal["history_investigation"] = "history_investigation"
+
+    @model_validator(mode="after")
+    def source_identity(self):
+        if self.source_ref != "review:"+self.source_id or not self.provenance:
+            raise ValueError("근거의 원본 참조와 출처를 확인해 주세요.")
+        return self
+
+
+class SufficiencyPolicy(SafeModel):
+    # 두 독립 이력은 반복 불만 가설의 최소 기준이며 물리적 근본 원인의 확정 기준이 아닙니다.
+    policy_version: Literal["history-support-v1"] = "history-support-v1"
+    minimum_sources: int = Field(default=2, ge=2, le=20)
+    required_source_types: tuple[Literal["VOC_REVIEW"], ...] = ("VOC_REVIEW",)
+
+
+class SufficiencyResult(SafeModel):
+    status: Literal["SUFFICIENT", "INSUFFICIENT", "CONFLICTING"]
+    policy_version: Literal["history-support-v1"] = "history-support-v1"
+    evaluated_dimensions: tuple[Literal["SOURCE_COVERAGE", "OBSERVATION_SUPPORT", "CONTRADICTION"], ...]
+    supporting_refs: tuple[str, ...] = ()
+    contradicting_refs: tuple[str, ...] = ()
+    evidence_gaps: tuple[EvidenceGap, ...] = ()
+    reason_codes: tuple[Literal["NO_EVIDENCE", "INSUFFICIENT_SOURCE_COVERAGE", "CONFLICTING_EVIDENCE",
+                                "SUFFICIENT_HISTORY_SUPPORT"], ...]
+
+    @field_validator("supporting_refs", "contradicting_refs")
+    @classmethod
+    def validate_refs(cls, value):
+        return cls.safe_refs(value)
+
+    @property
+    def allows_rca(self):
+        return self.status == "SUFFICIENT"
 
 
 class WorkflowState(SafeModel):
