@@ -95,6 +95,32 @@ class SufficiencyResult(SafeModel):
         return self.status == "SUFFICIENT"
 
 
+class RCACandidate(SafeModel):
+    candidate_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    code: Literal["REPEATED_HISTORY_SIGNAL"] = "REPEATED_HISTORY_SIGNAL"
+    hypothesis: Literal["반복 불만 이력이 관측되어 공통 원인에 대한 추가 조사가 필요합니다."] = "반복 불만 이력이 관측되어 공통 원인에 대한 추가 조사가 필요합니다."
+    confidence: float = Field(ge=0, le=1)
+    supporting_refs: tuple[str, ...] = Field(min_length=1, max_length=20)
+    contradicting_refs: tuple[str, ...] = Field(default=(), max_length=20)
+    unresolved_gaps: tuple[EvidenceGap, ...] = ()
+    provenance: Literal["HISTORY_HYPOTHESIS_NOT_CONFIRMED"] = "HISTORY_HYPOTHESIS_NOT_CONFIRMED"
+    generated_by: Literal["DETERMINISTIC", "LLM_GATEWAY"]
+    config_version: int = Field(ge=1)
+    jev_decision_id: str = Field(min_length=1, max_length=128)
+    llm_request_id: str | None = Field(default=None, max_length=128)
+
+    @field_validator("supporting_refs", "contradicting_refs")
+    @classmethod
+    def validate_refs(cls, value):
+        return cls.safe_refs(value)
+
+    @model_validator(mode="after")
+    def disjoint(self):
+        if set(self.supporting_refs) & set(self.contradicting_refs):
+            raise ValueError("같은 근거를 지지와 반대로 동시에 사용할 수 없습니다.")
+        return self
+
+
 class WorkflowState(SafeModel):
     tenant_id: str = Field(min_length=1, max_length=128)
     incident_id: str = Field(min_length=1, max_length=128)
@@ -108,6 +134,9 @@ class WorkflowState(SafeModel):
     evidence_candidates: tuple[EvidenceCandidate, ...] = ()
     evidence_gaps: tuple[EvidenceGap, ...] = ()
     errors: tuple[Literal["WORKFLOW_FAILED"], ...] = ()
+    normalized_evidence: tuple[NormalizedEvidence, ...] = Field(default=(), max_length=20)
+    sufficiency: SufficiencyResult | None = None
+    rca_candidates: tuple[RCACandidate, ...] = Field(default=(), max_length=5)
     iteration: int = Field(default=0, ge=0, le=20)
     tool_call_count: int = Field(default=0, ge=0, le=50)
     token_spent: int = Field(default=0, ge=0)
