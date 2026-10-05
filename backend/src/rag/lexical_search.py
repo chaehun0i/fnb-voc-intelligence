@@ -40,6 +40,9 @@ def search_reviews_lexically(
     clauses = ["to_tsvector('simple', r.review_text) @@ query.terms"]
     params: list[object] = [query]
     filters = filters or SearchFilters()
+    if filters.tenant_id is not None:
+        clauses.append("EXISTS (SELECT 1 FROM serviq_history_sources hs WHERE hs.review_id=r.review_id AND hs.tenant_id=%s AND hs.store=%s)")
+        params.extend((filters.tenant_id, filters.store))
     if filters.product_id is not None:
         clauses.append("r.product_id = %s")
         params.append(filters.product_id)
