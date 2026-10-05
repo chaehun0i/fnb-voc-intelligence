@@ -45,6 +45,10 @@ class MemoryDecisionRepository:
                  if r.tenant_id == self.tenant_id and r.incident_id == incident_id]
         return deepcopy(sorted(items, key=lambda r: (r.decided_at, r.decision_id), reverse=True)[offset:offset+limit])
 
+    def get(self, decision_id):
+        return deepcopy(next((r for r in self.state.data.get("decisions", {}).values()
+                              if r.tenant_id == self.tenant_id and r.decision_id == decision_id), None))
+
     def by_job(self, job_id, ruleset="1"):
         return deepcopy(self.state.data.get("decisions", {}).get((self.tenant_id, job_id, ruleset)))
 
@@ -63,6 +67,11 @@ class PostgresDecisionRepository:
         rows = self.connection.execute("""SELECT document FROM serviq_decisions WHERE tenant_id=%s AND incident_id=%s
             ORDER BY decided_at DESC,decision_id DESC LIMIT %s OFFSET %s""", (self.tenant_id, incident_id, limit, offset)).fetchall()
         return [decision_from_document(r[0]) for r in rows]
+
+    def get(self, decision_id):
+        row = self.connection.execute("SELECT document FROM serviq_decisions WHERE tenant_id=%s AND decision_id::text=%s",
+                                      (self.tenant_id, decision_id)).fetchone()
+        return decision_from_document(row[0]) if row else None
 
     def by_job(self, job_id, ruleset="1"):
         row = self.connection.execute("SELECT document FROM serviq_decisions WHERE tenant_id=%s AND source_job_id=%s AND ruleset_version=%s",

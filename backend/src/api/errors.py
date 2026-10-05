@@ -11,6 +11,7 @@ from src.application.dashboard.models import (
 )
 from src.application.incidents.service import IncidentNotFound
 from src.application.jobs.queries import JobNotFound
+from src.application.ports.agent_run_repository import AgentRunsUnavailable
 from src.application.ports.config_repository import (
     ConfigNotFound,
     ConfigVersionConflict,
@@ -43,6 +44,10 @@ def error_response(
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(AgentRunsUnavailable)
+    async def agent_runs_unavailable(request: Request, _: AgentRunsUnavailable):
+        return error_response(request, 503, "AGENT_RUNS_UNAVAILABLE", "실행 이력을 조회할 수 없습니다. 잠시 후 다시 불러와 주세요.")
+
     @app.exception_handler(LLMCallsUnavailable)
     async def llm_calls_unavailable(request: Request, _: LLMCallsUnavailable):
         return error_response(request, 503, "LLM_CALLS_UNAVAILABLE", "AI 호출 기록을 조회할 수 없습니다. 잠시 후 다시 시도해 주세요.")

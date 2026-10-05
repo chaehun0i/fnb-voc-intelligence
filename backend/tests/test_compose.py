@@ -26,3 +26,9 @@ def test_compose_offers_reusable_cli_service() -> None:
 def test_compose_exposes_dashboard_after_database_readiness() -> None:
     contents = COMPOSE.read_text(encoding="utf-8")
     assert "dashboard:" in contents and "DASHBOARD_PORT" in contents
+
+
+def test_compose_db_is_the_local_backend_database_without_public_exposure() -> None:
+    contents = COMPOSE.read_text(encoding="utf-8")
+    assert contents.startswith("name: serviq\n")
+    assert '127.0.0.1:${POSTGRES_PORT:-5432}:5432' in contents

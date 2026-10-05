@@ -15,6 +15,16 @@ class SearchFilters(BaseModel):
     category: str | None = None
     rating: int | None = Field(default=None, ge=1, le=5)
     pain_point: str | None = None
+    tenant_id: str | None = None
+    store: str | None = None
+
+    @model_validator(mode="after")
+    def paired_scope(self):
+        if (self.tenant_id is None) != (self.store is None):
+            raise ValueError("조직 검색에는 매장 범위도 필요합니다.")
+        if self.tenant_id is not None and (not self.tenant_id.strip() or not self.store.strip()):
+            raise ValueError("조직과 매장은 비워 둘 수 없습니다.")
+        return self
 
 
 class SearchQuery(BaseModel):

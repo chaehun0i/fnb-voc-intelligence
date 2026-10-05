@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.errors import register_error_handlers
+from src.api.routes.agent_runs import router as agent_runs_router
 from src.api.routes.dashboard import router as dashboard_router
 from src.api.routes.decisions import router as decision_router
 from src.api.routes.incidents import router
@@ -84,6 +85,7 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="ServIQ API", version="0.4.1")
     app.include_router(llm_calls_router)
+    app.include_router(agent_runs_router)
     app.state.identity_provider = identity_provider or configured_identity_provider()
     repo = repository if repository is not None else configured_repository()
     app.state.access_persistence = AccessPersistence(repo)

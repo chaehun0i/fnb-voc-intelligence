@@ -58,12 +58,14 @@ Settings HTTP 모드는 실제 current/effective/source/서버 상한과 Config 
 
 Dashboard HTTP 모드는 `GET /api/v1/dashboard?window=7d` 한 응답으로 실제 KPI·추세·RCA·CAPA를 표시합니다. `as_of`는 서버 정보 기준 시각이며 추세 날짜는 UTC입니다. 브라우저에서 Incident/Review/Queue를 합산하지 않고 실패 시 예시로 대체하지 않습니다. 연동 상태는 실제 원본이 없어 준비 중으로 구분합니다. KPI 계산 규칙과 Tenant/store 범위는 [Day 19 문서](../docs/serviq_dashboard.md)를 참고하세요.
 
-기본 Mock 모드의 자료는 새로고침하면 초기화됩니다. HTTP 모드에서는 Incident·Review·Queue·Dashboard·Settings가 실제 API를 사용하지만 연동·Agent Trace는 여전히 Mock입니다. 예시 자료와 실제 자료를 혼동하지 않도록 안내를 구분합니다. 날짜가 없는 검증은 `기록 없음`으로 표시합니다. PostgreSQL 영속 기록은 Backend의 PostgreSQL 모드에서만 보장합니다.
+기본 Mock 모드의 자료는 새로고침하면 초기화됩니다. HTTP 모드에서는 Incident·Review·Queue·Dashboard·Settings와 단일 History 실행 추적이 실제 API를 사용하지만 연동은 여전히 Mock입니다. 예시 자료와 실제 자료를 혼동하지 않도록 안내를 구분합니다. 날짜가 없는 검증은 `기록 없음`으로 표시합니다. PostgreSQL 영속 기록은 Backend의 PostgreSQL 모드에서만 보장합니다.
 
 Incident 상세의 실행 추적 탭에는 실제 Jev Shadow 판단 이력이 별도로 표시됩니다. 설정의 Jev 사용 이후 처리한 Job에서만 생성되며 후보·근거·Config/ruleset 버전을 확인할 수 있습니다. 판단은 실행 경로를 변경하지 않고 기존 Agent Trace 예시는 분리합니다. HTTP 실패를 Mock으로 대체하지 않습니다. 자세한 범위는 [Day 21 문서](../docs/serviq_jev.md)를 참고하세요.
 
-Day 22에서 Backend의 공통 LLM Gateway와 Gemini/Ollama 어댑터가 추가됐습니다. Settings는 versioned Provider 허용·모델 mapping·fallback 상태를 보존하고 표시합니다. HTTP 실패를 Mock으로 대체하지 않습니다. Jev/Agent 자동 외부 호출은 아직 연결되지 않았고 실제 모델도 이번 검증에서는 호출하지 않았습니다. LangGraph·Multi-Agent·MCP 역시 미구현입니다. 자세한 계약과 제한은 [LLM Gateway 문서](../docs/serviq_llm_gateway.md)를 참고하세요.
+Day 22에서 Backend의 공통 LLM Gateway와 Gemini/Ollama 어댑터가 추가됐습니다. Settings는 versioned Provider 허용·모델 mapping·fallback 상태를 보존하고 표시합니다. HTTP 실패를 Mock으로 대체하지 않습니다. Jev Shadow가 자동으로 외부 모델을 호출하지 않으며 실제 모델도 이번 검증에서는 호출하지 않았습니다. 자세한 계약은 [LLM Gateway 문서](../docs/serviq_llm_gateway.md)를 참고하세요.
+
+Day 23 실행 추적 페이지와 Incident 상세 탭은 실제 History AgentRun을 표시합니다. 과거 VOC 출처, 근거 공백, 실행 상태·단계·지연, Jev/Config/Job 원본과 토큰·비용을 확인하고 새로고침할 수 있습니다. HTTP 실패를 Demo Multi-Agent로 대체하지 않습니다. 조사는 서버 Application에서 명시적으로 등록한 History Job만 실행하며 화면에 임의 실행 버튼을 추가하지 않았습니다. LangGraph는 단일 History 조사까지만 연결됐고 RCA/CAPA·Verification·Multi-Agent·Harness/MCP는 미구현입니다. 자세한 복구·보안 경계와 검증 결과는 [History Workflow 문서](../docs/serviq_langgraph_history.md)를 참고하세요.
 
 ## 다음 단계
 
-Settings·Jev Shadow·LLM Gateway 경계까지 연결했습니다. 다음 Day 시작 시 최신 main과 Drive 설계를 다시 확인합니다. 기존 서버 Permission·Tenant/store·Audit·멱등성·Config 안전 상한을 재사용하며 Worker 정책과 OIDC/SSO는 별도 완료 기준으로 추적합니다. 다음 후보는 LangGraph single History Investigation이며 이후 Multi-Agent → Harness/Loop → MCP를 순차 검토합니다. Integration/SyncJob도 실제 원본을 먼저 정의합니다. 실행·배포는 [배포 문서](../docs/serviq_delivery.md), 구조는 [실행 구조 문서](../docs/serviq_structure.md)를 참고하세요.
+단일 History 조사와 실제 Trace까지 연결했습니다. Day 24는 Evidence Fan-in/Sufficiency/RCA Draft를 이어가며 Day 30 MVP까지 승인·검증·Golden Workflow를 우선합니다. 기존 서버 Permission·Tenant/store·Audit·멱등성·Config 안전 상한을 재사용합니다. Multi-Agent 종류·Harness/MCP 개수는 최소화하고 OIDC/SSO·Integration/SyncJob는 별도 완료 기준으로 추적합니다. 실행·배포는 [배포 문서](../docs/serviq_delivery.md), 구조는 [실행 구조 문서](../docs/serviq_structure.md)를 참고하세요.

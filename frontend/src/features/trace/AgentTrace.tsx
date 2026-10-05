@@ -1,5 +1,7 @@
 import { ArrowDown, Bot, RefreshCw, Wrench } from "lucide-react";
 import { mockApi } from "../../api/mockApi";
+import { apiMode } from "../../api/incidents";
+import { HistoryTracePage } from "./HistoryTrace";
 import { Button, PageHeading, PreviewNotice, StateMessage, StatCard } from "../../components/ui";
 import type { AgentRun, AgentStep } from "../../contracts/types";
 import { statusLabels as incidentStatusLabels } from "../../lib/display";
@@ -28,6 +30,10 @@ function Stage({ step }: { step: AgentStep }) {
 }
 
 export function AgentTrace() {
+  return apiMode === "http" ? <HistoryTracePage /> : <DemoAgentTrace />;
+}
+
+function DemoAgentTrace() {
   const { data: run, loading, error, reload } = useQuery(mockApi.getAgentRun);
 
   if (loading) return <section className="page"><StateMessage kind="loading" title="실행 이력을 불러오는 중입니다" /></section>;

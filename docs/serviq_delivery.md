@@ -55,6 +55,8 @@ Day 20의 [Control Plane](serviq_control_plane.md)은 `007`/`008` additive migra
 
 RAG smoke는 실제 DB 자료나 외부 LLM을 준비해야 하는 CLI 운영 실행 대신 기존 CLI 및 파이프라인 테스트를 실행합니다. 테스트의 Fake 연결과 생성기를 사용하므로 API Key와 외부 네트워크가 필요하지 않습니다. PostgreSQL smoke는 CI 전용 DB와 테스트용 비밀번호를 사용합니다.
 
+Day 23은 [단일 History Workflow](serviq_langgraph_history.md)를 추가합니다. CI PostgreSQL과 Compose API 이미지의 `/app`에서 `scripts.serviq_langgraph_smoke`를 실행해 durable Checkpoint 실패/재개, 동일 AgentRun·Config, Fake LLM 1회, 근거 출처 격리와 민감 정보 미노출을 확인합니다. nginx HTTP smoke에는 AgentRun 조회 상한·공개 실행 POST 금지·Shadow 자동 실행 없음 검증이 포함됩니다. 실제 외부 모델 호출은 CI에 요구하지 않습니다.
+
 GitHub Action은 공식 저장소에서 존재를 확인한 버전을 사용합니다. `setup-uv`는 `v10.2.0` 릴리스 태그를 사용하며, uv 캐시는 `backend/uv.lock`과 루트·백엔드의 `pyproject.toml` 변경을 기준으로 갱신합니다. Node.js 캐시는 `frontend/package-lock.json`을 기준으로 관리합니다. 기본 권한은 `contents: read`이고 checkout에는 자격 증명을 남기지 않습니다. 일반 CI는 같은 브랜치의 이전 실행을 취소하며, 수동 릴리스는 같은 브랜치에서 실행을 순차 처리합니다.
 
 Compose 통합 검증은 `serviq-ci` 프로젝트를 사용하며 테스트 전용 DB·사용자·비밀번호와 `18000`/`18080` 포트를 지정합니다. `api`, `frontend`, `worker`를 `--wait`로 시작한 뒤 표준 라이브러리 HTTP 스크립트로 실제 nginx 프록시를 확인합니다. 검증 후에는 성공 여부와 관계없이 해당 CI 프로젝트에만 `down --volumes`를 실행합니다. 일반 로컬 실행이나 기존 운영 DB 볼륨을 정리하는 명령으로 사용하지 않습니다.
@@ -71,6 +73,8 @@ Compose 통합 검증은 `serviq-ci` 프로젝트를 사용하며 테스트 전�
 ### ServIQ 실행
 
 먼저 `.env.example`을 `.env`로 복사하고 `POSTGRES_PASSWORD`를 안전한 값으로 변경합니다. `.env`는 커밋하지 않습니다. Compose의 ServIQ DSN은 `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`에서 생성합니다. `SERVIQ_DATABASE_URL` 예시는 Docker 외부에서 Python을 직접 실행할 때 사용하는 주소입니다.
+
+Compose의 기본 프로젝트 이름과 예시 `COMPOSE_PROJECT_NAME`은 `serviq`로 고정합니다. 매 Day마다 프로젝트·DB 컨테이너를 새로 만들지 않습니다. DB의 호스트 포트는 `127.0.0.1:${POSTGRES_PORT:-5432}`이며 로컬 `backend/.env`도 동일 Compose DB 계정으로 설정합니다. 기존 검증 데이터는 백업 후 이름별 DB로 이관해 행 수를 비교할 수 있지만 운영 DB와 과거 스냅샷을 무작정 합치거나 덮어쓰지 않습니다. 일반 정리는 컨테이너만 대상으로 하고 원본 볼륨·dump는 복구용으로 보존합니다. CI의 명시적 `--project-name serviq-ci`는 로컬 고정 프로젝트와 별개입니다.
 
 ```bash
 docker compose --profile serviq config --quiet

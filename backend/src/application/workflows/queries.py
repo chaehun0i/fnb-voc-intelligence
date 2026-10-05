@@ -1,0 +1,44 @@
+"""실행 이력 조회도 Incident의 조직·매장 권한을 먼저 확인합니다."""
+import psycopg
+
+from src.application.incidents.service import IncidentNotFound
+from src.application.ports.agent_run_repository import AgentRunsUnavailable
+from src.application.security.authorization import require
+
+
+def projection(run):
+    state = run.state
+    return {**run.model_dump(mode="json", exclude={"tenant_id", "state"}),
+        "route": state.route, "risk_level": state.risk_level,
+        "findings": [f.model_dump() for f in state.findings],
+        "evidence_candidates": [e.model_dump(mode="json") for e in state.evidence_candidates],
+        "evidence_gaps": [g.model_dump() for g in state.evidence_gaps],
+        "token_spent": state.token_spent, "cost_spent": state.cost_spent,
+        "iteration": state.iteration, "tool_call_count": state.tool_call_count}
+
+
+class AgentRunQueries:
+    def __init__(self, persistence, principal):
+        self.persistence, self.principal = persistence, principal
+
+    def execute(self, incident_id, *, run_id=None, limit=20, offset=0):
+        require(self.principal, "read")
+        if not 1 <= limit <= 100 or not 0 <= offset <= 10000:
+            raise ValueError("실행 이력 조회 범위를 확인해 주세요.")
+        try:
+            with self.persistence.transaction(self.principal.tenant_id) as uow:
+                incident = uow.incidents.get(incident_id)
+                if incident is None:
+                    raise IncidentNotFound()
+                require(self.principal, "read", incident.store)
+                if run_id is not None:
+                    run = uow.agent_runs.get(run_id)
+                    if run is None or run.incident_id != incident_id:
+                        raise IncidentNotFound()
+                    return {**projection(run), "steps": [s.model_dump(mode="json")
+                            for s in uow.agent_runs.steps(run_id)]}
+                runs = uow.agent_runs.history(incident_id, limit+1, offset)
+                return {"runs": [projection(r) for r in runs[:limit]], "limit": limit,
+                        "offset": offset, "has_more": len(runs)>limit}
+        except psycopg.Error as error:
+            raise AgentRunsUnavailable() from error
