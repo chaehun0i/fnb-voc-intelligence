@@ -8,19 +8,25 @@ import threading
 import psycopg
 
 from src.application.decisions.shadow import ShadowDecisions
+from src.application.workflows.history import HISTORY_JOB
 from src.infrastructure.access_unit_of_work import AccessPersistence
+from src.infrastructure.history_search import PostgresHistorySearch
 from src.infrastructure.outbox.job_dispatch import PostgresJobDispatcher
 from src.infrastructure.outbox.worker import OutboxWorker, _positive_seconds
 from src.infrastructure.queue.worker import JobWorker
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )
+from src.runtime.workflows.checkpoint import postgres_checkpoint
+from src.runtime.workflows.processor import HistoryProcessor
 
 logger = logging.getLogger(__name__)
 
 
-def snapshot_processor(repository, shadow=None):
+def snapshot_processor(repository, shadow=None, history=None):
     def process(job):
+        if job.job_type == HISTORY_JOB and history is not None:
+            return history(job)
         if job.job_type != "incident.snapshot":
             raise ValueError("지원하지 않는 작업 종류입니다.")
         incident = repository.get(job.incident_id, tenant_id=job.tenant_id)
@@ -64,9 +70,12 @@ def main(argv=None):
     try:
         with psycopg.connect(dsn, autocommit=True) as connection:
             repository = PostgresIncidentRepository(dsn)
+            persistence = AccessPersistence(repository)
+            history = HistoryProcessor(persistence, PostgresHistorySearch(dsn),
+                lambda: postgres_checkpoint(dsn), dsn=dsn, lease_seconds=arguments.lease_seconds)
             runtime = QueueRuntime(
                 OutboxWorker(connection, PostgresJobDispatcher(connection, repository), lease_seconds=arguments.lease_seconds),
-                JobWorker(connection, snapshot_processor(repository, ShadowDecisions(AccessPersistence(repository))), lease_seconds=arguments.lease_seconds))
+                JobWorker(connection, snapshot_processor(repository, ShadowDecisions(persistence), history), lease_seconds=arguments.lease_seconds))
             if arguments.once:
                 runtime.run_once()
             else:
