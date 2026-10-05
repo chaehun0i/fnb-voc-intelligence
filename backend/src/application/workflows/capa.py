@@ -1,0 +1,64 @@
+"""Agent 제안을 재검증한 뒤 기존 Incident Command로만 반영합니다."""
+from datetime import UTC, datetime
+from uuid import NAMESPACE_URL, uuid5
+
+from src.application.incidents.service import IncidentNotFound, IncidentService
+from src.application.ports.incident_repository import IncidentConflict
+from src.application.security.authorization import require
+from src.application.security.principal import AccessError, Principal
+from src.domain.approvals.audit import AuditRecord
+from src.domain.incidents.enums import IncidentStatus, Severity
+from src.domain.incidents.models import CorrectiveAction, Evidence, RootCauseCandidate
+from src.domain.workflows.models import WorkflowState
+from src.domain.workflows.policy import server_risk
+
+
+class CAPACommands:
+    def __init__(self, persistence, run_id, tenant_id, clock=None):
+        self.persistence, self.run_id, self.tenant_id = persistence, run_id, tenant_id
+        self.clock = clock or (lambda: datetime.now(UTC))
+
+    def apply(self, state):
+        WorkflowState.model_validate(state.model_dump(mode="json"))
+        with self.persistence.transaction(self.tenant_id) as uow:
+            run = uow.agent_runs.get(self.run_id)
+            if run is None or not run.requested_by or state.agent_run_id != run.agent_run_id:
+                raise AccessError()
+            principal = Principal(run.requested_by, run.tenant_id, frozenset(run.delegated_roles),
+                                  frozenset(run.delegated_store_scope), "workflow-delegation")
+            incident = uow.incidents.get(run.incident_id)
+            if incident is None:
+                raise IncidentNotFound()
+            require(principal, "operate", incident.store)
+            if run.state.capa_proposals and all(p.status == "APPLIED" for p in run.state.capa_proposals):
+                return run.state
+            version = uow.configs.get(run.config_version)
+            if (version is None or not version.config.auto_capa_draft or not state.sufficiency
+                    or not state.sufficiency.allows_rca or not state.capa_proposals):
+                raise AccessError("CAPA_NOT_ALLOWED", 409)
+            if incident.version != run.initial_incident_version:
+                raise IncidentConflict()
+            if any(p.store != incident.store or p.decision_reference != run.jev_decision_id
+                   for p in state.capa_proposals) or any(e.store != incident.store for e in state.normalized_evidence):
+                raise AccessError()
+            service = IncidentService(uow.incidents, clock=self.clock, principal=principal)
+            if incident.status == IncidentStatus.TRIAGED:
+                incident = service.investigate(incident.id, incident.version)
+            for e in state.normalized_evidence:
+                incident = service.add_evidence(incident.id, Evidence(e.source_ref, e.source_ref,
+                    e.source_type, "관련 과거 사례 참조", 1.0), incident.version)
+            incident = service.prepare_rca(incident.id, [RootCauseCandidate(c.candidate_id,
+                c.hypothesis, c.confidence, list(c.supporting_refs), list(c.contradicting_refs))
+                for c in state.rca_candidates], incident.version)
+            proposals = tuple(p.model_copy(update={"risk_level": server_risk(incident.severity,
+                state.risk_level, p.risk_level), "required_approval": True, "status": "APPLIED"})
+                for p in state.capa_proposals)
+            incident = service.propose_action(incident.id, [CorrectiveAction(p.capa_proposal_id,
+                p.summary, Severity(p.risk_level), p.expected_effect, p.verification_criteria)
+                for p in proposals], incident.version)
+            result = WorkflowState.model_validate(state.model_copy(update={"capa_proposals": proposals}).model_dump(mode="json"))
+            uow.agent_runs.save(run.model_copy(update={"state": result}))
+            uow.audit.append(AuditRecord(str(uuid5(NAMESPACE_URL, "capa:"+run.agent_run_id)),
+                run.tenant_id, principal.principal_id, "workflow_capa", "incident", incident.id,
+                "SUCCESS", run.agent_run_id, run.correlation_id, self.clock().isoformat(), incident.version))
+            return result

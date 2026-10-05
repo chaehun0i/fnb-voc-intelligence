@@ -213,7 +213,11 @@ class AgentRun(SafeModel):
     correlation_id: str
     config_version: int = Field(ge=1)
     jev_decision_id: str
-    workflow_version: Literal["history-v1", "history-evidence-v2"] = "history-v1"
+    workflow_version: Literal["history-v1", "history-evidence-v2", "history-capa-v3"] = "history-v1"
+    requested_by: str | None = Field(default=None, max_length=128)
+    delegated_roles: tuple[str, ...] = ()
+    delegated_store_scope: tuple[str, ...] = ()
+    initial_incident_version: int = Field(default=0, ge=0)
     status: WorkflowStatus = WorkflowStatus.RUNNING
     started_at: datetime
     completed_at: datetime | None = None
@@ -231,6 +235,8 @@ class AgentRun(SafeModel):
             raise ValueError("Graph 저장 완료 전 실행을 완료할 수 없습니다.")
         if any(c.jev_decision_id != self.jev_decision_id for c in self.state.rca_candidates):
             raise ValueError("RCA Decision 원본을 확인해 주세요.")
+        if any(c.decision_reference != self.jev_decision_id for c in self.state.capa_proposals):
+            raise ValueError("CAPA Decision 원본을 확인해 주세요.")
         return self
 
     @field_validator("started_at", "completed_at")

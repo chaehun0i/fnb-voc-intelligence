@@ -2,12 +2,7 @@
 from uuid import NAMESPACE_URL, uuid5
 
 from src.domain.workflows.models import CAPAProposal, WorkflowState
-
-RISK_ORDER = ("LOW", "MEDIUM", "HIGH", "CRITICAL")
-
-
-def server_risk(*values):
-    return max(("MEDIUM", *values), key=RISK_ORDER.index)
+from src.domain.workflows.policy import server_risk
 
 
 class CAPAInvestigation:
