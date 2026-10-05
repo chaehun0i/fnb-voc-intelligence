@@ -57,6 +57,40 @@ class RCAResponse(BaseModel):
     llm_request_id: str | None
 
 
+class CAPAResponse(BaseModel):
+    capa_proposal_id: str
+    incident_id: str
+    agent_run_id: str
+    rca_candidate_id: str
+    summary: str
+    risk_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    expected_effect: str
+    verification_criteria: str
+    supporting_evidence_ids: list[str]
+    required_approval: bool
+    proposed_action_type: Literal["MANUAL_HISTORY_REVIEW"]
+    target_reference: str
+    assumptions: list[str]
+    uncertainties: list[str]
+    config_version: int
+    decision_reference: str
+    status: Literal["PROPOSED", "APPLIED"]
+
+
+class ApprovalTraceResponse(BaseModel):
+    approval_id: str
+    action_ids: list[str]
+    action_digest: str
+    config_version: int
+    incident_version: int
+    status: Literal["PENDING", "APPROVED", "REJECTED"]
+    phase: Literal["WAITING_APPROVAL", "READY_TO_EXECUTE", "REJECTED"]
+    waiting_since: datetime
+    resumed_at: datetime | None
+    decision_actor: str | None
+    decision_reason_code: Literal["HUMAN_APPROVED", "HUMAN_REJECTED"] | None
+
+
 class AgentRunResponse(BaseModel):
     agent_run_id: str
     incident_id: str
@@ -65,8 +99,8 @@ class AgentRunResponse(BaseModel):
     correlation_id: str
     config_version: int
     jev_decision_id: str
-    workflow_version: Literal["history-v1", "history-evidence-v2"]
-    status: Literal["RUNNING", "COMPLETED", "FAILED"]
+    workflow_version: Literal["history-v1", "history-evidence-v2", "history-capa-v3"]
+    status: Literal["RUNNING", "WAITING_APPROVAL", "COMPLETED", "FAILED"]
     started_at: datetime
     completed_at: datetime | None
     error_code: Literal["WORKFLOW_FAILED"] | None
@@ -79,6 +113,8 @@ class AgentRunResponse(BaseModel):
     normalized_evidence: list[NormalizedEvidenceResponse] = []
     sufficiency: SufficiencyResponse | None = None
     rca_candidates: list[RCAResponse] = []
+    capa_proposals: list[CAPAResponse] = []
+    approval: ApprovalTraceResponse | None = None
     token_spent: int
     cost_spent: float
     iteration: int
@@ -89,9 +125,10 @@ class AgentStepResponse(BaseModel):
     agent_run_id: str
     sequence: int
     node_name: Literal["validate_context", "history_investigation", "normalize_evidence",
-                       "evaluate_sufficiency", "rca_investigation", "persist_result"]
+                       "evaluate_sufficiency", "rca_investigation", "persist_result", "capa_proposal",
+                       "apply_capa", "request_approval", "approval_interrupt", "approval_result"]
     attempt: int
-    status: Literal["RUNNING", "COMPLETED", "FAILED"]
+    status: Literal["RUNNING", "WAITING_APPROVAL", "COMPLETED", "FAILED"]
     started_at: datetime
     completed_at: datetime
     latency_ms: float

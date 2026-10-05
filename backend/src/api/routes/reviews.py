@@ -32,14 +32,14 @@ def list_reviews(queries: Queries, status: Literal["PENDING", "APPROVED", "REJEC
                  limit: int = Query(100, ge=1, le=100), offset: int = Query(0, ge=0)):
     persistence, commands, context = queries
     with persistence.transaction(context.principal.tenant_id) as uow:
-        return ReviewQueries(commands._service(uow.incidents), uow.approvals, context).list(status, limit, offset)
+        return ReviewQueries(commands._service(uow.incidents), uow.approvals, context, uow.configs.current()).list(status, limit, offset)
 
 
 @router.get("/{approval_id}", response_model=ReviewResponse)
 def get_review(approval_id: str, queries: Queries):
     persistence, commands, context = queries
     with persistence.transaction(context.principal.tenant_id) as uow:
-        return ReviewQueries(commands._service(uow.incidents), uow.approvals, context).get(approval_id)
+        return ReviewQueries(commands._service(uow.incidents), uow.approvals, context, uow.configs.current()).get(approval_id)
 
 
 @router.post("/{approval_id}/approve", response_model=IncidentResponse)
