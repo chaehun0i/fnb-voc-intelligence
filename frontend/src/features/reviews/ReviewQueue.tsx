@@ -46,7 +46,7 @@ function EvidencePanel({ detail }: { detail: ReviewDetail }) {
 
 export function ReviewQueue() {
   const query = useQuery(loadReviews);
-  const [selectedId, setSelectedId] = useState<string>();
+  const [selectedId, setSelectedId] = useState<string | undefined>(() => new URLSearchParams(window.location.hash.split("?")[1]).get("approval") ?? undefined);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState<ReviewAction>();
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string }>();
@@ -86,6 +86,7 @@ export function ReviewQueue() {
   return <section className="page">
     <PageHeading title="검토 대기함" description="제안된 조치와 근거를 확인하고, 허용된 검토 결정을 기록하세요.">
       <span className="tag high">검토 대기 {items.filter(({ approval }) => approval.status === "PENDING").length}건</span>
+      <Button disabled={!!submitting} onClick={query.reload}>검토 기록 새로고침</Button>
     </PageHeading>
     {apiMode === "mock" ? <PreviewNotice /> : <p className="mb-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-800">실제 서버의 승인 기록입니다. 승인해도 외부 조치는 자동 실행되지 않습니다.</p>}
     {query.loading && !query.data ? <StateMessage kind="loading" title="검토 요청을 불러오는 중입니다" /> :
