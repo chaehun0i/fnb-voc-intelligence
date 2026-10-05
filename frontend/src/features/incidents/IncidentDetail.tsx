@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Tabs from "@radix-ui/react-tabs";
 import { X } from "lucide-react";
-import { incidentApi } from "../../api/incidents";
+import { apiMode, incidentApi } from "../../api/incidents";
 import { mockApi } from "../../api/mockApi";
 import { StateMessage } from "../../components/ui";
 import { dateTime, percent, statusLabels } from "../../lib/display";
@@ -10,11 +10,12 @@ import { useQuery } from "../../lib/useQuery";
 import { IncidentCommandPanel } from "./IncidentCommandPanel";
 import { Badge } from "../../components/IncidentBadge";
 import { ShadowDecisionPanel } from "./ShadowDecisionPanel";
+import { HistoryTracePanel } from "../trace/HistoryTrace";
 
 const tabLabels = { timeline: "진행 이력", evidence: "증거", rca: "원인 분석", capa: "시정·예방 조치", tasks: "담당 작업", verification: "검증", trace: "실행 추적" };
 export function IncidentDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [revision, setRevision] = useState(0);
-  const loader = useMemo(() => () => Promise.all([incidentApi.getIncident(id), incidentApi.getWorkspace(id), mockApi.getAgentRunForIncident(id)]), [id, revision]);
+  const loader = useMemo(() => () => Promise.all([incidentApi.getIncident(id), incidentApi.getWorkspace(id), apiMode === "mock" ? mockApi.getAgentRunForIncident(id) : Promise.resolve(null)]), [id, revision]);
   const query = useQuery(loader);
   const [incident, workspace, trace] = query.data ?? [];
   const evidenceName = (evidenceId: string) => incident?.evidence.find((item) => item.id === evidenceId)?.source ?? evidenceId;
@@ -33,7 +34,7 @@ export function IncidentDetail({ id, onBack }: { id: string; onBack: () => void 
             <Tabs.Content value="capa" className="panel"><h2>시정·예방 조치(CAPA)</h2>{incident.corrective_actions.length ? incident.corrective_actions.map((item) => <article className="record-details" key={item.id}><strong>{item.summary}</strong><p>위험도: <Badge value={item.risk_level} /> · {item.status === "EXECUTED" ? "실행 완료" : item.status === "APPROVED" ? "승인 완료" : "제안"}</p><p>기대 효과: {item.expected_effect}</p><p>검증 기준: {item.verification_criteria}</p></article>) : <p>등록된 조치안이 없습니다.</p>}</Tabs.Content>
             <Tabs.Content value="tasks" className="panel"><h2>담당 작업</h2>{workspace?.tasks.length ? workspace.tasks.map((task) => <article key={task.id} className="record-details"><strong>{task.title}</strong><p>{task.owner} · 기한 {dateTime(task.due_at)} · {task.status === "COMPLETED" ? "완료" : task.status === "RUNNING" ? "진행 중" : "대기"}</p></article>) : <p>별도 담당 작업이 없습니다. 현재 API는 Incident 운영 명령과 이력을 관리합니다.</p>}</Tabs.Content>
             <Tabs.Content value="verification" className="panel"><h2>검증 결과</h2>{incident.verification ? <><strong>{incident.verification.result === "PASS" ? "통과" : incident.verification.result === "FAIL" ? "실패·재조사 필요" : "판정 보류"}</strong><p>{incident.verification.summary}</p><p>검증 시각: {dateTime(incident.verification.verified_at)}</p></> : <p>실행 후 등록한 검증 결과가 없습니다.</p>}</Tabs.Content>
-            <Tabs.Content value="trace" className="panel"><ShadowDecisionPanel key={id} incidentId={id} /><h2>연결된 실행 추적</h2><p className="preview-notice">Agent Runtime은 아직 연결되지 않았습니다. 아래 이력은 화면 검토용 예시입니다.</p>{trace ? <ol className="detail-list">{trace.steps.map((step) => <li key={step.id}><strong>{step.name}</strong><p>{step.decision_summary} · {step.latency_ms}ms · 도구 {step.tool_calls.length}회</p></li>)}</ol> : <p>이 인시던트에 연결된 실행 예시는 없습니다.</p>}</Tabs.Content>
+            <Tabs.Content value="trace" className="panel"><ShadowDecisionPanel key={id} incidentId={id} /><HistoryTracePanel key={`history-${id}`} incidentId={id} />{apiMode === "mock" && <><h2>실행 화면 예시</h2><p className="preview-notice">아래 Multi-Agent 이력은 화면 검토용 예시이며 실제 실행 결과가 아닙니다.</p>{trace ? <ol className="detail-list">{trace.steps.map((step) => <li key={step.id}><strong>{step.name}</strong><p>{step.decision_summary} · {step.latency_ms}ms · 도구 {step.tool_calls.length}회</p></li>)}</ol> : <p>이 인시던트에 연결된 실행 예시는 없습니다.</p>}</>}</Tabs.Content>
           </Tabs.Root>
           {workspace && <IncidentCommandPanel incident={incident} workspace={workspace} onComplete={() => setRevision((value) => value + 1)} />}
         </>}

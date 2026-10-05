@@ -17,6 +17,7 @@ Day 22 Gateway 다음에 단일 History 조사 실행 경계를 연결합니다.
 - 기존 JobWorker가 `incident.history_investigation`을 인수하여 Graph invoke/resume과 Trace를 실행합니다. PostgreSQL 실행 잠금과 heartbeat로 중복·late Worker를 차단합니다. 검색 결과는 노드 완료와 별도로 영속 메모화하여 Checkpoint 재저장 시 재검색/재호출하지 않습니다.
 - LLM 경계는 `013_history_effects.sql`에 호출 전 claim을 기록합니다. 호출 직후 crash로 결과가 불확실한 경우 자동 재호출하지 않고 실패 이력으로 남깁니다. 이 제한은 외부 Provider의 exactly-once 보장을 주장하지 않기 위한 안전 경계입니다.
 - 읽기 API: `GET /api/v1/incidents/{id}/agent-runs` 및 `GET /api/v1/incidents/{id}/agent-runs/{run_id}`. Tenant/매장/RBAC, bounded pagination을 적용하며 공개 실행 POST는 제공하지 않습니다.
+- HTTP 실행 추적과 Incident 상세는 실제 AgentRun API만 사용합니다. Mock의 미래 Multi-Agent 예시는 HTTP 결과와 혼합하지 않으며 실패 시 예시로 대체하지 않습니다.
 
 ## 실행/검증
 
