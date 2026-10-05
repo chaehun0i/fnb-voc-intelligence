@@ -10,6 +10,7 @@ Day 22 Gateway 다음에 단일 History 조사 실행 경계를 연결합니다.
 - WorkflowState는 참조와 정규화 Finding/EvidenceCandidate/EvidenceGap만 보관합니다.
 - 원문 VOC, prompt/response, credential, 개인정보는 실행 상태에 저장하지 않습니다.
 - `011_agent_runs.sql`은 실행 원본/설정/Job 참조와 추가 전용 단계 이력을 영속화합니다. 동일 조직/Job에는 실행 한 건만 생성합니다.
+- 실제 LangGraph는 `validate_context → history_investigation → persist_result`를 실행합니다. `durability="sync"`와 JSON 전용 serializer를 사용하고, PostgreSQL Checkpoint는 공식 PostgresSaver로 복구합니다.
 
 ## 실행/검증
 
