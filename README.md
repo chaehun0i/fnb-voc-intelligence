@@ -93,3 +93,5 @@ Day 20 버전 설정·서버 안전 상한·변경 이력과 안전 복원·실�
 Day 21 외부 AI 없는 Jev 위험·라우팅 판단과 실제 Job Shadow 감사·조회는 [Decision Layer 문서](docs/serviq_jev.md)를 참고하세요.
 
 Day 22 Provider 중립 LLM 계약·Data Policy·Gemini/Ollama 어댑터와 안전한 사용 기록은 [LLM Gateway 문서](docs/serviq_llm_gateway.md)를 참고하세요.
+
+Day 23 단일 History 조사·AgentRun·LangGraph durable Checkpoint와 실제 실행 추적은 [History Workflow 문서](docs/serviq_langgraph_history.md)를 참고하세요.

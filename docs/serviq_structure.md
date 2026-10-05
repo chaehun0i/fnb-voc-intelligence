@@ -16,7 +16,8 @@ API, 데이터베이스, 화면의 실행 위치를 `backend/`, `db/`, `frontend
 | `backend/src/api/` | 기존 FastAPI Factory, Routes, DTO, 오류 변환 | `backend/main.py`가 가져오는 API 구현 |
 | `backend/src/domain/`, `backend/src/application/` | Incident 상태 규칙과 Query/Command 서비스 | HTTP 및 저장 기술과 분리된 계층 |
 | `backend/src/infrastructure/` | Repository, SQL 초기화 로더, Outbox Worker | 공통 Python 패키지 |
-| `backend/src/llm/`, `backend/src/application/llm/` | Day 22 Provider 중립 AI 계약·정책·Gateway와 명시적 Application 경계 | SDK는 Provider 어댑터에만 격리, 자동 Job/Agent 호출 없음 |
+| `backend/src/llm/`, `backend/src/application/llm/` | Day 22 Provider 중립 AI 계약·정책·Gateway와 명시적 Application 경계 | SDK는 Provider 어댑터에만 격리, Shadow 자동 호출 없음 |
+| `backend/src/domain/workflows/`, `backend/src/application/workflows/`, `backend/src/runtime/workflows/` | Day 23 AgentRun·실행 허용·단일 History Graph와 복구 | 기존 Job으로 명시적 실행, Config 고정, 참조만 Checkpoint 저장 |
 | `backend/src/data/`, `backend/src/rag/`, `backend/src/ingestion/`, `backend/src/dashboard/` | Day 1~12 Data Intelligence 구현 | 기존 CLI와 Streamlit 실행 유지 |
 
 `backend/`는 저장소 루트 Python 프로젝트를 로컬 editable dependency로 사용합니다. 루트 패키지 설정은 실제 `backend/src/` 코드를 `src` 패키지로 등록하므로 Domain/API 코드를 복사하지 않습니다. `backend/uv.lock`은 백엔드 실행 환경의 재현 가능한 의존성을 기록합니다. 루트의 기존 `src/`, `tests/`를 중복으로 남기지 않습니다.
@@ -27,7 +28,11 @@ SQL은 기존 Product/Review/pgvector 테이블을 변경하지 않습니다. �
 
 ## 실행 및 검증
 
-Day 20 이후 초기화 로더는 `001`~`008` migration을 번호순으로 읽습니다. 독립 Job 모델은 `backend/src/domain/jobs/`, 서비스는 `backend/src/application/jobs/`, API는 `backend/src/api/routes/jobs.py`, Worker는 `backend/src/infrastructure/queue/`에 있습니다. 화면 경계는 `frontend/src/api/jobs/`이며 자세한 책임 분리는 [Day 18 문서](serviq_job_queue.md)를 참고하세요.
+Day 23 이후 초기화 로더는 `001`~`013` migration을 번호순으로 읽습니다. 독립 Job 모델은 `backend/src/domain/jobs/`, 서비스는 `backend/src/application/jobs/`, API는 `backend/src/api/routes/jobs.py`, Worker는 `backend/src/infrastructure/queue/`에 있습니다. 화면 경계는 `frontend/src/api/jobs/`이며 자세한 책임 분리는 [Day 18 문서](serviq_job_queue.md)를 참고하세요.
+
+AgentRun/Step, History 출처 연결과 외부 호출 claim은 `011`~`013`의 additive schema입니다. 공식 LangGraph Checkpoint 테이블은 운영 실행 원본과 분리합니다. 화면 경계는 `frontend/src/api/agentRuns/`이며 [Day 23 문서](serviq_langgraph_history.md)에 실행 허용·검색 출처·중단 복구·한계와 검증을 기록합니다.
+
+로컬 PostgreSQL은 기본 프로젝트 이름이 `serviq`인 Compose의 `db`로 통일합니다. `127.0.0.1:${POSTGRES_PORT:-5432}`를 사용하므로 루트/Backend의 로컬 DSN은 동일 DB·계정을 가리키도록 설정합니다. 컨테이너 내부는 계속 `db:5432`를 사용합니다. 과거 검증 DB는 운영 `fnb_voc`와 분리한 이력이며, 스냅샷을 운영 테이블에 덮어쓰지 않습니다. 이관 시 백업·테이블별 행 수 대조 후 별도 컨테이너를 정리하고 기존 볼륨은 복구용으로 보존합니다.
 
 설정 계약·상한은 `backend/src/domain/config/`, 조회·변경·복원은 `backend/src/application/config/`, HTTP는 `backend/src/api/routes/settings.py`에 있습니다. `007_control_plane.sql`의 불변 버전과 `008_config_outbox.sql`의 독립 설정 이벤트를 기존 UoW로 함께 저장합니다. 화면 경계는 `frontend/src/api/settings/`이며 [Day 20 문서](serviq_control_plane.md)에 책임·실행·제한 사항을 기록합니다.
 
