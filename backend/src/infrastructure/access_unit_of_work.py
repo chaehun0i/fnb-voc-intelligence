@@ -7,6 +7,10 @@ from dataclasses import dataclass
 import psycopg
 
 from src.infrastructure.outbox.config_events import ConfigEvents
+from src.infrastructure.repositories.agent_run_repository import (
+    MemoryAgentRunRepository,
+    PostgresAgentRunRepository,
+)
 from src.infrastructure.repositories.approval_repository import (
     MemoryAccessState,
     MemoryApprovalRepository,
@@ -56,6 +60,7 @@ class AccessUnitOfWork:
     config_events: object = None
     decisions: object = None
     llm_calls: object = None
+    agent_runs: object = None
 
 
 class AccessPersistence:
@@ -77,7 +82,8 @@ class AccessPersistence:
                                        PostgresConfigRepository(connection, tenant_id),
                                        ConfigEvents(tenant_id, connection=connection),
                                        PostgresDecisionRepository(connection, tenant_id),
-                                       PostgresLLMCallRepository(connection, tenant_id))
+                                       PostgresLLMCallRepository(connection, tenant_id),
+                                       PostgresAgentRunRepository(connection, tenant_id))
         else:
             with self.incidents._lock, self.memory.lock:
                 incidents = deepcopy(self.incidents._items)
@@ -93,6 +99,7 @@ class AccessPersistence:
                         config_events=ConfigEvents(tenant_id, state=self.memory),
                         decisions=MemoryDecisionRepository(self.memory, tenant_id),
                         llm_calls=MemoryLLMCallRepository(self.memory, tenant_id),
+                        agent_runs=MemoryAgentRunRepository(self.memory, tenant_id),
                     )
                 except Exception:
                     self.incidents._items = incidents
