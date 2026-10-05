@@ -11,7 +11,10 @@ def projection(run):
     return {**run.model_dump(mode="json", exclude={"tenant_id", "state"}),
         "route": state.route, "risk_level": state.risk_level,
         "findings": [f.model_dump() for f in state.findings],
-        "evidence_candidates": [e.model_dump(mode="json") for e in state.evidence_candidates],
+        "evidence_candidates": [e.model_dump(mode="json", exclude={"tenant_id", "store"}) for e in state.evidence_candidates],
+        "normalized_evidence": [e.model_dump(mode="json", exclude={"tenant_id", "store"}) for e in state.normalized_evidence],
+        "sufficiency": state.sufficiency.model_dump(mode="json") if state.sufficiency else None,
+        "rca_candidates": [c.model_dump(mode="json") for c in state.rca_candidates],
         "evidence_gaps": [g.model_dump() for g in state.evidence_gaps],
         "token_spent": state.token_spent, "cost_spent": state.cost_spent,
         "iteration": state.iteration, "tool_call_count": state.tool_call_count}
@@ -35,7 +38,7 @@ class AgentRunQueries:
                     run = uow.agent_runs.get(run_id)
                     if run is None or run.incident_id != incident_id:
                         raise IncidentNotFound()
-                    return {**projection(run), "steps": [s.model_dump(mode="json")
+                    return {**projection(run), "steps": [s.model_dump(mode="json", exclude={"result"})
                             for s in uow.agent_runs.steps(run_id)]}
                 runs = uow.agent_runs.history(incident_id, limit+1, offset)
                 return {"runs": [projection(r) for r in runs[:limit]], "limit": limit,

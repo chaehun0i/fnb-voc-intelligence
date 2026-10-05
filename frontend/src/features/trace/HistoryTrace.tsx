@@ -5,10 +5,11 @@ import { SelectField } from "../../components/SelectField";
 import { Button, PageHeading, StateMessage, StatCard } from "../../components/ui";
 import { dateTime } from "../../lib/display";
 import { useQuery } from "../../lib/useQuery";
+import { EvidenceTrace } from "./EvidenceTrace";
 
 const statusLabels = { RUNNING: "조사 중", COMPLETED: "조사 완료", FAILED: "조사 실패" };
-const gapLabels = { NO_AUTHORIZED_HISTORY: "관련 이력이 부족해 추가 근거가 필요합니다.", LLM_POLICY_DENIED: "데이터 정책에 따라 LLM 요청을 차단했습니다. 검색 근거만 확인해 주세요.", LLM_UNAVAILABLE: "LLM 보조 판단을 완료하지 못했습니다. 검색 근거는 유지했습니다." };
-const nodeLabels = { validate_context: "실행 조건 확인", history_investigation: "과거 VOC와 유사 사례 조사", persist_result: "조사 결과 기록" };
+const gapLabels = { NO_AUTHORIZED_HISTORY: "관련 이력이 부족해 추가 근거가 필요합니다.", LLM_POLICY_DENIED: "데이터 정책에 따라 LLM 요청을 차단했습니다. 검색 근거만 확인해 주세요.", LLM_UNAVAILABLE: "LLM 보조 판단을 완료하지 못했습니다. 검색 근거는 유지했습니다.", INSUFFICIENT_SOURCE_COVERAGE: "RCA를 지지할 독립 근거가 부족합니다.", CONFLICTING_EVIDENCE: "상충하는 근거가 있어 추가 검토가 필요합니다.", RCA_DISABLED: "현재 실행의 설정에서는 RCA 자동 초안을 허용하지 않습니다.", RCA_BUDGET_EXHAUSTED: "남은 예산이 부족해 RCA 요청을 시작하지 않았습니다." };
+const nodeLabels = { validate_context: "실행 조건 확인", history_investigation: "과거 VOC와 유사 사례 조사", normalize_evidence: "원본 근거 정규화", evaluate_sufficiency: "근거 충분성 판정", rca_investigation: "근거 기반 원인 후보", persist_result: "조사 결과 기록" };
 
 function RunDetail({ incidentId, runId, api }: { incidentId: string; runId: string; api: AgentRunApi }) {
   const loader = useMemo(() => () => api.detail(incidentId, runId), [api, incidentId, runId]);
@@ -24,6 +25,7 @@ function RunDetail({ incidentId, runId, api }: { incidentId: string; runId: stri
       <h4 className="mt-4">원본 증거 후보</h4>{run.evidence_candidates.length ? <ol>{run.evidence_candidates.map((e) => <li key={e.source_ref}><code>{e.source_ref}</code> · 검색 순위 {e.rank} · {dateTime(e.retrieved_at)}</li>)}</ol> : <p>허용된 원본 출처에서 찾은 근거가 없습니다.</p>}
       {run.evidence_gaps.map((g, index) => <p className="preview-notice" key={`${g.code}-${index}`}>{gapLabels[g.code]}</p>)}
     </article>
+    <EvidenceTrace run={run} />
     <article className="panel !min-h-0"><h3>실행 단계</h3><ol className="timeline">{run.steps.map((s) => <li key={`${s.sequence}-${s.attempt}`}><strong>{nodeLabels[s.node_name]} · {statusLabels[s.status]}</strong><small>시도 {s.attempt} · {s.latency_ms.toFixed(0)}ms · 토큰 {s.token_spent}</small></li>)}</ol>{!run.steps.length && <p>아직 완료된 단계 기록이 없습니다.</p>}</article>
   </div>;
 }
@@ -35,7 +37,7 @@ export function HistoryTracePanel({ incidentId, api = agentRunApi }: { incidentI
   const [detailRevision, setDetailRevision] = useState(0);
   if (loading) return <StateMessage kind="loading" title="실제 History 조사 기록을 불러오는 중입니다" />;
   if (error) return <StateMessage kind="error" title="실제 조사 기록을 불러오지 못했습니다" onRetry={reload}>{error}</StateMessage>;
-  return <section aria-label="실제 History 조사 기록"><div className="flex items-center justify-between gap-3"><h2>실제 History 조사 기록</h2><Button onClick={() => { reload(); setDetailRevision((value) => value + 1); }}>조사 기록 새로고침</Button></div><p className="muted">{apiMode === "http" ? "서버 실행 기록" : "예시 모드 · 실제 실행 없음"} · 단일 History 조사만 연결되어 있습니다. RCA/CAPA·Multi-Agent·Harness/MCP는 아직 실행되지 않습니다.</p>
+  return <section aria-label="실제 History 조사 기록"><div className="flex items-center justify-between gap-3"><h2>실제 History 조사 기록</h2><Button onClick={() => { reload(); setDetailRevision((value) => value + 1); }}>조사 기록 새로고침</Button></div><p className="muted">{apiMode === "http" ? "서버 실행 기록" : "예시 모드 · 실제 실행 없음"} · 단일 History 조사와 Evidence/RCA 후보를 표시합니다. CAPA·Multi-Agent·Harness/MCP는 아직 실행되지 않습니다.</p>
     {!data?.runs.length ? <StateMessage title="아직 실행된 History 조사가 없습니다">명시적으로 등록한 History Job의 실행 결과가 여기에 표시됩니다.</StateMessage> : <><SelectField label="조사 실행 선택" value={selected ?? data.runs[0].agent_run_id} options={data.runs.map((r) => ({ value: r.agent_run_id, label: `${statusLabels[r.status]} · ${dateTime(r.started_at)} · v${r.config_version}` }))} onValueChange={setSelected} /><RunDetail key={`${selected ?? data.runs[0].agent_run_id}-${detailRevision}`} incidentId={incidentId} runId={selected ?? data.runs[0].agent_run_id} api={api} />{data.has_more && <p>최근 20건을 표시합니다. 이전 기록은 조회 API로 확인할 수 있습니다.</p>}</>}
   </section>;
 }

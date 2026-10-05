@@ -25,4 +25,8 @@ def test_processor_duplicate_delivery_and_failure_boundary(history_setup):
     assert search.search.call_count == 1
     assert persistence.incidents.get("i") == original
     with persistence.transaction("t") as uow:
-        assert len(uow.agent_runs.steps(first.agent_run_id)) == 3
+        steps = uow.agent_runs.steps(first.agent_run_id)
+        assert [s.node_name for s in steps] == ["validate_context", "history_investigation",
+            "normalize_evidence", "evaluate_sufficiency", "persist_result"]
+        assert first.state.sufficiency.status == "INSUFFICIENT"
+        assert steps[-1].result == first.state

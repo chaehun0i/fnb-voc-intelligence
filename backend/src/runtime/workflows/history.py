@@ -18,8 +18,13 @@ class HistoryInvestigation:
         if (config.max_tool_calls < 1 or state.tool_call_count >= config.max_tool_calls
                 or state.iteration >= config.max_agent_iterations):
             raise ValueError("검색 호출 예산을 초과했습니다.")
-        candidates = tuple(EvidenceCandidate(source_ref=ref, rank=rank, retrieved_at=self.clock())
-                           for ref, rank in self.search.search(state.tenant_id, self.store, self.query))
+        if callable(getattr(type(self.search), "search_evidence", None)):
+            candidates = tuple(self.search.search_evidence(state.tenant_id, self.store, self.query))
+        else:
+            # 기존 참조 전용 adapter는 사실/관련성을 새로 꾸미지 않습니다.
+            candidates = tuple(EvidenceCandidate(source_ref=ref, rank=rank, retrieved_at=self.clock(),
+                tenant_id=state.tenant_id, store=self.store)
+                for ref, rank in self.search.search(state.tenant_id, self.store, self.query))
         refs = tuple(c.source_ref for c in candidates)
         gaps = () if refs else (EvidenceGap(code="NO_AUTHORIZED_HISTORY"),)
         tokens, cost = 0, 0.0

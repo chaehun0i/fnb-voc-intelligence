@@ -64,7 +64,9 @@ Incident 상세의 실행 추적 탭에는 실제 Jev Shadow 판단 이력이 �
 
 Day 22에서 Backend의 공통 LLM Gateway와 Gemini/Ollama 어댑터가 추가됐습니다. Settings는 versioned Provider 허용·모델 mapping·fallback 상태를 보존하고 표시합니다. HTTP 실패를 Mock으로 대체하지 않습니다. Jev Shadow가 자동으로 외부 모델을 호출하지 않으며 실제 모델도 이번 검증에서는 호출하지 않았습니다. 자세한 계약은 [LLM Gateway 문서](../docs/serviq_llm_gateway.md)를 참고하세요.
 
-Day 23 실행 추적 페이지와 Incident 상세 탭은 실제 History AgentRun을 표시합니다. 과거 VOC 출처, 근거 공백, 실행 상태·단계·지연, Jev/Config/Job 원본과 토큰·비용을 확인하고 새로고침할 수 있습니다. HTTP 실패를 Demo Multi-Agent로 대체하지 않습니다. 조사는 서버 Application에서 명시적으로 등록한 History Job만 실행하며 화면에 임의 실행 버튼을 추가하지 않았습니다. LangGraph는 단일 History 조사까지만 연결됐고 RCA/CAPA·Verification·Multi-Agent·Harness/MCP는 미구현입니다. 자세한 복구·보안 경계와 검증 결과는 [History Workflow 문서](../docs/serviq_langgraph_history.md)를 참고하세요.
+Day 23 실행 추적 페이지와 Incident 상세 탭은 실제 History AgentRun을 표시합니다. 과거 VOC 출처, 근거 공백, 실행 상태·단계·지연, Jev/Config/Job 원본과 토큰·비용을 확인하고 새로고침할 수 있습니다. HTTP 실패를 Demo Multi-Agent로 대체하지 않습니다. 조사는 서버 Application에서 명시적으로 등록한 History Job만 실행하며 화면에 임의 실행 버튼을 추가하지 않았습니다. 자세한 복구·보안 경계는 [History Workflow 문서](../docs/serviq_langgraph_history.md)를 참고하세요.
+
+Day 24 실제 HTTP Trace에는 정규화 Evidence, 검색 경로·출처 시각, 충분성/상충 판정과 미확정 RCA 후보가 추가됐습니다. 지지/반대 근거 버튼을 누르면 해당 출처가 펼쳐집니다. 브라우저는 충분성이나 RCA를 계산하지 않으며 HTTP 실패 시 Mock으로 대체하지 않습니다. 기존 `history-v1` 실행은 판정 이전 버전으로 구분합니다. CAPA/Approval 자동 생성·Verification·Multi-Agent·Harness/MCP는 미구현입니다. [Evidence/RCA 문서](../docs/serviq_evidence_rca.md)를 참고하세요.
 
 ## 다음 단계
 

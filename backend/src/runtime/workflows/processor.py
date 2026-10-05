@@ -6,12 +6,15 @@ from datetime import UTC, datetime, timedelta
 
 import psycopg
 
+from src.application.workflows.evidence import normalize_evidence
 from src.application.workflows.history import HistoryWorkflows
 from src.domain.workflows.models import AgentStep, WorkflowStatus, finish_run
+from src.domain.workflows.sufficiency import evaluate_sufficiency
 from src.infrastructure.llm_runtime import configured_llm_executor
 from src.infrastructure.queue.worker import RetryableJobError
 from src.runtime.workflows.graph import history_graph, invoke_or_resume
 from src.runtime.workflows.history import HistoryInvestigation
+from src.runtime.workflows.rca import RCAInvestigation
 
 logger = logging.getLogger(__name__)
 
@@ -130,24 +133,66 @@ class HistoryProcessor:
                     current = uow.agent_runs.get(run.agent_run_id)
                     uow.agent_runs.save(current.model_copy(update={"state": state}))
 
+            def normalize(state):
+                result = normalize_evidence(state.evidence_candidates, tenant_id=job.tenant_id,
+                    store=job.store, agent_run_id=run.agent_run_id)
+                return state.model_copy(update={"normalized_evidence": result,
+                    "evidence_refs": tuple(e.source_ref for e in result)})
+
+            def evaluate(state):
+                result = evaluate_sufficiency(state.normalized_evidence, state.evidence_gaps)
+                return state.model_copy(update={"sufficiency": result, "evidence_gaps": result.evidence_gaps})
+
+            def rca(state):
+                check()
+                with self.persistence.transaction(job.tenant_id) as uow:
+                    current = uow.agent_runs.get(run.agent_run_id)
+                    if current.state.rca_completed:
+                        memoized.add("rca_investigation")
+                        return current.state
+                    if resolved.effective.auto_rca_draft and executor is not None:
+                        if uow.connection:
+                            claimed = uow.connection.execute("""INSERT INTO serviq_rca_effects(tenant_id,agent_run_id,claimed_at)
+                                VALUES(%s,%s,%s) ON CONFLICT DO NOTHING RETURNING agent_run_id""",
+                                (job.tenant_id, run.agent_run_id, self.clock())).fetchone()
+                            if claimed is None:
+                                raise UncertainHistoryCall()
+                        else:
+                            key = (job.tenant_id, run.agent_run_id)
+                            effects = self.persistence.memory.data.setdefault("rca_effects", set())
+                            if key in effects:
+                                raise UncertainHistoryCall()
+                            effects.add(key)
+                result = RCAInvestigation(resolved, run.jev_decision_id,
+                    requires_llm=decision.result.requires_llm, clock=self.clock, executor=executor,
+                    deadline=run.started_at+timedelta(seconds=resolved.effective.timeout_seconds))(state)
+                result = result.model_copy(update={"rca_completed": True})
+                persist(result)
+                return result
+
             def observe(name, before, after, latency_ms, *, failed=False):
                 check()
                 now = self.clock()
                 step = AgentStep(agent_run_id=run.agent_run_id,
-                    sequence={"validate_context": 1, "history_investigation": 2, "persist_result": 3}[name],
+                    sequence={"validate_context": 1, "history_investigation": 2, "normalize_evidence": 3,
+                        "evaluate_sufficiency": 4, "rca_investigation": 5,
+                        "persist_result": 3 if run.workflow_version == "history-v1" else 6}[name],
                     node_name=name, attempt=job.attempt or 1,
                     status=WorkflowStatus.FAILED if failed else WorkflowStatus.COMPLETED,
                     started_at=now-timedelta(milliseconds=latency_ms), completed_at=now,
                     latency_ms=max(0, latency_ms),
                     token_spent=0 if name in memoized else after.token_spent-before.token_spent,
                     cost_spent=0 if name in memoized else max(0, after.cost_spent-before.cost_spent),
-                    evidence_refs=after.evidence_refs, error_code="WORKFLOW_FAILED" if failed else None)
+                    evidence_refs=after.evidence_refs, error_code="WORKFLOW_FAILED" if failed else None,
+                    result=after if run.workflow_version != "history-v1" else None)
                 with self.persistence.transaction(job.tenant_id) as uow:
                     uow.agent_runs.append_step(step)
 
             try:
                 with self.checkpoint_factory() as saver:
-                    graph = history_graph(saver, investigate, persist, observe=observe)
+                    stages = {} if run.workflow_version == "history-v1" else {
+                        "normalize": normalize, "evaluate": evaluate, "rca": rca}
+                    graph = history_graph(saver, investigate, persist, observe=observe, **stages)
                     result = invoke_or_resume(graph, run.state)
                 check()
                 with self.persistence.transaction(job.tenant_id) as uow:

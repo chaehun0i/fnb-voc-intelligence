@@ -129,7 +129,7 @@ jobs:
         run: uv run --extra dev python -m scripts.serviq_jev_smoke
       - name: 외부 AI 없는 LLM Gateway·PII·사용 기록 검증
         run: uv run --extra dev python -m scripts.serviq_llm_gateway_smoke
-      - name: LangGraph durable History·Checkpoint 재시작·단일 LLM·Tenant 검증
+      - name: LangGraph History·Evidence/Sufficiency/RCA·Checkpoint 재시작·단일 효과·Tenant 검증
         run: uv run --extra dev python -m scripts.serviq_langgraph_smoke
 
   docker:
@@ -167,7 +167,7 @@ jobs:
         run: docker compose --project-name serviq-ci --profile serviq up --build -d --wait --wait-timeout 180 api frontend worker
       - name: nginx 프록시와 실제 Incident 수동 흐름 검증
         run: python -m scripts.serviq_http_smoke
-      - name: Compose API 이미지에서 실제 History Workflow·Checkpoint 검증
+      - name: Compose API 이미지에서 History·Evidence/RCA·Checkpoint 검증
         run: |
           docker compose --project-name serviq-ci --profile serviq stop worker
           docker compose --project-name serviq-ci --profile serviq exec -T --workdir /app api sh -c 'SERVIQ_TEST_DATABASE_URL="$SERVIQ_DATABASE_URL" python -m scripts.serviq_langgraph_smoke'
