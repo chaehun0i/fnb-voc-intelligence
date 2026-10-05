@@ -11,7 +11,11 @@ class GraphState(TypedDict):
     snapshot: dict
 
 
-def history_graph(checkpointer, investigate, persist, *, observe=None):
+def history_graph(checkpointer, investigate, persist, *, observe=None,
+                  normalize=None, evaluate=None, rca=None):
+    if any(action is not None for action in (normalize, evaluate, rca)) and not all(
+            callable(action) for action in (normalize, evaluate, rca)):
+        raise ValueError("Evidence 단계는 모두 명시적으로 연결해야 합니다.")
     def node(name, action):
         def execute(value):
             state = WorkflowState.model_validate(value["snapshot"])
@@ -40,7 +44,18 @@ def history_graph(checkpointer, investigate, persist, *, observe=None):
     builder.add_node("persist_result", node("persist_result", complete))
     builder.add_edge(START, "validate_context")
     builder.add_edge("validate_context", "history_investigation")
-    builder.add_edge("history_investigation", "persist_result")
+    if normalize is not None:
+        builder.add_node("normalize_evidence", node("normalize_evidence", normalize))
+        builder.add_node("evaluate_sufficiency", node("evaluate_sufficiency", evaluate))
+        builder.add_node("rca_investigation", node("rca_investigation", rca))
+        builder.add_edge("history_investigation", "normalize_evidence")
+        builder.add_edge("normalize_evidence", "evaluate_sufficiency")
+        builder.add_conditional_edges("evaluate_sufficiency", lambda value:
+            "rca_investigation" if WorkflowState.model_validate(value["snapshot"]).sufficiency.allows_rca
+            else "persist_result", ["rca_investigation", "persist_result"])
+        builder.add_edge("rca_investigation", "persist_result")
+    else:
+        builder.add_edge("history_investigation", "persist_result")
     builder.add_edge("persist_result", END)
     return builder.compile(checkpointer=checkpointer)
 

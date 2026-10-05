@@ -154,7 +154,7 @@ class AgentRun(SafeModel):
     correlation_id: str
     config_version: int = Field(ge=1)
     jev_decision_id: str
-    workflow_version: Literal["history-v1"] = "history-v1"
+    workflow_version: Literal["history-v1", "history-evidence-v2"] = "history-v1"
     status: WorkflowStatus = WorkflowStatus.RUNNING
     started_at: datetime
     completed_at: datetime | None = None
@@ -182,8 +182,9 @@ class AgentRun(SafeModel):
 
 class AgentStep(SafeModel):
     agent_run_id: str
-    sequence: int = Field(ge=1, le=3)
-    node_name: Literal["validate_context", "history_investigation", "persist_result"]
+    sequence: int = Field(ge=1, le=6)
+    node_name: Literal["validate_context", "history_investigation", "normalize_evidence",
+                       "evaluate_sufficiency", "rca_investigation", "persist_result"]
     attempt: int = Field(ge=1)
     status: WorkflowStatus
     started_at: datetime
