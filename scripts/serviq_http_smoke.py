@@ -421,6 +421,11 @@ def verify_jev_flow(client):
     check(client.api("GET", calls_path)["calls"] == [], "Jev Shadow는 외부 LLM 호출을 생성하지 않아야 합니다.")
     client.api("GET", calls_path+"?limit=101", status=422, error_code="VALIDATION_ERROR")
     print("[통과] nginx LLM 사용 기록 읽기 경계·조회 상한·Shadow 자동 AI 호출 없음")
+    runs_path = "/incidents/"+incident["id"]+"/agent-runs"
+    check(client.api("GET", runs_path)["runs"] == [], "Shadow는 자동 AgentRun을 만들면 안 됩니다.")
+    client.api("GET", runs_path+"?limit=101", status=422, error_code="VALIDATION_ERROR")
+    client.api("POST", runs_path, {}, status=405, error_code="HTTP_ERROR")
+    print("[통과] nginx AgentRun 조회·상한·공개 실행 POST 금지·Shadow 자동 조사 없음")
 
 
 if __name__ == "__main__":

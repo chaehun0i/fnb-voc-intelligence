@@ -21,7 +21,9 @@ Day 22 Gateway 다음에 단일 History 조사 실행 경계를 연결합니다.
 
 ## 실행/검증
 
-구현 단계별 관련 테스트를 실행하고 최종 전체 검증 결과를 이 문서에 기록합니다.
+구현 단계별 관련 테스트를 실행합니다. 회귀 검증은 실행 허용 정책, Config 고정, 민감 필드 거부, Gateway 정책 거부, 중복 Job, 불확실한 외부 호출 재실행 금지, Checkpoint 미완료 복구, Tenant/매장 조회 권한을 포함합니다.
+
+`scripts.serviq_langgraph_smoke`는 실제 PostgreSQL·hybrid/pgvector의 출처 격리, 결과 저장 후 Checkpoint 실패, 새 Repository/Saver 재개, LLM 호출 1회, Config v1 유지와 불변 단계 이력을 검증합니다. CI는 이 smoke를 PostgreSQL과 Compose `/app` 경로에서 실행합니다. nginx HTTP smoke는 조회 상한·공개 실행 POST 금지·Shadow 자동 AgentRun 생성 금지도 확인합니다. 최종 전체 검증 수와 명령은 Day 마감 시 아래에 기록합니다.
 
 ## 제한 사항
 
