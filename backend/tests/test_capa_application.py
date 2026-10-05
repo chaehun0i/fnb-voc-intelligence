@@ -26,7 +26,10 @@ def prepared():
     base = ready()
     items = tuple(e.model_copy(update={"tenant_id": "t", "store": "store", "agent_run_id": run.agent_run_id})
                   for e in base.normalized_evidence)
-    state = run.state.model_copy(update={"normalized_evidence": items, "sufficiency": base.sufficiency})
+    from src.domain.workflows.models import EvidenceCandidate
+    candidates = tuple(EvidenceCandidate.model_validate(e.model_dump(exclude={"agent_run_id", "source_id", "step_name"})) for e in items)
+    state = run.state.model_copy(update={"normalized_evidence": items, "sufficiency": base.sufficiency,
+        "evidence_candidates": candidates, "evidence_refs": tuple(e.source_ref for e in items)})
     from src.runtime.workflows.rca import RCAInvestigation
     state = RCAInvestigation(resolved, decision.decision_id, requires_llm=False, clock=lambda: now)(state)
     state = CAPAInvestigation(resolved, decision.decision_id, store="store", incident_severity="MEDIUM")(state)

@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 class WorkflowStatus(StrEnum):
     RUNNING = "RUNNING"
+    WAITING_APPROVAL = "WAITING_APPROVAL"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
@@ -275,9 +276,10 @@ class AgentRun(SafeModel):
 
 class AgentStep(SafeModel):
     agent_run_id: str
-    sequence: int = Field(ge=1, le=6)
+    sequence: int = Field(ge=1, le=11)
     node_name: Literal["validate_context", "history_investigation", "normalize_evidence",
-                       "evaluate_sufficiency", "rca_investigation", "persist_result"]
+                       "evaluate_sufficiency", "rca_investigation", "persist_result", "capa_proposal",
+                       "apply_capa", "request_approval", "approval_interrupt", "approval_result"]
     attempt: int = Field(ge=1)
     status: WorkflowStatus
     started_at: datetime
