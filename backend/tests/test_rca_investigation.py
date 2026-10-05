@@ -10,6 +10,7 @@ from src.domain.config.models import RuntimeConfig
 from src.domain.config.resolution import ConfigResolver
 from src.domain.workflows.models import RCACandidate
 from src.domain.workflows.sufficiency import evaluate_sufficiency
+from src.llm.contracts import LLMResult, LLMUsage
 from src.llm.errors import LLMError, LLMErrorCode
 from src.runtime.workflows.rca import RCAInvestigation, validate_candidate
 from tests.test_evidence_sufficiency import support
@@ -54,3 +55,25 @@ def test_gateway_failures_do_not_invent_rca(code):
     result = engine(initial)
     assert not result.rca_candidates and result.normalized_evidence == initial.normalized_evidence
     assert result.evidence_gaps
+
+
+@pytest.mark.parametrize("payload", ['not-json', '{"code":"invented","supporting_refs":[],"confidence":2}',
+    '{"code":"REPEATED_HISTORY_SIGNAL","supporting_refs":["review:missing"],"confidence":0.5}'])
+def test_invalid_structured_result_cannot_create_candidate(payload):
+    initial = ready()
+    executor = Mock(execute=AsyncMock(return_value=LLMResult(request_id="fake", provider="fake", model="fake",
+        config_version=initial.config_version, structured_json=payload, usage=LLMUsage())))
+    engine = node(executor=executor)
+    engine.requires_llm = True
+    result = engine(initial)
+    assert not result.rca_candidates and result.normalized_evidence == initial.normalized_evidence
+    assert executor.execute.call_count == 1 and result.evidence_gaps
+
+
+def test_rca_obeys_pinned_run_deadline_without_call():
+    executor = Mock(execute=AsyncMock())
+    engine = node(executor=executor, deadline=datetime(2026, 10, 5, tzinfo=UTC))
+    engine.requires_llm = True
+    result = engine(ready())
+    assert not result.rca_candidates and result.evidence_gaps[-1].code == "RCA_BUDGET_EXHAUSTED"
+    executor.execute.assert_not_called()

@@ -132,7 +132,8 @@ def test_search_scope_is_in_both_sql_modes():
 def test_domain_jev_and_history_never_import_provider_sdk():
     source = Path(__file__).parents[1]/"src"
     files = list((source/"domain").rglob("*.py"))+list((source/"decision").rglob("*.py"))
-    files += [source/"runtime/workflows/history.py", source/"runtime/workflows/graph.py"]
+    files += list((source/"runtime/workflows").rglob("*.py"))
+    files += list((source/"application/workflows").rglob("*.py"))
     for path in files:
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):

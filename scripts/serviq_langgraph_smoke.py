@@ -1,4 +1,5 @@
 """전용 PostgreSQL에서 실제 검색·Checkpoint 중단/복구·Trace를 검증합니다."""
+import json
 import os
 from contextlib import contextmanager
 from dataclasses import replace
@@ -158,6 +159,85 @@ def verify(dsn):
         else:
             raise AssertionError("단계 감사는 수정할 수 없어야 합니다.")
     print("[통과] LangGraph 실제 PostgreSQL·hybrid/pgvector 출처 격리·Checkpoint 실패/재시작·LLM 1회·Config 고정·Trace·Tenant/store·PII 미노출")
+    verify_evidence_rca(dsn, persistence, repo, incident, principal, config, review_id, excluded_id)
+
+
+class FailRCACheckpoint(PostgresSaver):
+    def __init__(self, saver):
+        super().__init__(saver.conn, serde=saver.serde)
+        self.failed = False
+
+    def put(self, config, checkpoint, metadata, new_versions):
+        state = checkpoint.get("channel_values", {}).get("snapshot", {})
+        if not self.failed and state.get("rca_completed") and state.get("status") == "RUNNING":
+            self.failed = True
+            raise psycopg.OperationalError("RCA_CHECKPOINT_FAULT_INJECTION")
+        return super().put(config, checkpoint, metadata, new_versions)
+
+
+def verify_evidence_rca(dsn, persistence, repo, incident, principal, config, review_id, second_id):
+    tenant, now = principal.tenant_id, datetime.now(UTC)
+    with psycopg.connect(dsn) as connection:
+        connection.execute("INSERT INTO serviq_history_sources(tenant_id,store,review_id) VALUES(%s,%s,%s)",
+                           (tenant, incident.store, second_id))
+    with persistence.transaction(tenant) as uow:
+        previous = uow.configs.current()
+        active = replace(config, llm_models=(*config.llm_models,
+                         LLMModelBinding("gemini", "STANDARD", "fake-rca-only", 1, 2)))
+        uow.configs.append(ConfigVersion(3, tenant, active, "Evidence/RCA 검증", "operator", now, 2), previous.config_version)
+        snapshot = uow.jobs.save(Job(str(uuid4()), tenant, "incident.snapshot", "rca-smoke", now, now,
+                                    incident_id=incident.id, store=incident.store))
+    decision = ShadowDecisions(persistence).record(snapshot)
+    service = HistoryWorkflows(persistence)
+    job = service.enqueue(RequestContext(principal, "rca-request", "rca-correlation"), incident.id, decision.decision_id)
+    refs = sorted(["review:"+review_id, "review:"+second_id])
+    fake = FakeGemini(['{"needs_more_history":false}', json.dumps({"code": "REPEATED_HISTORY_SIGNAL",
+                                                              "supporting_refs": refs, "confidence": .5})])
+    factory = lambda record: RoutedLLMExecutor(ProviderRouter({"gemini": fake}), recorder=record)
+    search = PostgresHistorySearch(dsn, FakeEmbeddingProvider())
+    @contextmanager
+    def broken():
+        with postgres_checkpoint(dsn) as saver:
+            yield FailRCACheckpoint(saver)
+    processor = HistoryProcessor(persistence, search, broken, dsn=dsn, executor_factory=factory)
+    with psycopg.connect(dsn, autocommit=True) as connection:
+        worker = JobWorker(connection, snapshot_processor(repo, history=processor), tenant_id=tenant,
+                           retry_seconds=.001, clock=lambda: datetime.now(UTC)+timedelta(seconds=1))
+        assert worker.run_once() and worker.run_once()
+        assert PostgresJobRepository(connection, tenant).get(job.job_id).status == "PENDING"
+    with persistence.transaction(tenant) as uow:
+        failed = uow.agent_runs.by_job(job.job_id)
+        assert failed.status == "FAILED" and failed.state.rca_completed and len(failed.state.rca_candidates) == 1
+        uow.configs.append(ConfigVersion(4, tenant, RuntimeConfig(), "실행 중 정책 변경 검증", "operator", now, 3), 3)
+    restored_persistence = AccessPersistence(PostgresIncidentRepository(dsn))
+    restored = HistoryProcessor(restored_persistence, search, lambda: postgres_checkpoint(dsn), dsn=dsn, executor_factory=factory)
+    with psycopg.connect(dsn, autocommit=True) as connection:
+        worker = JobWorker(connection, snapshot_processor(repo, history=restored), tenant_id=tenant,
+                           clock=lambda: datetime.now(UTC)+timedelta(seconds=1))
+        assert worker.run_once()
+        assert PostgresJobRepository(connection, tenant).get(job.job_id).status == "COMPLETED"
+        assert not worker.run_once()
+    with restored_persistence.transaction(tenant) as uow:
+        final = uow.agent_runs.by_job(job.job_id)
+        assert final.agent_run_id == failed.agent_run_id and final.config_version == 3
+        assert final.state.sufficiency.status == "SUFFICIENT" and len(final.state.normalized_evidence) == 2
+        assert final.state.rca_candidates[0].supporting_refs == tuple(refs)
+        assert final.state.token_spent == 30 and final.state.iteration == 2
+        assert {s.node_name for s in uow.agent_runs.steps(final.agent_run_id)} == {
+            "validate_context", "history_investigation", "normalize_evidence", "evaluate_sufficiency", "rca_investigation", "persist_result"}
+    assert fake.call_count == 2 and repo.get(incident.id) == incident
+    with postgres_checkpoint(dsn) as saver:
+        checkpoint = saver.get_tuple({"configurable": {"thread_id": final.workflow_id}})
+        assert checkpoint.checkpoint["channel_values"]["snapshot"]["rca_completed"]
+        assert "PII-SENTINEL" not in str(checkpoint.checkpoint)
+    identity = LocalIdentityProvider({"a": principal, "b": replace(principal, tenant_id=tenant+"-other")}, environment="test")
+    client = TestClient(create_app(PostgresIncidentRepository(dsn), identity_provider=identity))
+    path = f"/api/v1/incidents/{incident.id}/agent-runs/{final.agent_run_id}"
+    response = client.get(path, headers={"Authorization": "Bearer a"})
+    assert response.status_code == 200 and response.json()["rca_candidates"][0]["supporting_refs"] == refs
+    assert client.get(path, headers={"Authorization": "Bearer b"}).status_code == 404
+    assert not any(value in response.text for value in ("PII-SENTINEL", "customer@example.com", "tenant_id", "raw_prompt"))
+    print("[통과] Evidence 2건·provenance·Sufficiency·RCA·RCA Checkpoint 실패/재시작·호출 각 1회·Config v3 고정·Incident 불변·실제 Trace API")
 
 
 def main():
