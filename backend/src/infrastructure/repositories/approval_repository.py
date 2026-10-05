@@ -38,6 +38,9 @@ class MemoryApprovalRepository:
             if approval.tenant_id != self.tenant_id:
                 raise IncidentConflict()
             previous = self.state.data["approvals"].get(approval.approval_id)
+            if approval.agent_run_id and any(a.tenant_id == self.tenant_id and a.agent_run_id == approval.agent_run_id
+                    and a.approval_id != approval.approval_id for a in self.state.data["approvals"].values()):
+                raise IncidentConflict()
             if previous and (previous.tenant_id != self.tenant_id
                              or previous.version != approval.version
                              or previous.status != "PENDING"):
@@ -83,10 +86,10 @@ class PostgresApprovalRepository:
         else:
             row = self.connection.execute(
                 """INSERT INTO serviq_approvals(approval_id,tenant_id,incident_id,
-                version,status,requested_at,document) VALUES(%s,%s,%s,%s,%s,%s,%s)
+                version,status,requested_at,document,agent_run_id) VALUES(%s,%s,%s,%s,%s,%s,%s,%s)
                 ON CONFLICT DO NOTHING RETURNING approval_id""",
                 (saved.approval_id, self.tenant_id, saved.incident_id, saved.version,
-                 saved.status, saved.requested_at, Jsonb(asdict(saved))),
+                 saved.status, saved.requested_at, Jsonb(asdict(saved)), saved.agent_run_id),
             ).fetchone()
         if row is None:
             raise IncidentConflict()

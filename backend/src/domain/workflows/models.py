@@ -154,6 +154,27 @@ class CAPAProposal(SafeModel):
         return self
 
 
+class ApprovalTrace(SafeModel):
+    approval_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    action_ids: tuple[str, ...] = Field(min_length=1, max_length=3)
+    action_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    config_version: int = Field(ge=1)
+    incident_version: int = Field(ge=1)
+    status: Literal["PENDING", "APPROVED", "REJECTED"] = "PENDING"
+    phase: Literal["WAITING_APPROVAL", "READY_TO_EXECUTE", "REJECTED"] = "WAITING_APPROVAL"
+    waiting_since: datetime
+    resumed_at: datetime | None = None
+    decision_actor: str | None = Field(default=None, max_length=128)
+    decision_reason_code: Literal["HUMAN_APPROVED", "HUMAN_REJECTED"] | None = None
+
+    @field_validator("waiting_since", "resumed_at")
+    @classmethod
+    def aware(cls, value):
+        if value is not None and value.utcoffset() is None:
+            raise ValueError("승인 시각에는 시간대가 필요합니다.")
+        return value
+
+
 class WorkflowState(SafeModel):
     tenant_id: str = Field(min_length=1, max_length=128)
     incident_id: str = Field(min_length=1, max_length=128)
@@ -171,6 +192,7 @@ class WorkflowState(SafeModel):
     sufficiency: SufficiencyResult | None = None
     rca_candidates: tuple[RCACandidate, ...] = Field(default=(), max_length=5)
     capa_proposals: tuple[CAPAProposal, ...] = Field(default=(), max_length=3)
+    approval: ApprovalTrace | None = None
     rca_completed: bool = False
     iteration: int = Field(default=0, ge=0, le=20)
     tool_call_count: int = Field(default=0, ge=0, le=50)
@@ -201,6 +223,10 @@ class WorkflowState(SafeModel):
                     or proposal.agent_run_id != self.agent_run_id or proposal.config_version != self.config_version
                     or not set(proposal.supporting_evidence_ids).issubset(causes[proposal.rca_candidate_id].supporting_refs)):
                 raise ValueError("CAPA는 같은 실행의 RCA와 실제 지지 근거를 참조해야 합니다.")
+        if self.approval and (self.approval.config_version != self.config_version
+                or set(self.approval.action_ids) != {p.capa_proposal_id for p in self.capa_proposals}
+                or any(p.status != "APPLIED" for p in self.capa_proposals)):
+            raise ValueError("Approval은 같은 실행에 저장된 조치만 참조해야 합니다.")
         return self
 
 
