@@ -3,9 +3,20 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { Onboarding } from "./Onboarding";
 import * as api from "./api";
 
+const mode = vi.hoisted(() => ({ value: "http" }));
+vi.mock("../../shared/api", async (original) => ({ ...await original<typeof import("../../shared/api")>(), get apiMode() { return mode.value; } }));
+
 vi.mock("./api", () => ({ intakeStatus: vi.fn(), registerStore: vi.fn(), downloadTemplate: vi.fn(), addSample: vi.fn(), initializeRuntime: vi.fn(), startAnalysis: vi.fn(), previewFile: vi.fn(), confirmImport: vi.fn() }));
 const status = { stores: ["체험 매장"], first_run: true, has_data: false, can_import: true, analysis_configured: false, can_initialize_runtime: true, checklist: { store: true }, import_count: 0, incident_count: 0, imports: [] };
-beforeEach(() => { vi.clearAllMocks(); vi.mocked(api.intakeStatus).mockResolvedValue(status); });
+beforeEach(() => { mode.value = "http"; vi.clearAllMocks(); vi.mocked(api.intakeStatus).mockResolvedValue(status); });
+
+it("예시 모드에서 실제 데이터 입력을 실행하지 않습니다", () => {
+  mode.value = "mock";
+  render(<Onboarding />);
+  expect(screen.getByText("실제 데이터 입력은 HTTP 모드에서 사용합니다")).toBeInTheDocument();
+  expect(api.intakeStatus).not.toHaveBeenCalled();
+  expect(api.addSample).not.toHaveBeenCalled();
+});
 
 it("빈 서버 상태에서 세 가지 시작 방법과 체크리스트를 제공합니다", async () => {
   render(<Onboarding />);

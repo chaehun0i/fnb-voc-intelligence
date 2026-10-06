@@ -2,11 +2,16 @@ import { useState } from "react";
 import { Button, PageHeading, StateMessage } from "../../components/ui";
 import { useQuery } from "../../lib/useQuery";
 import { addSample, downloadTemplate, initializeRuntime, intakeStatus, registerStore, startAnalysis } from "./api";
-import { commandKey } from "../../shared/api";
+import { apiMode, commandKey } from "../../shared/api";
 import type { ImportReceipt } from "./api";
 import { DataImport } from "./DataImport";
 
 export function Onboarding() {
+  if (apiMode !== "http") return <StateMessage kind="empty" title="실제 데이터 입력은 HTTP 모드에서 사용합니다">예시 화면에서는 운영 데이터를 생성하지 않습니다. Compose 콘솔 또는 VITE_API_MODE=http로 연결한 화면을 사용해 주세요.</StateMessage>;
+  return <OnboardingHttp />;
+}
+
+function OnboardingHttp() {
   const query = useQuery(intakeStatus);
   const [store, setStore] = useState("");
   const [choice, setChoice] = useState("");
