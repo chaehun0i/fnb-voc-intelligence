@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.infrastructure.queue.runtime import QueueRuntime, snapshot_processor
+from src.infrastructure.jobs.runtime import QueueRuntime, snapshot_processor
 from tests.test_job_domain import pending
 
 

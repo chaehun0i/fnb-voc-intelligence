@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import psycopg
 
-from src.infrastructure.outbox.config_events import ConfigEvents
+from src.infrastructure.jobs.config_events import ConfigEvents
 from src.infrastructure.repositories.agent_run_repository import (
     MemoryAgentRunRepository,
     PostgresAgentRunRepository,

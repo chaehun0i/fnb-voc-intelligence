@@ -12,7 +12,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from src.application.decisions.shadow import ShadowDecisions
 from src.domain.jobs.models import Job
 from src.domain.workflows.models import EvidenceCandidate
-from src.infrastructure.queue.worker import RetryableJobError
+from src.infrastructure.jobs.job_worker import RetryableJobError
 from src.infrastructure.workflows.checkpoint import (
     SafeJsonSerializer,
     memory_checkpoint,

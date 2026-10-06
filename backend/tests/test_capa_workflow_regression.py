@@ -12,7 +12,7 @@ from src.application.security.principal import AccessError, Role
 from src.application.workflows.capa import CAPACommands
 from src.application.workflows.resume import RESUME_JOB
 from src.domain.workflows.models import WorkflowStatus
-from src.infrastructure.queue.worker import RetryableJobError
+from src.infrastructure.jobs.job_worker import RetryableJobError
 from src.infrastructure.workflows.checkpoint import SafeJsonSerializer
 from src.infrastructure.workflows.processor import HistoryProcessor
 from tests.test_approval_resume import commands, waiting_run

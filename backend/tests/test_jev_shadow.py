@@ -11,7 +11,7 @@ from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.models import Incident
 from src.domain.jobs.models import Job
 from src.infrastructure.access_unit_of_work import AccessPersistence
-from src.infrastructure.queue.runtime import snapshot_processor
+from src.infrastructure.jobs.runtime import snapshot_processor
 from src.infrastructure.repositories.in_memory_incident_repository import (
     InMemoryIncidentRepository,
 )

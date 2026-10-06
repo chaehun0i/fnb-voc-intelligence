@@ -19,7 +19,7 @@ from src.application.workflows.resume import RESUME_JOB
 from src.application.workflows.verification import VerificationCommands
 from src.domain.workflows.models import WorkflowState
 from src.domain.workflows.verification import InternalReviewSimulation
-from src.infrastructure.queue.worker import RetryableJobError
+from src.infrastructure.jobs.job_worker import RetryableJobError
 from src.infrastructure.workflows.checkpoint import SafeJsonSerializer
 from src.infrastructure.workflows.processor import HistoryProcessor
 from tests.test_approval_resume import commands

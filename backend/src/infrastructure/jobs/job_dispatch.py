@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, uuid5
 
 from src.domain.jobs.models import Job, JobPriority
-from src.infrastructure.outbox.worker import InvalidOutboxEvent, validate_and_log
+from src.infrastructure.jobs.outbox_worker import InvalidOutboxEvent, validate_and_log
 from src.infrastructure.repositories.job_repository import PostgresJobRepository
 
 

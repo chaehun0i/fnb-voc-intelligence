@@ -91,7 +91,7 @@ Node.js 24 LTS `24.15.0` 이상을 사용합니다. 이번 최종 검증은 Node
 
 ```bash
 uv run --env-file .env python -m src.infrastructure.migrations
-uv run --env-file .env python -m src.infrastructure.queue.runtime --poll-seconds 2
+uv run --env-file .env python -m src.infrastructure.jobs.runtime --poll-seconds 2
 docker compose --profile serviq up --build -d api frontend worker
 ```
 

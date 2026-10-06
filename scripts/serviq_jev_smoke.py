@@ -19,9 +19,9 @@ from src.domain.incidents.models import Evidence, Incident
 from src.domain.jobs.models import Job, JobStatus
 from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.auth.local_identity_provider import LocalIdentityProvider
+from src.infrastructure.jobs.job_worker import JobWorker
+from src.infrastructure.jobs.runtime import snapshot_processor
 from src.infrastructure.migrations import migrate
-from src.infrastructure.queue.runtime import snapshot_processor
-from src.infrastructure.queue.worker import JobWorker
 from src.infrastructure.repositories.job_repository import PostgresJobRepository
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,

@@ -16,8 +16,8 @@ from src.application.workflows.resume import RESUME_JOB
 from src.application.workflows.verification import VerificationCommands
 from src.domain.workflows.models import AgentStep, WorkflowStatus, finish_run
 from src.domain.workflows.sufficiency import evaluate_sufficiency
+from src.infrastructure.jobs.job_worker import RetryableJobError
 from src.infrastructure.llm_runtime import configured_llm_executor
-from src.infrastructure.queue.worker import RetryableJobError
 from src.infrastructure.workflows.graph import history_graph, invoke_or_resume
 
 logger = logging.getLogger(__name__)

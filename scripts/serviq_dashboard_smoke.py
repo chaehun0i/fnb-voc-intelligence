@@ -18,11 +18,11 @@ from src.domain.incidents.models import (
 from src.domain.jobs.models import Job
 from src.infrastructure.auth.local_identity_provider import LocalIdentityProvider
 from src.infrastructure.dashboard_projection import MemoryDashboardProjection
+from src.infrastructure.jobs.job_dispatch import PostgresJobDispatcher
+from src.infrastructure.jobs.job_worker import JobWorker
+from src.infrastructure.jobs.outbox_worker import OutboxEvent
+from src.infrastructure.jobs.runtime import snapshot_processor
 from src.infrastructure.migrations import migrate
-from src.infrastructure.outbox.job_dispatch import PostgresJobDispatcher
-from src.infrastructure.outbox.worker import OutboxEvent
-from src.infrastructure.queue.runtime import snapshot_processor
-from src.infrastructure.queue.worker import JobWorker
 from src.infrastructure.repositories.in_memory_incident_repository import (
     InMemoryIncidentRepository,
 )

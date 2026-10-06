@@ -15,9 +15,9 @@ from src.application.security.principal import Principal, Role
 from src.domain.config.models import RuntimeConfig, config_document
 from src.domain.config.resolution import ConfigResolver
 from src.infrastructure.auth.local_identity_provider import LocalIdentityProvider
+from src.infrastructure.jobs.job_dispatch import PostgresJobDispatcher
+from src.infrastructure.jobs.outbox_worker import OutboxWorker
 from src.infrastructure.migrations import migrate
-from src.infrastructure.outbox.job_dispatch import PostgresJobDispatcher
-from src.infrastructure.outbox.worker import OutboxWorker
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )

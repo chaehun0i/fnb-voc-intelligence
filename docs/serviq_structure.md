@@ -28,7 +28,7 @@ SQL은 기존 Product/Review/pgvector 테이블을 변경하지 않습니다. �
 
 ## 실행 및 검증
 
-Day 23 이후 초기화 로더는 `001`~`013` migration을 번호순으로 읽습니다. 독립 Job 모델은 `backend/src/domain/jobs/`, 서비스는 `backend/src/application/jobs/`, API는 `backend/src/api/routes/jobs.py`, Worker는 `backend/src/infrastructure/queue/`에 있습니다. 화면 경계는 `frontend/src/api/jobs/`이며 자세한 책임 분리는 [Day 18 문서](serviq_job_queue.md)를 참고하세요.
+Day 23 이후 초기화 로더는 `001`~`013` migration을 번호순으로 읽습니다. 독립 Job 모델은 `backend/src/domain/jobs/`, 서비스는 `backend/src/application/jobs/`, API는 `backend/src/api/routes/jobs.py`, Worker는 `backend/src/infrastructure/jobs/`에 있습니다. 화면 경계는 `frontend/src/api/jobs/`이며 자세한 책임 분리는 [Day 18 문서](serviq_job_queue.md)를 참고하세요.
 
 AgentRun/Step, History 출처 연결과 외부 호출 claim은 `011`~`013`의 additive schema입니다. 공식 LangGraph Checkpoint 테이블은 운영 실행 원본과 분리합니다. 화면 경계는 `frontend/src/api/agentRuns/`이며 [Day 23 문서](serviq_langgraph_history.md)에 실행 허용·검색 출처·중단 복구·한계와 검증을 기록합니다.
 

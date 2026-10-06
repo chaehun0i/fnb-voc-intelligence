@@ -13,8 +13,8 @@ from psycopg import sql
 from src.api.app import create_app
 from src.application.security.principal import Principal, Role
 from src.infrastructure.auth.local_identity_provider import LocalIdentityProvider
+from src.infrastructure.jobs.outbox_worker import OutboxWorker
 from src.infrastructure.migrations import migrate
-from src.infrastructure.outbox.worker import OutboxWorker
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )

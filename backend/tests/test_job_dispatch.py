@@ -1,5 +1,5 @@
-from src.infrastructure.outbox.job_dispatch import dispatch_job
-from src.infrastructure.outbox.worker import OutboxEvent
+from src.infrastructure.jobs.job_dispatch import dispatch_job
+from src.infrastructure.jobs.outbox_worker import OutboxEvent
 from src.infrastructure.repositories.approval_repository import MemoryAccessState
 from src.infrastructure.repositories.job_repository import MemoryJobRepository
 from tests.test_job_domain import NOW

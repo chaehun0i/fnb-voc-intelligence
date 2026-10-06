@@ -12,9 +12,9 @@ from src.application.workflows.history import HISTORY_JOB
 from src.application.workflows.resume import RESUME_JOB
 from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.history_search import PostgresHistorySearch
-from src.infrastructure.outbox.job_dispatch import PostgresJobDispatcher
-from src.infrastructure.outbox.worker import OutboxWorker, _positive_seconds
-from src.infrastructure.queue.worker import JobWorker
+from src.infrastructure.jobs.job_dispatch import PostgresJobDispatcher
+from src.infrastructure.jobs.job_worker import JobWorker
+from src.infrastructure.jobs.outbox_worker import OutboxWorker, _positive_seconds
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )

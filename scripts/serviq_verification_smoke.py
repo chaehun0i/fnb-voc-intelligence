@@ -17,8 +17,8 @@ from src.domain.workflows.verification import InternalReviewSimulation
 from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.auth.local_identity_provider import LocalIdentityProvider
 from src.infrastructure.history_search import PostgresHistorySearch
-from src.infrastructure.queue.runtime import snapshot_processor
-from src.infrastructure.queue.worker import JobWorker
+from src.infrastructure.jobs.job_worker import JobWorker
+from src.infrastructure.jobs.runtime import snapshot_processor
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )
