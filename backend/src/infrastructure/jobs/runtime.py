@@ -7,11 +7,13 @@ import threading
 
 import psycopg
 
-from src.agents.checkpoint import postgres_checkpoint
-from src.agents.history import HISTORY_JOB
-from src.agents.processor import HistoryProcessor
-from src.agents.resume import RESUME_JOB
 from src.ai.decision.service import ShadowDecisions
+from src.ai.workflow.runtime import (
+    HISTORY_JOB,
+    RESUME_JOB,
+    HistoryProcessor,
+    postgres_checkpoint,
+)
 from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.history_search import PostgresHistorySearch
 from src.infrastructure.jobs.job_dispatch import PostgresJobDispatcher

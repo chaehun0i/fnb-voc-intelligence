@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from src.agents.capa_node import CAPAInvestigation
+from src.ai.workflow.agents import CAPAInvestigation
 from src.domain.config.models import RuntimeConfig
 from src.domain.config.resolution import ConfigResolver
 from tests.test_rca_investigation import node, ready

@@ -4,7 +4,7 @@ from datetime import UTC, datetime, time
 
 import psycopg
 
-from src.agents.models import EvidenceCandidate
+from src.ai.workflow.models import EvidenceCandidate
 from src.rag.search_models import SearchFilters, SearchQuery
 from src.rag.search_service import SearchService
 

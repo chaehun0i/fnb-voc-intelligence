@@ -1,11 +1,11 @@
-"""동기 Checkpoint 저장을 완료한 다음 노드로만 진행합니다."""
+"""ai/workflow/graph: 통합된 기능 책임, 기존 실행 계약 유지."""
 from time import perf_counter
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
-from src.agents.models import WorkflowState, WorkflowStatus
+from src.ai.workflow.models import WorkflowState, WorkflowStatus
 
 
 class GraphState(TypedDict):

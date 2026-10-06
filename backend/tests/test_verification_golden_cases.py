@@ -2,7 +2,7 @@ import ast
 import json
 from pathlib import Path
 
-from src.agents.models import RCACandidate
+from src.ai.workflow.models import RCACandidate
 
 
 def test_golden_three_cases_are_explicitly_simulated_and_match_smoke():

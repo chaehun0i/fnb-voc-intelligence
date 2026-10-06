@@ -4,12 +4,12 @@ from uuid import uuid4
 
 import pytest
 
-from src.agents.checkpoint import (
+from src.ai.workflow.graph import history_graph, invoke_or_resume
+from src.ai.workflow.models import WorkflowState, WorkflowStatus
+from src.ai.workflow.runtime import (
     SafeJsonSerializer,
     memory_checkpoint,
 )
-from src.agents.graph import history_graph, invoke_or_resume
-from src.agents.models import WorkflowState, WorkflowStatus
 
 
 def state_example():

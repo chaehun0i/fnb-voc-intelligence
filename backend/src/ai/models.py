@@ -1,4 +1,4 @@
-"""Workflow의 불변·원문 비저장 공통 모델 경계입니다."""
+"""ai/models: 통합된 기능 책임, 기존 실행 계약 유지."""
 from pydantic import BaseModel, ConfigDict, field_validator
 
 

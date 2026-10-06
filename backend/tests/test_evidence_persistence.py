@@ -4,7 +4,7 @@ from dataclasses import replace
 import pytest
 from pydantic import ValidationError
 
-from src.agents.models import AgentRun, WorkflowState
+from src.ai.workflow.models import AgentRun, WorkflowState
 from tests.test_rca_investigation import node, ready
 
 

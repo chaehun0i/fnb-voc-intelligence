@@ -1,4 +1,4 @@
-"""실행 이력 조회도 Incident의 조직·매장 권한을 먼저 확인합니다."""
+"""ai/ax/service: 통합된 기능 책임, 기존 실행 계약 유지."""
 import psycopg
 
 from src.application.incidents.service import IncidentNotFound

@@ -1,10 +1,10 @@
-"""검증은 조치 후 기록의 후보이며 외부 시스템 성공을 주장하지 않습니다."""
+"""ai/execution/models: 통합된 기능 책임, 기존 실행 계약 유지."""
 from datetime import datetime
 from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from src.agents.safe import SafeModel
+from src.ai.models import SafeModel
 
 
 class ActionExecutionRecord(SafeModel):

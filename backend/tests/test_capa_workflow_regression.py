@@ -7,11 +7,13 @@ import psycopg
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 
-from src.agents.capa_commands import CAPACommands
-from src.agents.checkpoint import SafeJsonSerializer
-from src.agents.models import WorkflowStatus
-from src.agents.processor import HistoryProcessor
-from src.agents.resume import RESUME_JOB
+from src.ai.workflow.models import WorkflowStatus
+from src.ai.workflow.runtime import (
+    RESUME_JOB,
+    CAPACommands,
+    HistoryProcessor,
+    SafeJsonSerializer,
+)
 from src.application.ports.incident_repository import IncidentConflict
 from src.application.security.principal import AccessError, Role
 from src.infrastructure.jobs.job_worker import RetryableJobError

@@ -1,9 +1,53 @@
-"""SDK/I/O 없이 후속 출처와 기준만 검사하는 결정적 Verification 규칙입니다."""
+"""ai/workflow/policy: 통합된 기능 책임, 기존 실행 계약 유지."""
+import hashlib
+import json
+from dataclasses import asdict
 from datetime import timedelta
 from uuid import NAMESPACE_URL, uuid5
 
-from src.agents.models import CAPAProposal, WorkflowState
-from src.agents.verification_contracts import CriterionResult, VerificationCandidate
+from src.ai.execution.models import CriterionResult, VerificationCandidate
+from src.ai.workflow.models import (
+    CAPAProposal,
+    EvidenceGap,
+    SufficiencyPolicy,
+    SufficiencyResult,
+    WorkflowState,
+)
+
+RISK_ORDER = ("LOW", "MEDIUM", "HIGH", "CRITICAL")
+
+
+def server_risk(*values):
+    return max(("MEDIUM", *values), key=RISK_ORDER.index)
+
+
+def approval_policy_digest(config):
+    policy = {"risk": asdict(config.approval_policy_by_risk),
+              "roles": sorted(config.required_roles), "separation": config.separation_of_duties,
+              "critical_count": config.critical_approver_count, "auto_capa_draft": config.auto_capa_draft}
+    return hashlib.sha256(json.dumps(policy, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def evaluate_sufficiency(evidence, gaps=(), policy=None):
+    policy = policy or SufficiencyPolicy()
+    support = tuple(sorted({e.source_ref for e in evidence
+        if e.stance == "SUPPORTING" and e.observation_code == "RELATED_HISTORY_MATCH"}))
+    counter = tuple(sorted({e.source_ref for e in evidence if e.stance == "CONTRADICTING"}))
+    dimensions = ("SOURCE_COVERAGE", "OBSERVATION_SUPPORT", "CONTRADICTION")
+    if not evidence:
+        status, reason = "INSUFFICIENT", "NO_EVIDENCE"
+    elif counter:
+        status, reason = "CONFLICTING", "CONFLICTING_EVIDENCE"
+    elif len(support) < policy.minimum_sources or not set(policy.required_source_types).issubset(
+            {e.source_type for e in evidence if e.source_ref in support}):
+        status, reason = "INSUFFICIENT", "INSUFFICIENT_SOURCE_COVERAGE"
+    else:
+        status, reason = "SUFFICIENT", "SUFFICIENT_HISTORY_SUPPORT"
+    generated = () if status == "SUFFICIENT" else (EvidenceGap(code=
+        "CONFLICTING_EVIDENCE" if status == "CONFLICTING" else "INSUFFICIENT_SOURCE_COVERAGE"),)
+    return SufficiencyResult(status=status, policy_version=policy.policy_version,
+        evaluated_dimensions=dimensions, supporting_refs=support, contradicting_refs=counter,
+        evidence_gaps=tuple(dict.fromkeys((*gaps, *generated))), reason_codes=(reason,))
 
 
 def evaluate_verification(state: WorkflowState, now, *, window_hours=24):

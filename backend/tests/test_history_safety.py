@@ -10,15 +10,16 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import ValidationError
 
-from src.agents.checkpoint import memory_checkpoint
-from src.agents.history import WorkflowNotAllowed, validate_start
-from src.agents.history_node import HistoryInvestigation
-from src.agents.models import Finding, WorkflowState
-from src.agents.processor import (
+from src.ai.intelligence.models import LLMError, LLMErrorCode
+from src.ai.workflow.agents import HistoryInvestigation
+from src.ai.workflow.models import Finding, WorkflowState
+from src.ai.workflow.runtime import (
     HistoryProcessor,
     UncertainHistoryCall,
+    WorkflowNotAllowed,
+    memory_checkpoint,
+    validate_start,
 )
-from src.ai.intelligence.models import LLMError, LLMErrorCode
 from src.application.incidents.service import IncidentNotFound
 from src.application.security.principal import AccessError, Role
 from src.domain.config.models import RuntimeConfig

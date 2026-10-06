@@ -8,12 +8,10 @@ import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import ValidationError
 
-from src.agents.checkpoint import SafeJsonSerializer
-from src.agents.models import WorkflowState
-from src.agents.processor import HistoryProcessor
-from src.agents.resume import RESUME_JOB
-from src.agents.verification_commands import VerificationCommands
-from src.agents.verification_contracts import InternalReviewSimulation
+from src.ai.execution.models import InternalReviewSimulation
+from src.ai.execution.service import VerificationCommands
+from src.ai.workflow.models import WorkflowState
+from src.ai.workflow.runtime import RESUME_JOB, HistoryProcessor, SafeJsonSerializer
 from src.application.ports.incident_repository import IncidentConflict
 from src.application.security.principal import (
     AccessError,

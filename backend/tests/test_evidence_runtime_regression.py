@@ -9,17 +9,15 @@ import psycopg
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 
-from src.agents.checkpoint import (
-    SafeJsonSerializer,
-    memory_checkpoint,
-)
-from src.agents.models import EvidenceCandidate
-from src.agents.processor import (
-    HistoryProcessor,
-    UncertainHistoryCall,
-)
 from src.ai.decision.service import ShadowDecisions
 from src.ai.intelligence.models import LLMError, LLMErrorCode, LLMResult, LLMUsage
+from src.ai.workflow.models import EvidenceCandidate
+from src.ai.workflow.runtime import (
+    HistoryProcessor,
+    SafeJsonSerializer,
+    UncertainHistoryCall,
+    memory_checkpoint,
+)
 from src.domain.jobs.models import Job
 from src.infrastructure.jobs.job_worker import RetryableJobError
 

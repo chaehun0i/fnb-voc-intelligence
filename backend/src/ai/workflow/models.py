@@ -1,16 +1,16 @@
-"""원문 대신 참조와 정규화 결과를 보관하는 SDK 독립 실행 계약입니다."""
+"""ai/workflow/models: 통합된 기능 책임, 기존 실행 계약 유지."""
 from datetime import datetime
 from enum import StrEnum
 from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from src.agents.safe import SafeModel
-from src.agents.verification_contracts import (
+from src.ai.execution.models import (
     ActionExecutionRecord,
     VerificationCandidate,
     VerificationEvidence,
 )
+from src.ai.models import SafeModel
 
 
 class WorkflowStatus(StrEnum):

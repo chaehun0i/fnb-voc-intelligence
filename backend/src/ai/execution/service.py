@@ -1,15 +1,14 @@
-"""내부 기록/검증은 Graph가 아닌 인증된 Application Command로 적용합니다."""
+"""ai/execution/service: 통합된 기능 책임, 기존 실행 계약 유지."""
 from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, uuid5
 
-from src.agents.approval_policy import approval_policy_digest
-from src.agents.models import WorkflowState
-from src.agents.resume import validate_approval
-from src.agents.verification_contracts import (
+from src.ai.execution.models import (
     ActionExecutionRecord,
     VerificationEvidence,
 )
-from src.agents.verification_rules import evaluate_verification
+from src.ai.execution.policy import validate_approval
+from src.ai.workflow.models import WorkflowState
+from src.ai.workflow.policy import approval_policy_digest, evaluate_verification
 from src.application.incidents.service import IncidentNotFound, IncidentService
 from src.application.ports.incident_repository import IncidentConflict
 from src.application.security.authorization import require

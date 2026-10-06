@@ -6,10 +6,10 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import ValidationError
 
-from src.agents.models import RCACandidate
-from src.agents.rca_node import RCAInvestigation, validate_candidate
-from src.agents.sufficiency import evaluate_sufficiency
 from src.ai.intelligence.models import LLMError, LLMErrorCode, LLMResult, LLMUsage
+from src.ai.workflow.agents import RCAInvestigation, validate_candidate
+from src.ai.workflow.models import RCACandidate
+from src.ai.workflow.policy import evaluate_sufficiency
 from src.domain.config.models import RuntimeConfig
 from src.domain.config.resolution import ConfigResolver
 from tests.test_evidence_sufficiency import support

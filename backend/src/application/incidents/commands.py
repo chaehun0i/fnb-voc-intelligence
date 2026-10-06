@@ -7,7 +7,8 @@ from uuid import uuid4
 
 import psycopg
 
-from src.agents.resume import enqueue_resume, validate_approval
+from src.ai.execution.policy import validate_approval
+from src.ai.workflow.runtime import enqueue_resume
 from src.application.approvals.service import ApprovalService
 from src.application.incidents.service import IncidentNotFound, IncidentService
 from src.application.ports.incident_repository import IncidentConflict

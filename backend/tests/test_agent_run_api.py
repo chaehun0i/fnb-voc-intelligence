@@ -5,8 +5,7 @@ from unittest.mock import Mock
 
 from fastapi.testclient import TestClient
 
-from src.agents.checkpoint import memory_checkpoint
-from src.agents.processor import HistoryProcessor
+from src.ai.workflow.runtime import HistoryProcessor, memory_checkpoint
 from src.api.app import create_app
 from src.infrastructure.auth.local_identity_provider import LocalIdentityProvider
 

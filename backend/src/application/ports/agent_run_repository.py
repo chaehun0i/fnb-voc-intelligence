@@ -1,7 +1,7 @@
 """실행 이력 저장 기술과 조사 로직을 분리합니다."""
 from typing import Protocol
 
-from src.agents.models import AgentRun, AgentStep
+from src.ai.workflow.models import AgentRun, AgentStep
 
 
 class AgentRunsUnavailable(Exception):

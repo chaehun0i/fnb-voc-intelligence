@@ -1,13 +1,9 @@
-"""HTTP 결정은 승인 원본만 변경하고 재개는 기존 durable Job으로 전달합니다."""
+"""승인 원본·현재 정책·digest 검증: Workflow runtime에 의존하지 않습니다."""
 from datetime import datetime
-from uuid import NAMESPACE_URL, uuid5
 
-from src.agents.approval_policy import approval_policy_digest
+from src.ai.workflow.policy import approval_policy_digest
 from src.application.ports.incident_repository import IncidentConflict
 from src.domain.approvals.models import action_digest
-from src.domain.jobs.models import Job
-
-RESUME_JOB = "incident.history_resume"
 
 
 def validate_approval(uow, approval, now, *, decided=False):
@@ -34,16 +30,3 @@ def validate_approval(uow, approval, now, *, decided=False):
         raise IncidentConflict()
     return run, item
 
-
-def enqueue_resume(uow, approval, now):
-    run, item = validate_approval(uow, approval, now, decided=True)
-    job_id = str(uuid5(NAMESPACE_URL, "approval-resume:"+run.agent_run_id+":"+approval.approval_id))
-    existing = uow.jobs.get(job_id)
-    if existing:
-        return existing
-    original = uow.jobs.get(run.job_id)
-    if original is None:
-        raise IncidentConflict()
-    return uow.jobs.save(Job(job_id, run.tenant_id, RESUME_JOB, run.correlation_id, now, now,
-        incident_id=item.id, store=item.store, payload_ref=approval.approval_id, parent_job_id=run.job_id,
-        config_version=run.config_version, max_attempts=original.max_attempts))
