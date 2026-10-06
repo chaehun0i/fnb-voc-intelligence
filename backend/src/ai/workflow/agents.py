@@ -88,7 +88,7 @@ class OperationalInvestigation:
             started_at=started, completed_at=self.clock(), context_digest=context.digest)
 
 
-def normalize_evidence(candidates, *, tenant_id, store, agent_run_id):
+def normalize_evidence(candidates, *, tenant_id, store, agent_run_id, preserve_conflicts=False):
     grouped = {}
     for value in candidates:
         item = EvidenceCandidate.model_validate(value.model_dump(mode="json"))
@@ -97,13 +97,47 @@ def normalize_evidence(candidates, *, tenant_id, store, agent_run_id):
         previous = grouped.get(item.source_ref)
         if previous:
             if previous.stance != item.stance or previous.observation_code != item.observation_code:
-                raise ValueError("같은 출처의 상충 관측은 정규화 전에 해결해야 합니다.")
+                if not preserve_conflicts:
+                    raise ValueError("같은 출처의 상충 관측은 정규화 전에 해결해야 합니다.")
+                item = item.model_copy(update={"stance": "CONTRADICTING", "observation_code": "REFERENCE_ONLY"})
             item = item.model_copy(update={"rank": min(item.rank, previous.rank),
                 "provenance": tuple(sorted(set(item.provenance+previous.provenance))),
-                "retrieved_at": min(item.retrieved_at, previous.retrieved_at)})
+                "observed_stances": tuple(sorted(set(item.observed_stances+previous.observed_stances))),
+                "contributing_agents": tuple(sorted(set(item.contributing_agents+previous.contributing_agents))),
+                "retrieved_at": min(item.retrieved_at, previous.retrieved_at),
+                "source_at": min(item.source_at, previous.source_at) if item.source_at and previous.source_at else None})
         grouped[item.source_ref] = item
-    return tuple(NormalizedEvidence(**item.model_dump(), source_id=item.source_ref.removeprefix("review:"),
+    return tuple(NormalizedEvidence(**item.model_dump(), source_id=item.source_ref.split(":", 1)[1],
+        step_name="investigation_fan_in" if preserve_conflicts else "history_investigation",
         agent_run_id=agent_run_id) for item in sorted(grouped.values(), key=lambda e: (e.rank, e.source_ref)))
+
+
+def investigation_fan_in(state):
+    state = WorkflowState.model_validate(state.model_dump(mode="json"))
+    if state.selection is None or {b.agent_type for b in state.branches} != {a.agent_type for a in state.selection.selected}:
+        raise ValueError("BRANCH_RESULTS_INCOMPLETE")
+    candidates, findings, gaps = [], [], list(state.evidence_gaps)
+    for branch in sorted(state.branches, key=lambda b: b.agent_type):
+        findings.extend(branch.findings)
+        gaps.extend(branch.evidence_gaps)
+        for e in branch.evidence_candidates:
+            candidates.append(e.model_copy(update={"observed_stances": (e.stance,),
+                "contributing_agents": (branch.agent_type,)}))
+    gaps.extend(EvidenceGap(code="CAPABILITY_UNAVAILABLE", agent_type=a) for a in state.selection.excluded)
+    store = state.contexts[0].store if state.contexts else state.selection.capabilities[0].store
+    evidence = normalize_evidence(candidates, tenant_id=state.tenant_id, store=store,
+        agent_run_id=state.agent_run_id, preserve_conflicts=True)
+    # 전체 Evidence/Checkpoint 상한은 기존 20건 계약을 유지합니다.
+    evidence = evidence[:20]
+    refs = tuple(e.source_ref for e in evidence)
+    findings = tuple(f.model_copy(update={"evidence_refs": tuple(r for r in f.evidence_refs if r in refs)})
+        for f in findings if set(f.evidence_refs) & set(refs))
+    candidates = tuple(EvidenceCandidate.model_validate(e.model_dump(exclude={"source_id", "agent_run_id", "step_name"})) for e in evidence)
+    result = state.model_copy(update={"normalized_evidence": evidence, "evidence_candidates": candidates,
+        "branches": tuple(sorted(state.branches, key=lambda b: b.agent_type)),
+        "evidence_refs": refs, "findings": findings, "evidence_gaps": tuple(dict.fromkeys(gaps)),
+        "tool_call_count": state.tool_call_count+len(state.branches), "iteration": state.iteration+1})
+    return WorkflowState.model_validate(result.model_dump(mode="json"))
 
 
 class HistoryInvestigation:

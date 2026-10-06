@@ -123,6 +123,8 @@ class EvidenceCandidate(SafeModel):
     source_at: datetime | None = None
     stance: Literal["SUPPORTING", "CONTRADICTING", "NEUTRAL"] = "NEUTRAL"
     observation_code: Literal["RELATED_HISTORY_MATCH", "REFERENCE_ONLY", "REFUND_SIGNAL", "CANCEL_SIGNAL", "STOCK_SHORTAGE", "STOCK_ADJUSTMENT"] = "REFERENCE_ONLY"
+    observed_stances: tuple[Literal["SUPPORTING", "CONTRADICTING", "NEUTRAL"], ...] = ()
+    contributing_agents: tuple[InvestigationAgent, ...] = ()
 
     @field_validator("retrieved_at", "source_at")
     @classmethod
@@ -195,11 +197,12 @@ class NormalizedEvidence(EvidenceCandidate):
     store: str = Field(min_length=1, max_length=128)
     agent_run_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
     source_id: str = Field(pattern=r"^[A-Za-z0-9_.:-]{1,128}$")
-    step_name: Literal["history_investigation"] = "history_investigation"
+    step_name: Literal["history_investigation", "investigation_fan_in"] = "history_investigation"
 
     @model_validator(mode="after")
     def source_identity(self):
-        if self.source_ref != "review:"+self.source_id or not self.provenance:
+        prefix = {"VOC_REVIEW": "review:", "TRANSACTION": "transaction:", "INVENTORY": "inventory:"}[self.source_type]
+        if self.source_ref != prefix+self.source_id or not self.provenance:
             raise ValueError("근거의 원본 참조와 출처를 확인해 주세요.")
         return self
 

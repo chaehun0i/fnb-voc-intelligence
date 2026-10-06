@@ -170,3 +170,34 @@ def test_failure_does_not_erase_successful_parallel_result():
     assert result.status == "COMPLETED"
     assert {b.agent_type: b.status for b in result.branches} == {
         "HISTORY": "NO_EVIDENCE", "TRANSACTION": "NO_EVIDENCE", "INVENTORY": "FAILED"}
+
+
+def test_canonical_fanin_dedupe_conflict_and_sufficiency():
+    from uuid import NAMESPACE_URL, uuid5
+
+    from src.ai.workflow.agents import investigation_fan_in
+    from src.ai.workflow.models import EvidenceCandidate, InvestigationResult
+    from src.ai.workflow.policy import evaluate_sufficiency
+    state = workflow()
+    results = []
+    for pack in state.contexts:
+        candidates = ()
+        if pack.agent_type == "HISTORY":
+            candidates = tuple(EvidenceCandidate(source_ref="review:"+r, rank=1, tenant_id=state.tenant_id,
+                store=pack.store, retrieved_at=NOW, source_at=NOW, stance="SUPPORTING",
+                observation_code="RELATED_HISTORY_MATCH", provenance=("lexical",)) for r in ("one", "two", "one"))
+        results.append(InvestigationResult(agent_type=pack.agent_type,
+            branch_id=str(uuid5(NAMESPACE_URL, state.agent_run_id+":"+pack.agent_type)),
+            tenant_id=state.tenant_id, incident_id=state.incident_id, store=pack.store,
+            status="SUCCESS" if candidates else "NO_EVIDENCE", evidence_candidates=candidates,
+            uncertainty="OBSERVATIONS_NOT_CAUSE", started_at=NOW, completed_at=NOW, context_digest=pack.digest))
+    first = investigation_fan_in(state.model_copy(update={"branches": tuple(results)}))
+    assert len(first.normalized_evidence) == 2
+    assert evaluate_sufficiency(first.normalized_evidence).allows_rca
+    assert first == investigation_fan_in(state.model_copy(update={"branches": tuple(reversed(results))}))
+    history = results[0]
+    conflict = history.evidence_candidates[0].model_copy(update={"stance": "CONTRADICTING"})
+    results[0] = history.model_copy(update={"evidence_candidates": (*history.evidence_candidates, conflict)})
+    combined = investigation_fan_in(state.model_copy(update={"branches": tuple(results)}))
+    assert evaluate_sufficiency(combined.normalized_evidence).status == "CONFLICTING"
+    assert {"SUPPORTING", "CONTRADICTING"} <= set(combined.normalized_evidence[0].observed_stances)
