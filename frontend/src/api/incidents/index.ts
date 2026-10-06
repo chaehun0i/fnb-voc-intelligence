@@ -56,7 +56,10 @@ function isCorrectiveAction(value: unknown) {
 
 function isVerification(value: unknown) {
   return value === undefined || value === null || (isRecord(value) && textFields(value, ["id", "summary"]) &&
-    isChoice(value.result, ["PASS", "FAIL", "INCONCLUSIVE"]) && optionalDate(value.verified_at));
+    isChoice(value.result, ["PASS", "FAIL", "INCONCLUSIVE"]) && optionalDate(value.verified_at) &&
+    optionalText(value.execution_id) && optionalText(value.criteria) &&
+    (value.evidence_refs === undefined || arrayOf(value.evidence_refs, isText)) &&
+    (value.observation_mode === undefined || value.observation_mode === null || value.observation_mode === "SIMULATED"));
 }
 
 export function decodeIncident(value: unknown, requestId?: string): Incident {
