@@ -174,6 +174,12 @@ class VerificationCommands:
             if (regenerated.verification != state.verification or state.verification.verified_at > self.clock()
                     or state.verification.verified_at < record.completed_at):
                 raise IncidentConflict()
+            # 오래 대기한 checkpoint의 과거 PASS를 현재에도 유효하다고 간주하지
+            # 않습니다. 입력의 canonical 검증 후 최신 시각에서 근거 freshness를 재평가합니다.
+            fresh = evaluate_verification(run.state.model_copy(update={"verification_evidence": evidence}),
+                self.clock(), window_hours=pinned.config.verification_window_hours)
+            if fresh.verification.model_dump(exclude={"verified_at"}) != state.verification.model_dump(exclude={"verified_at"}):
+                state = fresh
             candidate = state.verification
             saved = IncidentService(uow.incidents, clock=self.clock, principal=principal).verify(
                 incident.id, candidate.result, candidate.summary, incident.version,

@@ -92,6 +92,22 @@ def test_fabricated_pass_candidate_and_missing_evidence_cannot_resolve():
     assert p.incidents.get("i").status == "VERIFYING"
 
 
+def test_old_pass_candidate_is_rechecked_after_checkpoint_delay():
+    p, run, state = verifying_state()
+    now = [run.started_at]
+    c = VerificationCommands(p, run.agent_run_id, "t", clock=lambda: now[0])
+    context = RequestContext(Principal("operator", "t", frozenset({Role.HQ_ADMIN})), "r", "c")
+    c.record_evidence(context, post_evidence(state, True), p.incidents.get("i").version)
+    candidate = c.evaluate(state)
+    assert candidate.verification.result == "PASS"
+    now[0] += timedelta(days=2)
+    applied = c.apply(candidate)
+    assert applied.verification.result == "INCONCLUSIVE"
+    assert applied.verification.reason_codes == ("EVIDENCE_STALE",)
+    assert p.incidents.get("i").status == "VERIFYING"
+    assert c.apply(applied) == applied
+
+
 @pytest.mark.parametrize("change", [{"tenant_id": "other"}, {"store": "elsewhere"},
     {"agent_run_id": "other"}, {"action_id": "other"}, {"additional_evidence_refs": ("review:fake",)}])
 def test_restored_state_rejects_foreign_verification_source(change):
