@@ -11,8 +11,8 @@ PURE = ("fastapi", "psycopg", "langgraph", "src.api", "src.infrastructure",
         "src.ai.execution.service", "src.ai.decision.service", *SDK)
 ROLES = {
     "decision": {"DecisionContext", "DecisionResult", "JevEngine", "safety_and_risk", "select_profile", "build_context"},
-    "contracts": {"WorkflowState", "SafeModel", "VerificationCandidate", "LLMIntent", "LLMProvider", "LLMError"},
-    "nodes": {"HistoryInvestigation", "RCAInvestigation", "CAPAInvestigation"},
+    "contracts": {"WorkflowState", "SafeModel", "VerificationCandidate", "LLMIntent", "LLMProvider", "LLMError", "AgentDefinition", "AgentContextPack", "InvestigationResult"},
+    "nodes": {"HistoryInvestigation", "RCAInvestigation", "CAPAInvestigation", "OperationalInvestigation"},
 }
 
 
@@ -45,7 +45,7 @@ def test_runtime_role_dependency_direction(role):
     found = set()
     forbidden = PURE if role != "nodes" else (
         "src.infrastructure.repositories", "src.ai.intelligence.providers",
-        "langgraph", *SDK)
+        "src.ai.execution.service", "mcp", "langgraph", *SDK)
     for path, tree, definitions, imports in modules():
         matched = definitions & ROLES[role]
         if not matched:

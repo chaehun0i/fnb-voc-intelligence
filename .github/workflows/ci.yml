@@ -133,6 +133,8 @@ jobs:
         run: uv run --extra dev python -m scripts.serviq_langgraph_smoke
       - name: 내부 실행·Verification Golden PASS/FAIL/INCONCLUSIVE·재시작 검증
         run: uv run --extra dev python -m scripts.serviq_verification_smoke
+      - name: Multi-Agent capability·부분 실패·fan-in·checkpoint 복구 검증
+        run: uv run --extra dev python -m scripts.serviq_multi_agent_smoke
 
   docker:
     name: 이미지와 Compose 운영 흐름 검증
@@ -188,6 +190,14 @@ jobs:
             docker compose --project-name serviq-ci --profile serviq start worker
             SERVIQ_VERIFICATION_HTTP_FIXTURE="$fixture" python -m scripts.serviq_http_smoke
           done
+      - name: Compose Multi-Agent 복구와 업무 AX 검증
+        shell: bash
+        run: |
+          docker compose --project-name serviq-ci --profile serviq stop worker
+          docker compose --project-name serviq-ci --profile serviq exec -T --workdir /app api sh -c 'SERVIQ_TEST_DATABASE_URL="$SERVIQ_DATABASE_URL" python -m scripts.serviq_multi_agent_smoke'
+          fixture=$(docker compose --project-name serviq-ci --profile serviq exec -T --workdir /app api sh -c 'SERVIQ_TEST_DATABASE_URL="$SERVIQ_DATABASE_URL" python -m scripts.serviq_multi_agent_smoke --seed-http')
+          docker compose --project-name serviq-ci --profile serviq start worker
+          SERVIQ_MULTI_AGENT_HTTP_FIXTURE="$fixture" python -m scripts.serviq_http_smoke
       - name: Worker의 실제 Outbox 완료 기록 확인
         shell: bash
         run: |

@@ -62,6 +62,15 @@ def test_context_is_reference_only_bounded_and_deterministic():
     assert "prompt" not in pack.model_dump()
 
 
+def test_duplicate_context_reference_has_order_independent_conservative_freshness():
+    from src.ai.workflow.models import ContextReference
+    fresh = ContextReference(source_ref="review:duplicate", source_at=NOW, provenance="AUTHORIZED_HISTORY_SEARCH")
+    old = fresh.model_copy(update={"source_at": NOW-timedelta(days=2)})
+    first = context(references=(fresh, old))
+    assert first == context(references=(old, fresh))
+    assert first.freshness == "STALE"
+
+
 def test_context_rejects_poisoning_and_wrong_agent_source():
     from src.ai.workflow.models import AgentContextPack, ContextReference
     pack = context()
@@ -203,7 +212,7 @@ def test_canonical_fanin_dedupe_conflict_and_sufficiency():
     assert {"SUPPORTING", "CONTRADICTING"} <= set(combined.normalized_evidence[0].observed_stances)
 
 
-def multi_setup(*, all_agents=False, inventory=True):
+def multi_setup(*, all_agents=False, inventory=True, closed_loop=False):
     from dataclasses import replace
     from uuid import uuid4
 
@@ -218,6 +227,7 @@ def multi_setup(*, all_agents=False, inventory=True):
     with persistence.transaction("t") as uow:
         version = uow.configs.current()
         config = replace(version.config, multi_agent_enabled=True, auto_rca_draft=True,
+            auto_capa_draft=closed_loop, internal_execution_enabled=closed_loop,
             allowed_tools=("voc.search", "transaction.search", "inventory.snapshot"))
         version = replace(version, config=config, config_version=2, parent_version=1)
         uow.configs.append(version, 1)
@@ -286,3 +296,88 @@ def test_safe_progress_projection_and_response_contract():
     assert {a["agent_type"]: a["status"] for a in progress["agents"]} == {
         "HISTORY": "RUNNING", "TRANSACTION": "RUNNING", "INVENTORY": "UNAVAILABLE"}
     assert not any(key in str(response) for key in ("raw_prompt", "checkpoint", "delegated_roles", "context_digest"))
+
+
+@pytest.mark.parametrize("field,value", [("tenant_id", "other"), ("store", "other"), ("context_digest", "b"*64), ("branch_id", "00000000-0000-0000-0000-000000000000")])
+def test_forged_branch_rejected(field, value):
+    from uuid import NAMESPACE_URL, uuid5
+
+    from src.ai.workflow.agents import branch_gap, isolated_branch
+    from src.application.security.principal import AccessError
+    pack = context("INVENTORY")
+    bid = str(uuid5(NAMESPACE_URL, "safe-branch"))
+    result = branch_gap(pack, bid, lambda: NOW, code="NO_EVIDENCE_FOUND", status="NO_EVIDENCE")
+    with pytest.raises(AccessError):
+        isolated_branch(lambda *_: result.model_copy(update={field: value}), pack, bid,
+            clock=lambda: NOW, deadline=NOW+timedelta(seconds=1))
+
+
+def test_runtime_failure_is_safe_gap_but_validation_is_fatal():
+    from uuid import uuid4
+
+    from src.ai.workflow.agents import isolated_branch
+    pack, bid = context("INVENTORY"), str(uuid4())
+    def failure(*_):
+        raise RuntimeError("credential-not-for-trace")
+    result = isolated_branch(failure, pack, bid, clock=lambda: NOW, deadline=NOW+timedelta(seconds=1))
+    assert result.evidence_gaps[0].code == "BRANCH_FAILED" and not result.retryable
+    assert "credential" not in result.model_dump_json()
+    def invalid(*_):
+        raise ValueError("corrupted")
+    with pytest.raises(ValueError):
+        isolated_branch(invalid, pack, bid, clock=lambda: NOW, deadline=NOW+timedelta(seconds=1))
+
+
+def test_send_checkpoint_serializer_rejects_unknown_target_and_context():
+    from langgraph.types import Send
+
+    from src.ai.workflow.runtime import SafeJsonSerializer
+    serializer = SafeJsonSerializer()
+    payload = {"context": context().model_dump(mode="json"), "branch_id": "00000000-0000-0000-0000-000000000000"}
+    encoded = serializer.dumps_typed(Send("investigate_branch", payload))
+    restored = serializer.loads_typed(encoded)
+    assert restored.node == "investigate_branch" and restored.arg == payload
+    with pytest.raises(TypeError):
+        serializer.dumps_typed(Send("execute_arbitrary_tool", payload))
+    with pytest.raises(ValueError):
+        serializer.dumps_typed(Send("investigate_branch", payload | {"context": payload["context"] | {"raw_text": "poison"}}))
+
+
+@pytest.mark.parametrize("present,final", [(True, "RESOLVED"), (False, "REOPENED"), (None, "VERIFYING")])
+def test_multi_agent_enters_existing_approval_verification_closed_loop(present, final):
+    from contextlib import contextmanager
+    from uuid import uuid4
+
+    from src.ai.execution.models import InternalReviewSimulation
+    from src.ai.execution.service import VerificationCommands
+    from src.ai.workflow.models import EvidenceCandidate
+    from src.ai.workflow.runtime import RESUME_JOB, HistoryProcessor, memory_checkpoint
+    from src.application.security.principal import Principal, RequestContext, Role
+    from tests.test_approval_resume import commands
+    p, _, source, job = multi_setup(all_agents=True, closed_loop=True)
+    class Search:
+        calls = 0
+        def search_evidence(self, tenant, store, query):
+            self.calls += 1
+            return tuple(EvidenceCandidate(source_ref="review:"+r, rank=1, tenant_id=tenant, store=store,
+                retrieved_at=NOW, source_at=NOW, stance="SUPPORTING", observation_code="RELATED_HISTORY_MATCH") for r in ("one", "two"))
+    search, saver = Search(), memory_checkpoint()
+    @contextmanager
+    def checkpoint():
+        yield saver
+    processor = HistoryProcessor(p, search, checkpoint, source=source, clock=lambda: NOW)
+    waiting = processor(job)
+    assert waiting.status == "WAITING_APPROVAL" and len(waiting.state.branches) == 3
+    context = RequestContext(Principal("operator", "t", frozenset({Role.HQ_ADMIN})), "r", "c")
+    VerificationCommands(p, waiting.agent_run_id, "t", clock=lambda: NOW).prepare_simulation(context,
+        InternalReviewSimulation(tenant_id="t", store="store", agent_run_id=waiting.agent_run_id,
+            source_ref="internal-review:"+str(uuid4()), review_record_present=present,
+            additional_evidence_refs=waiting.state.evidence_refs))
+    commands(p, waiting).review_approve(waiting.state.approval.approval_id, "합성 Multi 검토", 1)
+    with p.transaction("t") as uow:
+        resume = uow.jobs.list(job_type=RESUME_JOB)[0]
+    completed = processor(resume)
+    assert completed.status == "COMPLETED" and p.incidents.get("i").status == final
+    assert completed.state.execution.execution_mode == "INTERNAL_RECORD_ONLY"
+    assert len(completed.state.branches) == 3 and search.calls == 1
+    assert processor(resume) == completed
