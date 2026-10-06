@@ -15,7 +15,7 @@ export function Onboarding() {
   const [receipt, setReceipt] = useState<ImportReceipt>();
   const [sampleStore, setSampleStore] = useState("");
   const [sampleConfirmed, setSampleConfirmed] = useState(false);
-  const [sampleKey] = useState(commandKey);
+  const [sampleKeys] = useState(() => new Map<string, string>());
   const [topic, setTopic] = useState("품질");
   const [consent, setConsent] = useState(false);
   const [analysisKey] = useState(commandKey);
@@ -26,11 +26,12 @@ export function Onboarding() {
   }
   async function analyze(id: string) {
     setPending(true); setError("");
-    try { const result = await startAnalysis(id, topic, analysisKey); window.location.hash = `/incidents?incident=${encodeURIComponent(result.incident_id)}`; } catch (e) { setError(e instanceof Error ? e.message : "조사 시작 실패"); } finally { setPending(false); }
+    try { const result = await startAnalysis(id, topic, `${analysisKey}:${id}`); window.location.hash = `/incidents?incident=${encodeURIComponent(result.incident_id)}`; } catch (e) { setError(e instanceof Error ? e.message : "조사 시작 실패"); } finally { setPending(false); }
   }
   async function sample() {
     setPending(true); setError("");
-    try { setReceipt(await addSample(sampleStore, sampleKey)); query.reload(); } catch (e) { setError(e instanceof Error ? e.message : "샘플 준비 실패"); } finally { setPending(false); }
+    const key = sampleKeys.get(sampleStore) ?? commandKey(); sampleKeys.set(sampleStore, key);
+    try { setReceipt(await addSample(sampleStore, key)); query.reload(); } catch (e) { setError(e instanceof Error ? e.message : "샘플 준비 실패"); } finally { setPending(false); }
   }
   async function saveStore() {
     setPending(true); setError("");
