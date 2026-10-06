@@ -7,7 +7,7 @@ const Dashboard = lazy(() => import("../features/dashboard/Dashboard").then((mod
 const IncidentList = lazy(() => import("../features/incidents/IncidentList").then((module) => ({ default: module.IncidentList })));
 const IncidentDetail = lazy(() => import("../features/incidents/IncidentDetail").then((module) => ({ default: module.IncidentDetail })));
 const ReviewQueue = lazy(() => import("../features/reviews/ReviewQueue").then((module) => ({ default: module.ReviewQueue })));
-const AgentTrace = lazy(() => import("../features/trace/AgentTrace").then((module) => ({ default: module.AgentTrace })));
+const AgentTrace = lazy(() => import("../features/ai/AgentTrace").then((module) => ({ default: module.AgentTrace })));
 const ControlPlaneSettings = lazy(() => import("../features/settings/ControlPlaneSettings").then((module) => ({ default: module.ControlPlaneSettings })));
 const Integrations = lazy(() => import("../features/operations/Integrations").then((module) => ({ default: module.Integrations })));
 const Queue = lazy(() => import("../features/operations/Queue").then((module) => ({ default: module.Queue })));

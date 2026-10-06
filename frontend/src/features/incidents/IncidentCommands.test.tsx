@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Incident, IncidentWorkspace } from "../../contracts/types";
-import { mockApi, resetMockState } from "../../api/mockApi";
+import { mockApi, resetMockState } from "../../shared/mockApi";
 import { CreateIncident } from "./CreateIncident";
 import { IncidentCommandPanel } from "./IncidentCommandPanel";
 
 const mode = vi.hoisted(() => ({ value: "http" }));
-vi.mock("../../api/client", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../api/client")>();
+vi.mock("../../shared/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../shared/api")>();
   return { ...actual, get apiMode() { return mode.value; } };
 });
 

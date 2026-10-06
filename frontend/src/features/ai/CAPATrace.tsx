@@ -1,4 +1,4 @@
-import type { HistoryRun } from "../../api/agentRuns";
+import type { HistoryRun } from "./api";
 import { dateTime } from "../../lib/display";
 
 const phases = { WAITING_APPROVAL: "승인 대기 — 사람의 검토가 필요합니다", READY_TO_EXECUTE: "승인 완료 — 실행 단계 대기", REJECTED: "조치안 반려" };

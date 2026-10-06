@@ -1,5 +1,5 @@
-import { apiBaseUrl, apiMode, authHeaders } from "../client";
-import type { DecisionApi, DecisionHistory, ShadowDecision } from "./types";
+import { apiBaseUrl, apiMode, authHeaders } from "../../shared/api";
+import type { DecisionApi, DecisionHistory, ShadowDecision } from "./decisionTypes";
 
 export class DecisionApiError extends Error {
   constructor(public code: string, message: string, public requestId?: string) { super(message); this.name = "DecisionApiError"; }

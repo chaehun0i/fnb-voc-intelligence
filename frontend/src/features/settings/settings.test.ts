@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHttpSettingsApi, decodeWorkspace, mockSettingsApi } from "./index";
+import { createHttpSettingsApi, decodeWorkspace, mockSettingsApi } from "./api";
 
 describe("운영 설정 Adapter", () => {
   it("LLM mapping을 보존하되 자동 Agent 실행으로 해석하지 않는다", async () => {

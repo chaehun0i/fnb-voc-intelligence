@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { IncidentDetail } from "./IncidentDetail";
-import { incidentApi } from "../../api/incidents";
-import { resetMockState } from "../../api/mockApi";
+import { incidentApi } from "./api";
+import { resetMockState } from "../../shared/mockApi";
 
 beforeEach(() => { vi.restoreAllMocks(); resetMockState(); });
 describe("인시던트 상세 회귀", () => {

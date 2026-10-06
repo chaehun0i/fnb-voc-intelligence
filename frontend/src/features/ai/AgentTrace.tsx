@@ -1,6 +1,6 @@
 import { ArrowDown, Bot, RefreshCw, Wrench } from "lucide-react";
-import { mockApi } from "../../api/mockApi";
-import { apiMode } from "../../api/client";
+import { mockApi } from "../../shared/mockApi";
+import { apiMode } from "../../shared/api";
 import { HistoryTracePage } from "./HistoryTrace";
 import { Button, PageHeading, PreviewNotice, StateMessage, StatCard } from "../../components/ui";
 import type { AgentRun, AgentStep } from "../../contracts/types";

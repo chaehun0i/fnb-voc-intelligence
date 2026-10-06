@@ -1,5 +1,5 @@
-import type { HistoryRunDetail } from "../api/agentRuns";
-import type { VerificationResult } from "../api/agentRuns/verification";
+import type { HistoryRunDetail } from "../features/ai/api";
+import type { VerificationResult } from "../features/ai/verification";
 import { capaFixture } from "./capaFixture";
 
 export function verificationFixture(result: VerificationResult): HistoryRunDetail {

@@ -1,6 +1,6 @@
 import type { Incident, IncidentWorkspace, Severity } from "../../contracts/types";
-import { mockApi } from "../mockApi";
-import { apiMode, apiBaseUrl, authHeaders, commandKey } from "../client";
+import { mockApi } from "../../shared/mockApi";
+import { apiMode, apiBaseUrl, authHeaders, commandKey } from "../../shared/api";
 
 export class IncidentApiError extends Error {
   constructor(public code: string, message: string, public requestId?: string) {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { agentRunApi, type AgentRunApi } from "../../api/agentRuns";
-import { incidentApi } from "../../api/incidents";
-import { apiMode } from "../../api/client";
+import { agentRunApi, type AgentRunApi } from "./api";
+import { incidentApi } from "../incidents/api";
+import { apiMode } from "../../shared/api";
 import { SelectField } from "../../components/SelectField";
 import { Button, PageHeading, StateMessage, StatCard } from "../../components/ui";
 import { dateTime } from "../../lib/display";

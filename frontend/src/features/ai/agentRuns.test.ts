@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { createHttpAgentRunApi, decodeDetail, decodeRun, mockAgentRunApi } from ".";
+import { createHttpAgentRunApi, decodeDetail, decodeRun, mockAgentRunApi } from "./api";
 import { historyFixture } from "../../test/agentRunFixture";
 
 it("동일 서버 계약으로 목록과 상세를 읽는다", async () => {

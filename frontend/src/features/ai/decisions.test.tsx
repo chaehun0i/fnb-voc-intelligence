@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ShadowDecisionPanel } from "../../features/incidents/ShadowDecisionPanel";
-import { createHttpDecisionApi, decisionApi, decodeDecision, mockDecisionApi } from "./index";
-import type { ShadowDecision } from "./types";
+import { ShadowDecisionPanel } from "../incidents/ShadowDecisionPanel";
+import { createHttpDecisionApi, decisionApi, decodeDecision, mockDecisionApi } from "./decisionApi";
+import type { ShadowDecision } from "./decisionTypes";
 
 const decision: ShadowDecision = { decision_id: "d", incident_id: "i", source_job_id: "j", mode: "SHADOW", route: "MANUAL_REVIEW", risk_level: "CRITICAL", priority: "P1", investigation_agents: [], requires_llm: false, requires_human_review: true, workflow_profile: "manual-review-v1", budget_profile: "high", manual_reason: "CRITICAL_MANUAL_GATE", reason_codes: ["CRITICAL_MANUAL_GATE"], config_version: 3, ruleset_version: "1", decided_at: "2026-10-04T09:00:00Z", duration_ms: 2, incident_version: 1, error_code: null };
 const history = { decisions: [decision], limit: 5, offset: 0, has_more: false };

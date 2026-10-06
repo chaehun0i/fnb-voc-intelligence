@@ -1,4 +1,4 @@
-import type { HistoryRun } from "../../api/agentRuns";
+import type { HistoryRun } from "./api";
 import { dateTime } from "../../lib/display";
 
 const messages = { PASS: "검증 기준을 충족했습니다.", FAIL: "검증 기준을 충족하지 못해 사건이 재조사 상태로 전환되었습니다.", INCONCLUSIVE: "검증 근거가 부족해 검증 상태를 유지합니다." };

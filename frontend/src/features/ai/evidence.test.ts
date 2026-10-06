@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { decodeRun } from ".";
+import { decodeRun } from "./api";
 import { evidenceFixture } from "../../test/evidenceFixture";
 
 it("실제 서버 근거·충분성·RCA 응답을 계산 없이 디코딩한다", () => {

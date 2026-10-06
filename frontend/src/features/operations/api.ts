@@ -1,5 +1,5 @@
-import { authHeaders, apiBaseUrl, apiMode } from "../client";
-import { mockApi } from "../mockApi";
+import { authHeaders, apiBaseUrl, apiMode } from "../../shared/api";
+import { mockApi } from "../../shared/mockApi";
 import type { QueueJob } from "../../contracts/types";
 
 export class JobApiError extends Error {

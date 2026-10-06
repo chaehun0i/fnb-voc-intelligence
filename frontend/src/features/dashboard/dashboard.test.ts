@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHttpDashboardApi, decodeDashboard, mockDashboardApi } from ".";
+import { createHttpDashboardApi, decodeDashboard, mockDashboardApi } from "./api";
 
 describe("Dashboard 계약", () => {
   it("명시적 KPI와 미구현 연동 상태를 단일 Snapshot으로 반환한다", async () => {

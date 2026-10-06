@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createHttpIncidentApi, createIncident, incidentCommand } from "./index";
-import { mockApi, resetMockState } from "../mockApi";
+import { createHttpIncidentApi, createIncident, incidentCommand } from "./api";
+import { mockApi, resetMockState } from "../../shared/mockApi";
 
 beforeEach(() => resetMockState());
 afterEach(() => vi.unstubAllGlobals());

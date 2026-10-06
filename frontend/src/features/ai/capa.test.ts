@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { decodeDetail } from ".";
+import { decodeDetail } from "./api";
 import { capaFixture } from "../../test/capaFixture";
 
 it("서버 CAPA와 실제 승인 중단 노드 계약을 해석한다", () => {

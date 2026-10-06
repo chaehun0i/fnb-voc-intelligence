@@ -1,4 +1,4 @@
-import type { HistoryRun } from "../../api/agentRuns";
+import type { HistoryRun } from "./api";
 import { dateTime } from "../../lib/display";
 
 const stance = { SUPPORTING: "지지 근거", CONTRADICTING: "반대 근거", NEUTRAL: "참조만 있음" };

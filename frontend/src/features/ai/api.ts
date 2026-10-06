@@ -1,4 +1,4 @@
-import { authHeaders, apiBaseUrl, apiMode } from "../client";
+import { authHeaders, apiBaseUrl, apiMode } from "../../shared/api";
 import { decodeEvidenceTrace, gapCodes, type EvidenceGap, type EvidenceTrace } from "./evidence";
 import { decodeCAPATrace, type ApprovalTrace, type CAPAProposal } from "./capa";
 import { decodeClosedLoop, type ClosedLoopTrace } from "./verification";

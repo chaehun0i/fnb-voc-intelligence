@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHttpJobApi, decodeJob, mockJobApi } from ".";
+import { createHttpJobApi, decodeJob, mockJobApi } from "./api";
 
 export const jobResponse = { id: "job", tenant_id: "tenant", type: "incident.snapshot", status: "PENDING", priority: "P2", queued_at: "2026-10-03T00:00:00Z", available_at: "2026-10-03T00:00:00Z", attempts: 0, max_attempts: 3, config_version: 1, version: 1, correlation_id: "chain", incident_id: null, parent_job_id: null, error_code: null, error_summary: null, started_at: null, completed_at: null, lease_until: null, actions: { retry: { allowed: false, reason: "실패 작업만 재시도할 수 있습니다." }, cancel: { allowed: true, reason: "취소할 수 있습니다." } } };
 

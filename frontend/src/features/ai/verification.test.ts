@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
 import { verificationFixture } from "../../test/verificationFixture";
-import { createHttpAgentRunApi, decodeDetail } from ".";
+import { createHttpAgentRunApi, decodeDetail } from "./api";
 
 it.each(["PASS", "FAIL", "INCONCLUSIVE"] as const)("HTTP 계약에서 %s와 v4 lineage를 유지한다", (result) => {
   expect(decodeDetail(verificationFixture(result)).verification?.result).toBe(result);

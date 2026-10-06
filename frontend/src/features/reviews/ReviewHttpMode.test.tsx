@@ -8,7 +8,7 @@ const { fetcher } = vi.hoisted(() => {
   return { fetcher };
 });
 import { ReviewQueue } from "./ReviewQueue";
-import { mockApi, resetMockState } from "../../api/mockApi";
+import { mockApi, resetMockState } from "../../shared/mockApi";
 import type { Approval } from "../../contracts/types";
 
 beforeEach(() => { resetMockState(); fetcher.mockReset(); });

@@ -1,5 +1,5 @@
-import { mockApi } from "../mockApi";
-import { apiBaseUrl, apiMode, authHeaders } from "../client";
+import { mockApi } from "../../shared/mockApi";
+import { apiBaseUrl, apiMode, authHeaders } from "../../shared/api";
 import type { ConfigWorkspace, ControlPlaneConfig } from "../../contracts/types";
 import type { RuntimeConfig, RuntimeHistory, RuntimeWorkspace, SettingsApi } from "./types";
 

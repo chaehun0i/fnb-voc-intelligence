@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Database, RefreshCw } from "lucide-react";
-import { mockApi } from "../../api/mockApi";
+import { mockApi } from "../../shared/mockApi";
 import { Button, PageHeading, PreviewNotice, StateMessage, StatCard } from "../../components/ui";
 import type { Integration } from "../../contracts/types";
 import { dateTime } from "../../lib/display";

@@ -1,6 +1,6 @@
 import type { DashboardSnapshot } from "../../contracts/types";
-import { mockApi } from "../mockApi";
-import { apiBaseUrl, apiMode, authHeaders } from "../client";
+import { mockApi } from "../../shared/mockApi";
+import { apiBaseUrl, apiMode, authHeaders } from "../../shared/api";
 
 export interface DashboardApi {
   getSnapshot(): Promise<DashboardSnapshot>;

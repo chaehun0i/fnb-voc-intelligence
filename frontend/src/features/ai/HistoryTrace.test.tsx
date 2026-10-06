@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
-import type { AgentRunApi } from "../../api/agentRuns";
+import type { AgentRunApi } from "./api";
 import { historyFixture } from "../../test/agentRunFixture";
 import { HistoryTracePanel } from "./HistoryTrace";
 

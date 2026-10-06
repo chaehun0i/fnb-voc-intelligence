@@ -1,6 +1,6 @@
-import { mockApi } from "../mockApi";
-import { decodeIncident } from "../incidents";
-import { apiBaseUrl, apiMode, authHeaders } from "../client";
+import { mockApi } from "../../shared/mockApi";
+import { decodeIncident } from "../incidents/api";
+import { apiBaseUrl, apiMode, authHeaders } from "../../shared/api";
 import type { Approval, ReviewAction, ReviewDetail } from "../../contracts/types";
 
 export class ReviewApiError extends Error {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHttpReviewApi, mockReviewApi } from ".";
-import { mockApi, resetMockState } from "../mockApi";
+import { createHttpReviewApi, mockReviewApi } from "./api";
+import { mockApi, resetMockState } from "../../shared/mockApi";
 
 describe("Review HTTP·Mock 계약", () => {
   it("Mock 경로를 유지하며 HTTP 목록·상세를 읽는다", async () => {

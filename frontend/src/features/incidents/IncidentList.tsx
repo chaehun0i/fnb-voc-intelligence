@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { Filter, Search } from "lucide-react";
-import { incidentApi } from "../../api/incidents";
-import { apiMode } from "../../api/client";
-import { mockApi } from "../../api/mockApi";
+import { incidentApi } from "./api";
+import { apiMode } from "../../shared/api";
+import { mockApi } from "../../shared/mockApi";
 import { Badge } from "../../components/IncidentBadge";
 import { SelectField } from "../../components/SelectField";
 import { Button, PageHeading, StateMessage } from "../../components/ui";
