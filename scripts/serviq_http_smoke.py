@@ -366,12 +366,15 @@ def main() -> None:
         raise SystemExit("로컬 테스트 스택의 SERVIQ_TEST_API_BASE_URL을 명시해 주세요.")
     client = SmokeClient(base_url)
     verify_frontend(client)
+    fixture = os.getenv("SERVIQ_CAPA_HTTP_FIXTURE")
+    if fixture:
+        # 기존 전체 smoke는 CI의 선행 단계에서 실행합니다. CAPA Worker가
+        # 동시에 집계를 바꾸는 동안 그 단계의 정확한 +1 assertion을 재실행하지 않습니다.
+        verify_capa_http(client, json.loads(fixture))
+        return
     verify_incident_flow(client)
     verify_settings_flow(client)
     verify_jev_flow(client)
-    fixture = os.getenv("SERVIQ_CAPA_HTTP_FIXTURE")
-    if fixture:
-        verify_capa_http(client, json.loads(fixture))
 
 
 def verify_capa_http(client, fixture):
