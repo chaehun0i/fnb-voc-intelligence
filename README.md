@@ -31,6 +31,8 @@ pytest
 
 ## 검증 CLI
 
+현재 책임별 폴더와 코드를 찾는 기준은 [프로젝트 구조](docs/serviq_structure.md)를 참고하세요.
+
 ```bash
 python -m src.data.validate_data --products backend/tests/fixtures/sample_products.csv --reviews backend/tests/fixtures/sample_reviews.csv
 ```

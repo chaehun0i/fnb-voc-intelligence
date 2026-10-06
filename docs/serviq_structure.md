@@ -1,8 +1,40 @@
-# Day 16 ServIQ 실행 디렉터리
+# ServIQ 프로젝트 구조 — Day 26 정리 기준
 
 ## 목적
 
-API, 데이터베이스, 화면의 실행 위치를 `backend/`, `db/`, `frontend/`로 구분합니다. API는 백엔드 디렉터리에서 `uv run fastapi run`, 화면은 프론트엔드 디렉터리에서 `npm run dev`를 사용합니다. Python 구현과 테스트는 `backend/src/`, `backend/tests/`에 모으고 Day 1~14 기능과 `src.*` import를 유지합니다.
+Day 16에 정한 `backend/`, `db/`, `frontend/` 실행 경계를 유지하고, Day 26 이후 흩어진 작은 패키지를 기존 책임별 폴더에 통합했습니다. API는 백엔드 디렉터리에서 `uv run fastapi run`, 화면은 프론트엔드 디렉터리에서 `npm run dev`를 사용합니다. Python 구현과 테스트는 `backend/src/`, `backend/tests/`에 모으며 기존 RAG/CLI 기능을 유지합니다.
+
+## 코드를 찾는 기준
+
+```text
+backend/src/
+├─ domain/          # 순수 업무 계약·규칙 (Jev는 decisions/, 실행 계약은 workflows/)
+├─ application/     # 권한·UoW를 거치는 Command/Query, 기능별 서비스
+│  ├─ incidents/    # Incident service와 commands를 한곳에 배치
+│  └─ workflows/    # History/RCA/CAPA node와 승인·검증 Application 경계
+├─ infrastructure/  # DB와 실행 기술 adapter
+│  ├─ repositories/ # tenant-scoped persistence
+│  ├─ jobs/         # Outbox 전달, Job claim/lease, runtime 진입점
+│  └─ workflows/    # LangGraph graph/checkpoint/processor
+├─ api/             # HTTP routes/DTO/auth dependency, 업무 판단은 하지 않음
+├─ llm/             # provider-neutral Gateway 및 격리된 Provider adapter
+└─ data·rag·ingestion·analysis·dashboard·config/ # 기존 Data Intelligence/설정 기능
+
+frontend/src/
+├─ api/             # client.ts의 공통 연결·인증 + 기능별 DTO/HTTP adapter
+├─ features/        # 운영 화면 (Incident/Review/Queue/Settings/Trace 등)
+├─ components/      # 재사용 UI
+├─ contracts/       # 공통 화면 계약
+└─ app·lib·test/    # 앱 조립, 표시 도우미, 테스트 fixture
+```
+
+순수 Jev는 `domain/decisions`로 이동했습니다. 별도 `decision/jev`·`runtime/workflows`·`application/commands` 패키지는 남기지 않습니다. History/RCA/CAPA 처리 로직은 SDK 독립적인 `application/workflows/*_node.py`, LangGraph 복구는 `infrastructure/workflows`에 있습니다. 순수 Verification 규칙의 중복 re-export 모듈도 제거했습니다.
+
+Outbox와 Job Worker는 `infrastructure/jobs`에 모으되 `outbox_worker.py`와 `job_worker.py`의 상태 저장/lease 책임은 합치지 않습니다. Compose와 문서의 실행 경로는 `src.infrastructure.jobs.runtime`입니다. 과거 module path는 프로젝트 내부 계약이므로 import/script를 한 번에 갱신했고 compatibility shim을 새로 만들지 않았습니다.
+
+프론트엔드의 연결 모드·API 주소·인증 헤더·명령 키는 `api/client.ts`에서 가져옵니다. Queue/Settings/Dashboard가 이를 위해 Incident adapter를 import하지 않습니다. Review가 실제 Incident DTO decoder를 재사용하는 의존은 유지합니다. 응답 검증과 feature-specific 오류, 같은 요청 키 재사용, HTTP 실패 시 Mock fallback 금지는 바꾸지 않았습니다.
+
+소스가 포함된 백엔드 폴더는 39개에서 35개, 최상위 기능 폴더는 13개에서 11개로 줄었습니다. 빈 폴더·generated cache는 수치에 넣지 않습니다. Domain/Application/Infrastructure/API 경계와 기존 RAG 폴더, 기능별 frontend API는 규모에 맞는 책임 구분이므로 무조건 평탄화하지 않습니다.
 
 ## 구성
 
@@ -28,7 +60,7 @@ SQL은 기존 Product/Review/pgvector 테이블을 변경하지 않습니다. �
 
 ## 실행 및 검증
 
-Day 23 이후 초기화 로더는 `001`~`013` migration을 번호순으로 읽습니다. 독립 Job 모델은 `backend/src/domain/jobs/`, 서비스는 `backend/src/application/jobs/`, API는 `backend/src/api/routes/jobs.py`, Worker는 `backend/src/infrastructure/jobs/`에 있습니다. 화면 경계는 `frontend/src/api/jobs/`이며 자세한 책임 분리는 [Day 18 문서](serviq_job_queue.md)를 참고하세요.
+현재 초기화 로더는 `001`~`018` migration을 번호순으로 읽습니다. 독립 Job 모델은 `backend/src/domain/jobs/`, 서비스는 `backend/src/application/jobs/`, API는 `backend/src/api/routes/jobs.py`, Worker는 `backend/src/infrastructure/jobs/`에 있습니다. 화면 경계는 `frontend/src/api/jobs/`이며 자세한 책임 분리는 [Day 18 문서](serviq_job_queue.md)를 참고하세요.
 
 AgentRun/Step, History 출처 연결과 외부 호출 claim은 `011`~`013`의 additive schema입니다. 공식 LangGraph Checkpoint 테이블은 운영 실행 원본과 분리합니다. 화면 경계는 `frontend/src/api/agentRuns/`이며 [Day 23 문서](serviq_langgraph_history.md)에 실행 허용·검색 출처·중단 복구·한계와 검증을 기록합니다.
 
@@ -116,13 +148,15 @@ npm run build
 
 ## 제한 사항
 
-폴더 이동만 분리한 Git 스냅샷에서 기존 Python 테스트 200개가 통과했습니다. 이후 기능 테스트를 더하더라도 기존 import와 fixture·CLI 경로 회귀는 유지합니다.
+Day 16의 최초 디렉터리 이동 스냅샷은 Python 200개 회귀를 통과했습니다. 현재 Day 26 추가 정리는 구조 경계 테스트 5개를 포함해 전체 Python 650개, frontend 28 files / 173개와 lint/build를 통과했습니다. backend locked 설치/진입점도 검증했습니다. 실제 PostgreSQL smoke 9종과 이미지 안의 새 패키지/기존 RAG import, Compose Worker 시작을 검증하며 DB/Checkpoint payload나 API 응답 계약은 바꾸지 않습니다.
+
+추가 작업은 Incident 명령 통합, Jev Domain 통합, Workflow 책임별 위치 정리, Outbox/Job 실행 위치 통합, frontend 연결/인증 통합, 구조 회귀·문서의 6개 독립 커밋입니다. 각 커밋 전에 관련 lint/test를 실행합니다. 기존 CI/테스트를 삭제·약화하거나 새 라이브러리를 추가하지 않았습니다. 원격 최종 CI는 기존 Day 26 PR #51의 최신 check로 확인합니다.
 
 Python 코드를 `backend/src/`로 옮기며 실행 위치를 정리하지만 Domain/Application/API의 책임이나 기존 Data Intelligence 동작은 변경하지 않습니다. 루트 Python 패키지는 기존 기능과 새 백엔드가 공유하며, `backend/`의 로컬 경로 의존성은 저장소 전체가 함께 있어야 합니다.
 
 SQL 리소스는 현재 ServIQ 초기 스키마와 입력 제약을 관리합니다. 여러 운영 버전에 걸친 온라인 스키마 업그레이드, 데이터 변환 이력, 다운그레이드를 자동화하는 Migration Engine은 별도 항목입니다.
 
-API 인증과 운영 접근 제어는 아직 완료되지 않았습니다. 직접 실행은 위 바인딩 특성을 확인하고 로컬 개발 범위로 사용합니다. Docker의 새 API·프론트엔드 포트는 localhost로 제한합니다. 외부 LLM, Jev, LangGraph를 이 실행 구조만으로 호출하지 않습니다.
+Tenant/Principal/RBAC 및 개발용 인증은 Day 17 이후 실제 구현되어 있습니다. production OIDC/SSO는 미구현입니다. Docker의 API·프론트엔드 포트는 localhost로 제한하며, Jev Shadow 전체가 자동으로 외부 LLM이나 Workflow를 실행하지 않습니다.
 
 ## 다음 단계
 

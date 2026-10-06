@@ -17,8 +17,8 @@ Drive 일부 구현현황은 Day 16 스냅샷입니다. 실제 main의 Day 17~22
 | 위치 | 역할 |
 | --- | --- |
 | `backend/src/domain/workflows/` | SDK 독립 AgentRun·WorkflowState·Finding·EvidenceCandidate·EvidenceGap·Step 계약 |
-| `backend/src/application/workflows/` | 실행 허용 정책·Jev/Config 원본 고정·Tenant/store 읽기 Query |
-| `backend/src/infrastructure/workflows/` | 단일 Graph·JSON Checkpoint·History Node·Worker 실행 복구 |
+| `backend/src/application/workflows/` | 실행 허용 정책·Jev/Config 원본 고정·Tenant/store Query·SDK 독립 History/RCA/CAPA Node |
+| `backend/src/infrastructure/workflows/` | 단일 Graph·JSON Checkpoint·Worker 실행 복구 |
 | `backend/src/infrastructure/history_search.py` | 기존 SearchService와 조직/매장 출처 연결 |
 | `backend/src/infrastructure/repositories/agent_run_repository.py` | 운영 실행 원본과 단계 이력 저장 |
 | `backend/src/api/routes/agent_runs.py` | 인증된 조회 전용 API |
