@@ -1,7 +1,7 @@
 """ai/workflow/policy: 통합된 기능 책임, 기존 실행 계약 유지."""
 import hashlib
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import timedelta
 from uuid import NAMESPACE_URL, uuid5
 
@@ -18,6 +18,15 @@ from src.ai.workflow.models import (
 )
 
 RISK_ORDER = ("LOW", "MEDIUM", "HIGH", "CRITICAL")
+
+
+def bounded_loop_config(resolved, current, policy):
+    """고정 실행 의미는 유지하되 현재 안전 한도는 낮추는 방향으로만 적용합니다."""
+    pinned = resolved.effective
+    return replace(resolved, effective=replace(pinned,
+        token_budget=min(pinned.token_budget, current.token_budget, policy.token_budget),
+        cost_budget_usd=min(pinned.cost_budget_usd, current.cost_budget_usd, policy.cost_budget),
+        timeout_seconds=min(pinned.timeout_seconds, current.timeout_seconds, policy.timeout_seconds)))
 
 AGENT_REGISTRY = tuple(AgentDefinition(agent_type=agent, business_label=label, purpose=purpose,
     required_capabilities=(capability,)) for agent, label, purpose, capability in (

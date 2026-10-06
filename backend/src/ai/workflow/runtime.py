@@ -40,6 +40,7 @@ from src.ai.workflow.models import (
 )
 from src.ai.workflow.policy import (
     approval_policy_digest,
+    bounded_loop_config,
     build_context,
     evaluate_sufficiency,
     evidence_digest,
@@ -561,6 +562,7 @@ class HistoryProcessor:
 
             def rca(state):
                 check()
+                rca_config = resolved
                 with self.persistence.transaction(job.tenant_id) as uow:
                     current = uow.agent_runs.get(run.agent_run_id)
                     if current.state.rca_completed:
@@ -570,6 +572,8 @@ class HistoryProcessor:
                         policy = uow.configs.current()
                         if policy is None or not policy.config.auto_rca_draft:
                             return RCAInvestigation.gap(state, "RCA_DISABLED")
+                        if state.loop:
+                            rca_config = bounded_loop_config(resolved, policy.config, state.loop.policy)
                         if decision.result.requires_llm and (not policy.config.hosted_ai_allowed
                                 or not set(resolved.effective.llm_enabled_providers) <= set(policy.config.llm_enabled_providers)):
                             return RCAInvestigation.gap(state, "LLM_POLICY_DENIED")
@@ -586,9 +590,9 @@ class HistoryProcessor:
                             if key in effects:
                                 raise UncertainHistoryCall()
                             effects.add(key)
-                result = RCAInvestigation(resolved, run.jev_decision_id,
+                result = RCAInvestigation(rca_config, run.jev_decision_id,
                     requires_llm=decision.result.requires_llm, clock=self.clock, executor=executor,
-                    deadline=run.started_at+timedelta(seconds=resolved.effective.timeout_seconds))(state)
+                    deadline=run.started_at+timedelta(seconds=rca_config.effective.timeout_seconds))(state)
                 result = result.model_copy(update={"rca_completed": True})
                 persist(result)
                 return result

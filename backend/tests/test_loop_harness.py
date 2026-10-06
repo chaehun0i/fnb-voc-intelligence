@@ -38,6 +38,27 @@ def test_canonical_evidence_digest_is_order_and_duplicate_independent():
     assert evidence_digest(("review:a", "review:b", "review:a")) == evidence_digest(("review:b", "review:a"))
 
 
+def test_rca_preserves_investigation_iteration_and_obeys_lower_current_budget():
+    from dataclasses import replace
+
+    from src.ai.workflow.models import LoopTrace
+    from src.ai.workflow.policy import bounded_loop_config
+    from src.domain.config.resolution import ConfigResolver
+    from tests.test_rca_investigation import node, ready
+
+    policy = loop_policy(RuntimeConfig())
+    initial = ready().model_copy(update={"iteration": 3, "loop": LoopTrace(policy=policy)})
+    result = node()(initial)
+    assert result.rca_candidates and result.iteration == 3
+    pinned = ConfigResolver().resolve(RuntimeConfig(token_budget=4000))
+    bounded = bounded_loop_config(pinned, replace(pinned.effective, token_budget=500,
+        cost_budget_usd=.1, timeout_seconds=10), policy)
+    assert bounded.effective.token_budget == 500
+    assert bounded.effective.cost_budget_usd == .1 and bounded.effective.timeout_seconds == 10
+    assert bounded.sources == pinned.sources
+    assert pinned.effective.token_budget == 4000
+
+
 def test_manifest_snapshot_and_repository_immutability():
     from src.ai.workflow.models import AgentRun
     from src.ai.workflow.policy import run_manifest
