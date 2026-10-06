@@ -16,6 +16,7 @@ from src.ai.workflow.runtime import (
 )
 from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.history_search import PostgresHistorySearch
+from src.infrastructure.investigation_source import PostgresInvestigationSource
 from src.infrastructure.jobs.job_dispatch import PostgresJobDispatcher
 from src.infrastructure.jobs.job_worker import JobWorker
 from src.infrastructure.jobs.outbox_worker import OutboxWorker, _positive_seconds
@@ -75,7 +76,8 @@ def main(argv=None):
             repository = PostgresIncidentRepository(dsn)
             persistence = AccessPersistence(repository)
             history = HistoryProcessor(persistence, PostgresHistorySearch(dsn),
-                lambda: postgres_checkpoint(dsn), dsn=dsn, lease_seconds=arguments.lease_seconds)
+                lambda: postgres_checkpoint(dsn), dsn=dsn, lease_seconds=arguments.lease_seconds,
+                source=PostgresInvestigationSource(dsn))
             runtime = QueueRuntime(
                 OutboxWorker(connection, PostgresJobDispatcher(connection, repository), lease_seconds=arguments.lease_seconds),
                 JobWorker(connection, snapshot_processor(repository, ShadowDecisions(persistence), history), lease_seconds=arguments.lease_seconds))

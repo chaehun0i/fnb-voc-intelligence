@@ -184,6 +184,8 @@ class InvestigationResult(SafeModel):
     @model_validator(mode="after")
     def integrity(self):
         if (any(e.tenant_id != self.tenant_id or e.store != self.store for e in self.evidence_candidates)
+                or any(e.source_type != ("VOC_REVIEW" if self.agent_type == "HISTORY" else self.agent_type)
+                    for e in self.evidence_candidates)
                 or (self.status != "SUCCESS" and self.evidence_candidates)
                 or self.started_at.utcoffset() is None or self.completed_at.utcoffset() is None
                 or self.completed_at < self.started_at
@@ -417,7 +419,7 @@ class AgentRun(SafeModel):
     correlation_id: str
     config_version: int = Field(ge=1)
     jev_decision_id: str
-    workflow_version: Literal["history-v1", "history-evidence-v2", "history-capa-v3", "history-verification-v4"] = "history-v1"
+    workflow_version: Literal["history-v1", "history-evidence-v2", "history-capa-v3", "history-verification-v4", "multi-investigation-v5"] = "history-v1"
     requested_by: str | None = Field(default=None, max_length=128)
     delegated_roles: tuple[str, ...] = ()
     delegated_store_scope: tuple[str, ...] = ()

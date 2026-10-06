@@ -50,7 +50,7 @@ class VerificationCommands:
                     raise IncidentConflict()
                 return run.state
             pinned, current = uow.configs.get(run.config_version), uow.configs.current()
-            if (run.workflow_version != "history-verification-v4" or pinned is None or current is None
+            if (run.workflow_version not in {"history-verification-v4", "multi-investigation-v5"} or pinned is None or current is None
                     or not pinned.config.internal_execution_enabled or not current.config.internal_execution_enabled
                     or state != run.state or not state.approval or state.approval.phase != "READY_TO_EXECUTE"
                     or len(state.capa_proposals) != 1):
@@ -89,7 +89,7 @@ class VerificationCommands:
             run, incident, _ = self.load(uow)
             require(context.principal, "operate", incident.store)
             if (source.agent_run_id != run.agent_run_id or source.store != incident.store
-                    or run.workflow_version != "history-verification-v4" or run.state.execution
+                    or run.workflow_version not in {"history-verification-v4", "multi-investigation-v5"} or run.state.execution
                     or not set(source.additional_evidence_refs) <= {e.source_ref for e in run.state.normalized_evidence}):
                 raise IncidentConflict()
             result = uow.executions.prepare_simulation(source)

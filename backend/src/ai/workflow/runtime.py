@@ -18,7 +18,11 @@ from src.ai.intelligence.service import configured_llm_executor
 from src.ai.workflow.agents import (
     CAPAInvestigation,
     HistoryInvestigation,
+    OperationalInvestigation,
     RCAInvestigation,
+    SourceUnavailable,
+    investigation_fan_in,
+    isolated_branch,
     normalize_evidence,
 )
 from src.ai.workflow.graph import history_graph, invoke_or_resume
@@ -27,13 +31,16 @@ from src.ai.workflow.models import (
     AgentRun,
     AgentStep,
     ApprovalTrace,
+    InvestigationResult,
     WorkflowState,
     WorkflowStatus,
     finish_run,
 )
 from src.ai.workflow.policy import (
     approval_policy_digest,
+    build_context,
     evaluate_sufficiency,
+    select_agents,
     server_risk,
 )
 from src.application.approvals.service import ApprovalService
@@ -99,8 +106,9 @@ def decision_for_job(uow, job):
 
 
 class HistoryWorkflows:
-    def __init__(self, persistence, clock=None):
+    def __init__(self, persistence, clock=None, source=None):
         self.persistence = persistence
+        self.source = source
         self.clock = clock or (lambda: datetime.now(UTC))
 
     def enqueue(self, context, incident_id, decision_id):
@@ -178,12 +186,35 @@ class HistoryWorkflows:
             state = WorkflowState(tenant_id=job.tenant_id, incident_id=job.incident_id,
                 workflow_id=wid, agent_run_id=rid, risk_level=decision.result.risk_level,
                 route=decision.result.route, config_version=version.config_version)
+            if resolved.effective.multi_agent_enabled:
+                if self.source is None:
+                    raise WorkflowNotAllowed()
+                from src.ai.decision.engine import build_context as decision_context
+                category = decision_context(incident, resolved, version.config_version).category
+                now = self.clock()
+                tool_agents = tuple(a for a, tool in (("HISTORY", "voc.search"),
+                    ("TRANSACTION", "transaction.search"), ("INVENTORY", "inventory.snapshot"))
+                    if a in resolved.effective.allowed_agent_types and tool in resolved.effective.allowed_tools)
+                selection = select_agents(decision.result.investigation_agents,
+                    self.source.capabilities(job.tenant_id, job.store, now), tenant_id=job.tenant_id,
+                    store=job.store, category=category, allowed_agents=tool_agents, now=now)
+                if len(selection.selected) > resolved.effective.max_tool_calls:
+                    raise WorkflowNotAllowed()
+                contexts = tuple(build_context(a.agent_type, tenant_id=job.tenant_id,
+                    incident_id=job.incident_id, store=job.store, category=category,
+                    severity=incident.severity, window_start=datetime.fromisoformat(incident.created_at)-timedelta(hours=24),
+                    window_end=now, now=now, budget_bytes=min(4096, resolved.effective.token_budget))
+                    for a in selection.selected)
+                state = WorkflowState.model_validate(state.model_copy(update={"selection": selection,
+                    "contexts": contexts}).model_dump(mode="json"))
             run = AgentRun(agent_run_id=rid, tenant_id=job.tenant_id, incident_id=incident.id,
                 workflow_id=wid, job_id=job.job_id, correlation_id=job.correlation_id,
                 config_version=version.config_version, jev_decision_id=decision.decision_id,
                 started_at=self.clock(), state=state,
-                workflow_version=("history-verification-v4" if resolved.effective.internal_execution_enabled else "history-capa-v3")
-                    if resolved.effective.auto_capa_draft and job.delegated_principal_id else "history-evidence-v2",
+                workflow_version="multi-investigation-v5" if resolved.effective.multi_agent_enabled else (
+                    ("history-verification-v4" if resolved.effective.internal_execution_enabled else "history-capa-v3")
+                    if resolved.effective.auto_capa_draft and job.delegated_principal_id else "history-evidence-v2"
+                ),
                 requested_by=job.delegated_principal_id, delegated_roles=job.delegated_roles,
                 delegated_store_scope=job.delegated_store_scope, initial_incident_version=incident.version)
             return uow.agent_runs.save(run), resolved, decision
@@ -417,14 +448,15 @@ def execution_lease(dsn, job, lease_seconds):
 
 class HistoryProcessor:
     def __init__(self, persistence, search, checkpoint_factory, *, dsn=None,
-                 executor_factory=configured_llm_executor, clock=None, lease_seconds=60):
+                 executor_factory=configured_llm_executor, clock=None, lease_seconds=60, source=None):
         self.persistence, self.search, self.checkpoint_factory = persistence, search, checkpoint_factory
         self.dsn, self.executor_factory, self.lease_seconds = dsn, executor_factory, lease_seconds
         self.clock = clock or (lambda: datetime.now(UTC))
+        self.source = source
 
     def __call__(self, job):
         with execution_lease(self.dsn, job, self.lease_seconds) as check:
-            run, resolved, decision = HistoryWorkflows(self.persistence, self.clock).prepare(job)
+            run, resolved, decision = HistoryWorkflows(self.persistence, self.clock, self.source).prepare(job)
             if run.status == WorkflowStatus.COMPLETED:
                 return run
             if run.status == WorkflowStatus.WAITING_APPROVAL and job.job_type != RESUME_JOB:
@@ -481,6 +513,8 @@ class HistoryProcessor:
                     uow.agent_runs.save(current.model_copy(update=updates))
 
             def normalize(state):
+                if run.workflow_version == "multi-investigation-v5":
+                    return state
                 result = normalize_evidence(state.evidence_candidates, tenant_id=job.tenant_id,
                     store=job.store, agent_run_id=run.agent_run_id)
                 return state.model_copy(update={"normalized_evidence": result,
@@ -497,6 +531,13 @@ class HistoryProcessor:
                     if current.state.rca_completed:
                         memoized.add("rca_investigation")
                         return current.state
+                    if run.workflow_version == "multi-investigation-v5":
+                        policy = uow.configs.current()
+                        if policy is None or not policy.config.auto_rca_draft:
+                            return RCAInvestigation.gap(state, "RCA_DISABLED")
+                        if decision.result.requires_llm and (not policy.config.hosted_ai_allowed
+                                or not set(resolved.effective.llm_enabled_providers) <= set(policy.config.llm_enabled_providers)):
+                            return RCAInvestigation.gap(state, "LLM_POLICY_DENIED")
                     if resolved.effective.auto_rca_draft and executor is not None:
                         if uow.connection:
                             claimed = uow.connection.execute("""INSERT INTO serviq_rca_effects(tenant_id,agent_run_id,claimed_at)
@@ -528,7 +569,7 @@ class HistoryProcessor:
                         "internal_execution": 11, "begin_verification": 12,
                         "verification": 13, "apply_verification": 14,
                         "persist_result": 3 if run.workflow_version == "history-v1" else
-                            15 if run.workflow_version == "history-verification-v4" else
+                            15 if run.workflow_version in {"history-verification-v4", "multi-investigation-v5"} else
                             11 if run.workflow_version == "history-capa-v3" else 6}[name],
                     node_name=name, attempt=job.attempt or 1,
                     status=WorkflowStatus.FAILED if failed else
@@ -546,7 +587,58 @@ class HistoryProcessor:
                 with self.checkpoint_factory() as saver:
                     stages = {} if run.workflow_version == "history-v1" else {
                         "normalize": normalize, "evaluate": evaluate, "rca": rca}
-                    if run.workflow_version in {"history-capa-v3", "history-verification-v4"}:
+                    multi = run.workflow_version == "multi-investigation-v5"
+                    if multi:
+                        if self.source is None or run.state.selection is None:
+                            raise WorkflowNotAllowed()
+                        with self.persistence.transaction(job.tenant_id) as uow:
+                            current = uow.configs.current()
+                            tools = {"HISTORY": "voc.search", "TRANSACTION": "transaction.search", "INVENTORY": "inventory.snapshot"}
+                            if (current is None or not current.config.multi_agent_enabled or not current.config.auto_investigation
+                                    or any(c.agent_type not in current.config.allowed_agent_types or tools[c.agent_type] not in current.config.allowed_tools
+                                        or c.category in current.config.blocked_categories for c in run.state.contexts)):
+                                raise WorkflowNotAllowed()
+                            require(Principal(run.requested_by or "", job.tenant_id, frozenset(run.delegated_roles),
+                                frozenset(run.delegated_store_scope)), "operate", job.store)
+
+                        def branch(pack, branch_id):
+                            check()
+                            if (pack not in run.state.contexts
+                                    or branch_id != str(uuid5(NAMESPACE_URL, run.agent_run_id+":"+pack.agent_type))):
+                                raise AccessError()
+                            with self.persistence.transaction(job.tenant_id) as uow:
+                                previous = uow.agent_runs.branch(run.agent_run_id, pack.agent_type)
+                                if previous:
+                                    return previous
+                            def action(context, bid):
+                                if context.agent_type != "HISTORY":
+                                    return OperationalInvestigation(self.source, self.clock)(context, bid)
+                                # 이 branch는 참조 검색만 수행합니다. LLM 요약은 불필요하며 RCA는 기존 Gateway를 사용합니다.
+                                started = self.clock()
+                                try:
+                                    found = HistoryInvestigation(self.search, store=pack.store, query=incident.title,
+                                        resolved=resolved, requires_llm=False, clock=self.clock)(run.state)
+                                except psycopg.Error:
+                                    raise SourceUnavailable() from None
+                                return InvestigationResult(agent_type="HISTORY", branch_id=bid, tenant_id=pack.tenant_id,
+                                    incident_id=pack.incident_id, store=pack.store,
+                                    status="SUCCESS" if found.evidence_refs else "NO_EVIDENCE",
+                                    findings=found.findings, evidence_candidates=found.evidence_candidates,
+                                    evidence_gaps=found.evidence_gaps, started_at=started, completed_at=self.clock(),
+                                    uncertainty="OBSERVATIONS_NOT_CAUSE", context_digest=pack.digest)
+                            result = isolated_branch(action, pack, branch_id, clock=self.clock,
+                                deadline=run.started_at+timedelta(seconds=resolved.effective.timeout_seconds))
+                            check()
+                            with self.persistence.transaction(job.tenant_id) as uow:
+                                return uow.agent_runs.append_branch(run.agent_run_id, result)
+
+                        def collect(state):
+                            result = investigation_fan_in(state)
+                            persist(result)
+                            observe("history_investigation", state, result, 0)
+                            return result
+                        stages.update(investigate_branch=branch, fan_in=collect)
+                    if run.workflow_version in {"history-capa-v3", "history-verification-v4"} or (multi and resolved.effective.auto_capa_draft):
                         commands = CAPACommands(self.persistence, run.agent_run_id, job.tenant_id, self.clock)
                         def request_approval(state):
                             check()
@@ -556,13 +648,14 @@ class HistoryProcessor:
                         stages.update(capa=CAPAInvestigation(resolved, run.jev_decision_id,
                             store=job.store, incident_severity=incident.severity), apply_capa=commands.apply,
                             request_approval=request_approval, approval_result=commands.approval_result)
-                        if run.workflow_version == "history-verification-v4":
+                        if run.workflow_version == "history-verification-v4" or (multi and resolved.effective.internal_execution_enabled):
                             vc = VerificationCommands(self.persistence, run.agent_run_id, job.tenant_id, self.clock)
                             stages.update(internal_execution=vc.execute, begin_verification=vc.begin_verification,
                                 verification=vc.evaluate, apply_verification=vc.apply)
                     graph = history_graph(saver, investigate, persist, observe=observe, **stages)
                     result = invoke_or_resume(graph, run.state,
-                        approval_id=job.payload_ref if job.job_type == RESUME_JOB else None)
+                        approval_id=job.payload_ref if job.job_type == RESUME_JOB else None,
+                        parallelism=resolved.effective.parallelism)
                 check()
                 with self.persistence.transaction(job.tenant_id) as uow:
                     current = uow.agent_runs.get(run.agent_run_id)

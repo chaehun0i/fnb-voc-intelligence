@@ -51,6 +51,7 @@ class RuntimeConfigInput(StrictModel):
     auto_capa_draft: bool
     auto_execute: bool
     internal_execution_enabled: bool = False
+    multi_agent_enabled: bool = False
     approval_policy_by_risk: RiskApprovalInput
     required_roles: list[str]
     separation_of_duties: bool

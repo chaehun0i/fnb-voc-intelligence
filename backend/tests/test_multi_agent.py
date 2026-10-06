@@ -201,3 +201,73 @@ def test_canonical_fanin_dedupe_conflict_and_sufficiency():
     combined = investigation_fan_in(state.model_copy(update={"branches": tuple(results)}))
     assert evaluate_sufficiency(combined.normalized_evidence).status == "CONFLICTING"
     assert {"SUPPORTING", "CONTRADICTING"} <= set(combined.normalized_evidence[0].observed_stances)
+
+
+def multi_setup(*, all_agents=False, inventory=True):
+    from dataclasses import replace
+    from uuid import uuid4
+
+    from src.ai.decision.engine import JevEngine, build_context
+    from src.ai.decision.models import AgentType, Category, DecisionRecord
+    from src.ai.workflow.models import OperationalObservation
+    from src.ai.workflow.runtime import HistoryWorkflows
+    from src.domain.config.resolution import ConfigResolver
+    from src.infrastructure.investigation_source import MemoryInvestigationSource
+    from tests.test_history_application import setup_history
+    persistence, _, request, _ = setup_history()
+    with persistence.transaction("t") as uow:
+        version = uow.configs.current()
+        config = replace(version.config, multi_agent_enabled=True, auto_rca_draft=True,
+            allowed_tools=("voc.search", "transaction.search", "inventory.snapshot"))
+        version = replace(version, config=config, config_version=2, parent_version=1)
+        uow.configs.append(version, 1)
+        incident = uow.incidents.get("i")
+        ctx = build_context(incident, ConfigResolver().resolve(config), 2)
+        if all_agents:
+            ctx = replace(ctx, category=Category.GENERAL, data_availability=(AgentType.HISTORY, AgentType.TRANSACTION, AgentType.INVENTORY))
+        record = DecisionRecord(str(uuid4()), "t", "i", "multi-snapshot", JevEngine().evaluate(ctx),
+            "a"*64, NOW, 0, incident.version)
+        uow.decisions.append(record)
+    items = [OperationalObservation(tenant_id="t", store="store", agent_type="TRANSACTION",
+        source_ref="transaction:1", observed_at=NOW, signal="REFUND_SIGNAL")]
+    if inventory:
+        items.append(OperationalObservation(tenant_id="t", store="store", agent_type="INVENTORY",
+            source_ref="inventory:1", observed_at=NOW, signal="STOCK_SHORTAGE"))
+    source = MemoryInvestigationSource(items, history_available=True)
+    service = HistoryWorkflows(persistence, lambda: NOW, source)
+    job = service.enqueue(request, "i", record.decision_id)
+    return persistence, service, source, job
+
+
+def test_processor_pins_selection_and_deduplicates_branch_delivery():
+    from contextlib import contextmanager
+    from unittest.mock import Mock
+
+    from src.ai.workflow.models import EvidenceCandidate
+    from src.ai.workflow.runtime import HistoryProcessor, memory_checkpoint
+    p, service, source, job = multi_setup(all_agents=True)
+    search = Mock()
+    search.search_evidence.return_value = tuple(EvidenceCandidate(source_ref="review:"+r, rank=1,
+        retrieved_at=NOW, source_at=NOW, tenant_id="t", store="store", stance="SUPPORTING",
+        observation_code="RELATED_HISTORY_MATCH") for r in ("one", "two"))
+    # 명시적 adapter로 기존 검색 port 계약을 유지합니다.
+    class Search:
+        def search_evidence(self, *args):
+            return search.search_evidence(*args)
+    saver = memory_checkpoint()
+    @contextmanager
+    def checkpoint():
+        yield saver
+    pinned = service.prepare(job)[0]
+    changed = pinned.state.selection.model_copy(update={"capabilities": ()})
+    with p.transaction("t") as uow, pytest.raises(ValueError, match="SNAPSHOT_IMMUTABLE"):
+        uow.agent_runs.save(pinned.model_copy(update={"state": pinned.state.model_copy(update={"selection": changed})}))
+    first = HistoryProcessor(p, Search(), checkpoint, source=source, clock=lambda: NOW)(job)
+    assert first.workflow_version == "multi-investigation-v5"
+    assert len(first.state.branches) == 3 and len(first.state.normalized_evidence) == 4
+    assert first.state.sufficiency.status == "SUFFICIENT" and first.state.rca_candidates
+    assert service.prepare(job)[0] == first
+    assert HistoryProcessor(p, Search(), checkpoint, source=source, clock=lambda: NOW)(job) == first
+    assert search.search_evidence.call_count == 1
+    with p.transaction("t") as uow:
+        assert uow.agent_runs.branch(first.agent_run_id, "INVENTORY")

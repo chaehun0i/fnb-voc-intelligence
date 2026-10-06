@@ -155,9 +155,10 @@ def history_graph(checkpointer, investigate, persist, *, observe=None,
     return builder.compile(checkpointer=checkpointer)
 
 
-def invoke_or_resume(graph, state, *, approval_id=None):
+def invoke_or_resume(graph, state, *, approval_id=None, parallelism=3):
     # v4 단일 경로의 15개 노드 + START/END를 완료할 수 있는 bounded 상한입니다.
-    config = {"configurable": {"thread_id": state.workflow_id}, "recursion_limit": 20}
+    config = {"configurable": {"thread_id": state.workflow_id}, "recursion_limit": 20,
+        "max_concurrency": min(3, max(1, parallelism))}
     checkpoint = graph.get_state(config)
     restored = WorkflowState.model_validate(checkpoint.values["snapshot"]) if checkpoint.values else None
     if restored and not checkpoint.next and restored.status == WorkflowStatus.COMPLETED:
