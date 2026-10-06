@@ -48,6 +48,8 @@ class CorrectiveAction:
     expected_effect: str
     verification_criteria: str
     status: ActionStatus = ActionStatus.PROPOSED
+    action_type: str | None = None
+    target_reference: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "risk_level", Severity(self.risk_level))

@@ -1,4 +1,5 @@
 """전용 PostgreSQL에서 실제 검색·Checkpoint 중단/복구·Trace를 검증합니다."""
+import argparse
 import json
 import os
 from contextlib import contextmanager
@@ -160,6 +161,7 @@ def verify(dsn):
             raise AssertionError("단계 감사는 수정할 수 없어야 합니다.")
     print("[통과] LangGraph 실제 PostgreSQL·hybrid/pgvector 출처 격리·Checkpoint 실패/재시작·LLM 1회·Config 고정·Trace·Tenant/store·PII 미노출")
     verify_evidence_rca(dsn, persistence, repo, incident, principal, config, review_id, excluded_id)
+    verify_approval_workflow(dsn, persistence, repo, incident, principal, config)
 
 
 class FailRCACheckpoint(PostgresSaver):
@@ -240,11 +242,140 @@ def verify_evidence_rca(dsn, persistence, repo, incident, principal, config, rev
     print("[통과] Evidence 2건·provenance·Sufficiency·RCA·RCA Checkpoint 실패/재시작·호출 각 1회·Config v3 고정·Incident 불변·실제 Trace API")
 
 
+def verify_approval_workflow(dsn, persistence, repo, original, principal, config):
+    """기존 History 검색 fixture로 실제 승인 대기/재시작/승인·반려를 검증합니다."""
+    from src.application.workflows.resume import RESUME_JOB
+    tenant, now = principal.tenant_id, datetime.now(UTC)
+    active = replace(config, auto_capa_draft=True, hosted_ai_allowed=False,
+                     llm_enabled_providers=(), llm_models=())
+    with persistence.transaction(tenant) as uow:
+        previous = uow.configs.current()
+        uow.configs.append(ConfigVersion(5, tenant, active, "CAPA 승인 대기 검증", "operator", now, 4), previous.config_version)
+    search = PostgresHistorySearch(dsn, FakeEmbeddingProvider())
+    def no_llm(_):
+        raise AssertionError("결정적 CAPA smoke는 외부 LLM을 호출할 수 없습니다.")
+    for decision, phase in (("approve", "READY_TO_EXECUTE"), ("reject", "REJECTED")):
+        incident = repo.save(replace(original, id=str(uuid4()), display_id="CAPA-SMOKE",
+            version=0, created_at=datetime.now(UTC).isoformat()))
+        with persistence.transaction(tenant) as uow:
+            snapshot = uow.jobs.save(Job(str(uuid4()), tenant, "incident.snapshot", "approval-smoke", now, now,
+                                        incident_id=incident.id, store=incident.store))
+        jev = ShadowDecisions(persistence).record(snapshot)
+        assert not jev.result.requires_llm
+        job = HistoryWorkflows(persistence).enqueue(RequestContext(principal, "capa-request", "capa-correlation"),
+                                                    incident.id, jev.decision_id)
+        processor = HistoryProcessor(persistence, search, lambda: postgres_checkpoint(dsn), dsn=dsn,
+                                     executor_factory=no_llm)
+        with psycopg.connect(dsn, autocommit=True) as connection:
+            worker = JobWorker(connection, snapshot_processor(repo, history=processor), tenant_id=tenant)
+            assert worker.run_once() and worker.run_once()
+            assert PostgresJobRepository(connection, tenant).get(job.job_id).status == "COMPLETED"
+        with persistence.transaction(tenant) as uow:
+            waiting = uow.agent_runs.by_job(job.job_id)
+            assert waiting.status == "WAITING_APPROVAL" and waiting.completed_at is None
+            assert waiting.state.sufficiency.status == "SUFFICIENT" and len(waiting.state.capa_proposals) == 1
+            approval = uow.approvals.get(waiting.state.approval.approval_id)
+            assert approval.status == "PENDING" and approval.agent_run_id == waiting.agent_run_id
+            assert uow.incidents.get(incident.id).status == "PENDING_APPROVAL"
+        # 단계 9가 존재하는 DB에서 과거 CHECK 상한을 재적용하지 않아야 합니다.
+        migrate(dsn)
+        restored = AccessPersistence(PostgresIncidentRepository(dsn))
+        with postgres_checkpoint(dsn) as saver:
+            checkpoint = saver.get_tuple({"configurable": {"thread_id": waiting.workflow_id}})
+            assert checkpoint.checkpoint["channel_values"]["snapshot"]["status"] == "WAITING_APPROVAL"
+            assert "PII-SENTINEL" not in str(checkpoint)
+        reviewer = Principal("human-reviewer", tenant, frozenset({Role.REVIEWER}))
+        identity = LocalIdentityProvider({"reader": reviewer,
+            "other": replace(reviewer, tenant_id=tenant+"-other"),
+            "store": replace(reviewer, store_scope=frozenset({"elsewhere"})),
+            "audit": replace(reviewer, roles=frozenset({Role.AUDITOR}))}, environment="test")
+        client = TestClient(create_app(PostgresIncidentRepository(dsn), identity_provider=identity))
+        headers = {"Authorization": "Bearer reader", "Idempotency-Key": "approval-"+incident.id}
+        path = f"/api/v1/reviews/{approval.approval_id}/{decision}"
+        body = {"reason": "담당자가 근거와 검증 기준을 확인했습니다.", "expected_version": approval.version}
+        assert client.post(path, json=body, headers={**headers, "Authorization": "Bearer other"}).status_code == 404
+        assert client.post(path, json=body, headers={**headers, "Authorization": "Bearer store"}).status_code == 403
+        assert client.post(path, json=body, headers={**headers, "Authorization": "Bearer audit"}).status_code == 403
+        response = client.post(path, json=body, headers=headers)
+        assert response.status_code == 200, response.text
+        assert client.post(path, json=body, headers=headers).json() == response.json()
+        assert client.post(path, json={**body, "reason": "다른 내용"}, headers=headers).status_code == 409
+        with restored.transaction(tenant) as uow:
+            jobs = uow.jobs.list(job_type=RESUME_JOB, incident_id=incident.id)
+            assert len(jobs) == 1
+            assert uow.agent_runs.get(waiting.agent_run_id).config_version == 5
+        resumed = HistoryProcessor(restored, search, lambda: postgres_checkpoint(dsn), dsn=dsn, executor_factory=no_llm)
+        with psycopg.connect(dsn, autocommit=True) as connection:
+            worker = JobWorker(connection, snapshot_processor(repo, history=resumed), tenant_id=tenant)
+            assert worker.run_once() and not worker.run_once()
+            assert PostgresJobRepository(connection, tenant).get(jobs[0].job_id).status == "COMPLETED"
+        with restored.transaction(tenant) as uow:
+            final = uow.agent_runs.get(waiting.agent_run_id)
+            assert final.status == "COMPLETED" and final.state.approval.phase == phase
+            assert final.config_version == 5 and len(uow.agent_runs.history(incident.id)) == 1
+            assert len(uow.approvals.list(incident.id)) == 1 and not uow.llm_calls.history(incident.id)
+            assert all(a.status != "EXECUTED" for a in uow.incidents.get(incident.id).corrective_actions)
+            assert [s.sequence for s in uow.agent_runs.steps(final.agent_run_id)] == list(range(1, 12))
+        detail = client.get(f"/api/v1/incidents/{incident.id}/agent-runs/{final.agent_run_id}", headers=headers)
+        assert detail.status_code == 200 and detail.json()["approval"]["phase"] == phase
+        assert not any(v in detail.text for v in ("PII-SENTINEL", "customer@example.com", "delegated_roles", "raw_prompt", "raw_response"))
+    print("[통과] 실제 CAPA Command·Approval·interrupt·PostgreSQL 재시작·승인/반려·resume Job·중복 방지·외부 실행 없음·Trace")
+
+
 def main():
+    parser = argparse.ArgumentParser(description="격리된 DB에서 History/CAPA durable workflow를 검증합니다.")
+    parser.add_argument("--seed-capa-http", action="store_true", help="nginx 검증용 안전한 opt-in Job fixture를 준비합니다.")
+    args = parser.parse_args()
     dsn = os.getenv("SERVIQ_TEST_DATABASE_URL")
     if not dsn:
         raise SystemExit("검증 전용 SERVIQ_TEST_DATABASE_URL을 명시해 주세요.")
-    verify(dsn)
+    if args.seed_capa_http:
+        print(json.dumps(seed_capa_http(dsn)))
+    else:
+        verify(dsn)
+
+
+def seed_capa_http(dsn):
+    """공개 실행 API 없이 검증 전용 Application에서 Job만 등록합니다."""
+    from src.application.incidents.service import IncidentService
+    migrate(dsn)
+    now, suffix = datetime.now(UTC), uuid4().hex
+    principal = Principal("http-workflow-requester", "legacy-local", frozenset({Role.HQ_ADMIN}))
+    repo = PostgresIncidentRepository(dsn)
+    persistence = AccessPersistence(repo)
+    with persistence.transaction(principal.tenant_id) as uow:
+        previous = uow.configs.current()
+        config = replace(previous.config if previous else RuntimeConfig(), jev_enabled=True,
+            auto_investigation=True, auto_rca_draft=True, auto_capa_draft=True,
+            allowed_tools=("voc.search",), hosted_ai_allowed=False, llm_enabled_providers=(),
+            llm_models=(), separation_of_duties=True, required_roles=("REVIEWER", "HQ_ADMIN"))
+        version = (previous.config_version if previous else 0)+1
+        uow.configs.append(ConfigVersion(version, principal.tenant_id, config, "격리 HTTP CAPA 검증",
+            principal.principal_id, now, previous.config_version if previous else None), version-1)
+        service = IncidentService(uow.incidents, principal=principal)
+        item = service.create("quality", Severity.MEDIUM, "http-capa-"+suffix, "synthetic")
+        item = service.triage(item.id, expected_version=item.version)
+        item = service.investigate(item.id, item.version)
+        item = service.add_evidence(item.id, Evidence("history-ref", "synthetic", "HISTORY", "이력 참조", .9), item.version)
+        snapshot = uow.jobs.save(Job(str(uuid4()), principal.tenant_id, "incident.snapshot", item.id,
+            now, now, incident_id=item.id, store=item.store))
+    with psycopg.connect(dsn) as connection:
+        initialize_schema(connection)
+        cursor = connection.cursor()
+        product_id = "http-product-"+suffix
+        insert_product(cursor, Product(product_id=product_id, brand="synthetic", product_name="검증 제품",
+            category="quality", price=1, weight_g=1, calories_kcal=1, protein_g=0, carbohydrate_g=0,
+            sugar_g=0, fat_g=0, sodium_mg=0, source="synthetic"))
+        reviews = [Review(review_id="http-review-"+suffix+str(index), product_id=product_id, rating=1,
+            review_text="quality SYNTHETIC-RAW-SENTINEL", review_date=now.date(), source="synthetic") for index in (1, 2)]
+        bulk_insert_reviews(cursor, reviews)
+        for review in reviews:
+            connection.execute("INSERT INTO serviq_history_sources(tenant_id,store,review_id) VALUES(%s,%s,%s)",
+                (principal.tenant_id, item.store, review.review_id))
+    decision = ShadowDecisions(persistence).record(snapshot)
+    assert not decision.result.requires_llm
+    job = HistoryWorkflows(persistence).enqueue(RequestContext(principal, "http-capa-seed", item.id), item.id, decision.decision_id)
+    return {"incident_id": item.id, "job_id": job.job_id, "config_version": version}
 
 
 if __name__ == "__main__":

@@ -8,13 +8,16 @@ from src.application.security.authorization import require
 
 def projection(run):
     state = run.state
-    return {**run.model_dump(mode="json", exclude={"tenant_id", "state"}),
+    return {**run.model_dump(mode="json", exclude={"tenant_id", "state", "requested_by",
+            "delegated_roles", "delegated_store_scope", "initial_incident_version"}),
         "route": state.route, "risk_level": state.risk_level,
         "findings": [f.model_dump() for f in state.findings],
         "evidence_candidates": [e.model_dump(mode="json", exclude={"tenant_id", "store"}) for e in state.evidence_candidates],
         "normalized_evidence": [e.model_dump(mode="json", exclude={"tenant_id", "store"}) for e in state.normalized_evidence],
         "sufficiency": state.sufficiency.model_dump(mode="json") if state.sufficiency else None,
         "rca_candidates": [c.model_dump(mode="json") for c in state.rca_candidates],
+        "capa_proposals": [p.model_dump(mode="json", exclude={"tenant_id", "store"}) for p in state.capa_proposals],
+        "approval": state.approval.model_dump(mode="json") if state.approval else None,
         "evidence_gaps": [g.model_dump() for g in state.evidence_gaps],
         "token_spent": state.token_spent, "cost_spent": state.cost_spent,
         "iteration": state.iteration, "tool_call_count": state.tool_call_count}
@@ -38,7 +41,14 @@ class AgentRunQueries:
                     run = uow.agent_runs.get(run_id)
                     if run is None or run.incident_id != incident_id:
                         raise IncidentNotFound()
-                    return {**projection(run), "steps": [s.model_dump(mode="json", exclude={"result"})
+                    detail = projection(run)
+                    if run.state.approval:
+                        approval = uow.approvals.get(run.state.approval.approval_id)
+                        if approval and approval.agent_run_id == run.agent_run_id:
+                            detail["approval"].update(status=approval.status, decision_actor=approval.decided_by,
+                                decision_reason_code="HUMAN_APPROVED" if approval.status == "APPROVED"
+                                else "HUMAN_REJECTED" if approval.status == "REJECTED" else None)
+                    return {**detail, "steps": [s.model_dump(mode="json", exclude={"result"})
                             for s in uow.agent_runs.steps(run_id)]}
                 runs = uow.agent_runs.history(incident_id, limit+1, offset)
                 return {"runs": [projection(r) for r in runs[:limit]], "limit": limit,

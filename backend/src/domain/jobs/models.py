@@ -51,6 +51,9 @@ class Job:
     error_summary: str | None = None
     version: int = 0
     config_version: int = 1
+    delegated_principal_id: str | None = None
+    delegated_roles: tuple[str, ...] = ()
+    delegated_store_scope: tuple[str, ...] = ()
 
     def __post_init__(self):
         if any(not value.strip() for value in (self.job_id, self.tenant_id, self.job_type, self.correlation_id)):
@@ -62,6 +65,8 @@ class Job:
                 raise ValueError("작업 시각에는 시간대가 필요합니다.")
         object.__setattr__(self, "status", JobStatus(self.status))
         object.__setattr__(self, "priority", JobPriority(self.priority))
+        object.__setattr__(self, "delegated_roles", tuple(self.delegated_roles))
+        object.__setattr__(self, "delegated_store_scope", tuple(self.delegated_store_scope))
         if self.status == JobStatus.RUNNING and (not self.worker_id or self.lease_until is None):
             raise ValueError("실행 중인 작업에는 Worker와 잠금 만료 시각이 필요합니다.")
 
@@ -112,4 +117,5 @@ def retry(job: Job, new_id: str, now: datetime) -> Job:
                correlation_id=job.correlation_id, created_at=now, available_at=now,
                incident_id=job.incident_id, store=job.store, payload_ref=job.payload_ref,
                parent_job_id=job.job_id, priority=job.priority, max_attempts=job.max_attempts,
-               config_version=job.config_version)
+               config_version=job.config_version, delegated_principal_id=job.delegated_principal_id,
+               delegated_roles=job.delegated_roles, delegated_store_scope=job.delegated_store_scope)

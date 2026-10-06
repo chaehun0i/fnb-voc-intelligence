@@ -11,7 +11,8 @@ def validate(run, previous, tenant):
         raise AccessError()
     if previous:
         fields = ("tenant_id", "incident_id", "job_id", "workflow_id", "config_version",
-                  "jev_decision_id", "workflow_version", "started_at")
+                  "jev_decision_id", "workflow_version", "started_at", "requested_by",
+                  "delegated_roles", "delegated_store_scope", "initial_incident_version")
         if any(getattr(run, f) != getattr(previous, f) for f in fields):
             raise ValueError("실행의 원본 참조와 설정 버전은 바꿀 수 없습니다.")
         if previous.status == WorkflowStatus.COMPLETED and previous != run:

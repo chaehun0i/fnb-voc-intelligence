@@ -4,13 +4,15 @@ from datetime import datetime
 
 from src.application.incidents.service import IncidentNotFound
 from src.application.security.authorization import allowed, require
+from src.application.workflows.approval_policy import approval_policy_digest
 from src.domain.approvals.models import action_digest
 from src.domain.incidents.enums import Severity
 
 
 class ReviewQueries:
-    def __init__(self, incidents, approvals, context):
+    def __init__(self, incidents, approvals, context, current_config=None):
         self.incidents, self.approvals, self.context = incidents, approvals, context
+        self.current_config = current_config
 
     def list(self, status=None, limit=100, offset=0):
         require(self.context.principal, "read")
@@ -38,11 +40,16 @@ class ReviewQueries:
             available, reason = False, "현재 역할 또는 매장 범위에서는 검토할 수 없습니다."
         elif approval.status != "PENDING":
             available, reason = False, "이미 검토 결과가 기록되었습니다."
+        elif approval.required_roles and not set(approval.required_roles) & self.context.principal.roles:
+            available, reason = False, "이 조치의 승인 정책에서 지정한 검토자 역할이 필요합니다."
+        elif approval.agent_run_id and (self.current_config is None or
+                approval.policy_digest != approval_policy_digest(self.current_config.config)):
+            available, reason = False, "승인 정책이 변경되어 이 요청을 재검토해야 합니다."
         elif now >= datetime.fromisoformat(approval.expires_at):
             available, reason = False, "검토 기한이 지나 새 승인 요청이 필요합니다."
         elif item.version != approval.incident_version or action_digest(item) != approval.action_digest:
             available, reason = False, "조치안이 변경되어 새 승인 요청이 필요합니다."
-        approve = available and not (approval.risk_level == Severity.CRITICAL
+        approve = available and not ((approval.risk_level == Severity.CRITICAL or approval.separation_of_duties)
                                     and approval.requested_by == self.context.principal.principal_id)
         permissions = {
             "approve": {"allowed": approve, "reason": reason if approve or not available else "최고 위험 조치는 요청자와 다른 검토자가 승인해야 합니다."},

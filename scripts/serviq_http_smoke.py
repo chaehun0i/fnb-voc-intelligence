@@ -366,9 +366,54 @@ def main() -> None:
         raise SystemExit("로컬 테스트 스택의 SERVIQ_TEST_API_BASE_URL을 명시해 주세요.")
     client = SmokeClient(base_url)
     verify_frontend(client)
+    fixture = os.getenv("SERVIQ_CAPA_HTTP_FIXTURE")
+    if fixture:
+        # 기존 전체 smoke는 CI의 선행 단계에서 실행합니다. CAPA Worker가
+        # 동시에 집계를 바꾸는 동안 그 단계의 정확한 +1 assertion을 재실행하지 않습니다.
+        verify_capa_http(client, json.loads(fixture))
+        return
     verify_incident_flow(client)
     verify_settings_flow(client)
     verify_jev_flow(client)
+
+
+def verify_capa_http(client, fixture):
+    """검증 전용 Job은 Application에서 등록하고 nginx에서는 실제 Review만 사용합니다."""
+    identifier = str(UUID(fixture["incident_id"]))
+    UUID(fixture["job_id"])
+    check(isinstance(fixture["config_version"], int) and fixture["config_version"] > 0, "고정 Config 버전이 필요합니다.")
+    path = f"/incidents/{identifier}/agent-runs"
+    run = None
+    for _ in range(30):
+        runs = client.api("GET", path)["runs"]
+        if runs and runs[0]["status"] in {"WAITING_APPROVAL", "FAILED", "COMPLETED"}:
+            run = runs[0]
+            break
+        time.sleep(.5)
+    check(run is not None and run["status"] == "WAITING_APPROVAL", "실제 Worker가 Approval interrupt에 도달해야 합니다.")
+    detail_path = path+"/"+run["agent_run_id"]
+    detail = client.api("GET", detail_path)
+    check(detail["config_version"] == fixture["config_version"] and len(detail["capa_proposals"]) == 1, "실제 CAPA와 Config lineage가 필요합니다.")
+    check(detail["sufficiency"]["status"] == "SUFFICIENT" and detail["approval"]["phase"] == "WAITING_APPROVAL", "충분한 근거와 실제 승인 대기가 필요합니다.")
+    review_path = "/reviews/"+detail["approval"]["approval_id"]
+    review = client.api("GET", review_path)
+    check(review["approval"]["actions"]["approve"]["allowed"], "서버가 계산한 실제 Review 권한이 필요합니다.")
+    body = {"expected_version": review["approval"]["version"], "reason": "HTTP 검토자가 근거와 검증 기준을 확인했습니다."}
+    key = "http-capa-"+identifier
+    approved = client.api("POST", review_path+"/approve", body, idempotency_key=key)
+    check(client.api("POST", review_path+"/approve", body, idempotency_key=key) == approved, "동일 결정은 resume Job을 중복 생성하면 안 됩니다.")
+    for _ in range(30):
+        detail = client.api("GET", detail_path)
+        if detail["status"] in {"COMPLETED", "FAILED"}:
+            break
+        time.sleep(.5)
+    check(detail["status"] == "COMPLETED" and detail["approval"]["phase"] == "READY_TO_EXECUTE", "실제 resume Worker가 승인된 분기를 복원해야 합니다.")
+    item = client.api("GET", "/incidents/"+identifier)
+    check(item["status"] == "PENDING_APPROVAL" and item["approved"] and all(a["status"] != "EXECUTED" for a in item["corrective_actions"]), "승인은 실행 완료가 아닙니다.")
+    check(not any(v in json.dumps(detail) for v in ("SYNTHETIC-RAW-SENTINEL", "raw_prompt", "raw_response", "delegated_roles")), "Trace에 원문이나 권한 위임 정보가 노출되면 안 됩니다.")
+    jobs = client.api("GET", "/jobs?"+urlencode({"incident_id": identifier}))
+    check(len([j for j in jobs if j["type"] == "incident.history_resume"]) == 1, "승인 재전송으로 resume Job이 중복되면 안 됩니다.")
+    print("[통과] nginx→실제 CAPA/승인 Trace→Review 승인→persistent resume Job→checkpoint 재개·실행 미기록")
 
 
 def verify_settings_flow(client):

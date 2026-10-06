@@ -1,19 +1,21 @@
 import { authHeaders } from "../auth";
 import { apiBaseUrl, apiMode } from "../incidents";
 import { decodeEvidenceTrace, gapCodes, type EvidenceGap, type EvidenceTrace } from "./evidence";
+import { decodeCAPATrace, type ApprovalTrace, type CAPAProposal } from "./capa";
 
 export type HistoryRun = {
   agent_run_id: string; incident_id: string; workflow_id: string; job_id: string;
-  correlation_id: string; config_version: number; jev_decision_id: string; workflow_version: "history-v1" | "history-evidence-v2";
-  status: "RUNNING" | "COMPLETED" | "FAILED"; started_at: string; completed_at: string | null;
+  correlation_id: string; config_version: number; jev_decision_id: string; workflow_version: "history-v1" | "history-evidence-v2" | "history-capa-v3";
+  status: "RUNNING" | "WAITING_APPROVAL" | "COMPLETED" | "FAILED"; started_at: string; completed_at: string | null;
   error_code: "WORKFLOW_FAILED" | null; safe_error_summary: string | null; route: string;
   risk_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"; token_spent: number; cost_spent: number;
   iteration: number; tool_call_count: number;
   findings: { code: "RELATED_HISTORY_FOUND"; evidence_refs: string[] }[];
   evidence_candidates: { source_ref: string; source_type: "VOC_REVIEW"; rank: number; retrieved_at: string }[];
   evidence_gaps: EvidenceGap[];
+  capa_proposals?: CAPAProposal[]; approval?: ApprovalTrace | null;
 } & Partial<EvidenceTrace>;
-export type HistoryStep = { agent_run_id: string; sequence: number; node_name: "validate_context" | "history_investigation" | "normalize_evidence" | "evaluate_sufficiency" | "rca_investigation" | "persist_result"; attempt: number; status: HistoryRun["status"]; started_at: string; completed_at: string; latency_ms: number; token_spent: number; cost_spent: number; evidence_refs: string[]; error_code: string | null };
+export type HistoryStep = { agent_run_id: string; sequence: number; node_name: "validate_context" | "history_investigation" | "normalize_evidence" | "evaluate_sufficiency" | "rca_investigation" | "persist_result" | "capa_proposal" | "apply_capa" | "request_approval" | "approval_interrupt" | "approval_result"; attempt: number; status: HistoryRun["status"]; started_at: string; completed_at: string; latency_ms: number; token_spent: number; cost_spent: number; evidence_refs: string[]; error_code: string | null };
 export type HistoryRunDetail = HistoryRun & { steps: HistoryStep[] };
 export type HistoryRunPage = { runs: HistoryRun[]; limit: number; offset: number; has_more: boolean };
 export type AgentRunApi = { list(id: string): Promise<HistoryRunPage>; detail(id: string, runId: string): Promise<HistoryRunDetail> };
@@ -27,11 +29,11 @@ const number = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v 
 const integer = (v: unknown) => number(v) && Number.isSafeInteger(v);
 const date = (v: unknown) => typeof v === "string" && /(Z|[+-]\d{2}:\d{2})$/.test(v) && Number.isFinite(Date.parse(v));
 const refs = (v: unknown) => Array.isArray(v) && v.length <= 20 && v.every((r) => typeof r === "string" && /^review:[A-Za-z0-9_.:-]{1,128}$/.test(r));
-const status = (v: unknown) => ["RUNNING", "COMPLETED", "FAILED"].includes(String(v));
+const status = (v: unknown) => ["RUNNING", "WAITING_APPROVAL", "COMPLETED", "FAILED"].includes(String(v));
 function invalid(): never { throw new AgentRunApiError("CONTRACT_ERROR", "실행 이력의 응답 형식이 올바르지 않습니다. API 버전을 확인해 주세요."); }
 export function decodeRun(v: unknown): HistoryRun {
   if (!object(v) || !["agent_run_id", "incident_id", "workflow_id", "job_id", "correlation_id", "jev_decision_id"].every((f) => text(v[f])) ||
-    !["history-v1", "history-evidence-v2"].includes(String(v.workflow_version)) || !status(v.status) || !integer(v.config_version) || Number(v.config_version) < 1 ||
+    !["history-v1", "history-evidence-v2", "history-capa-v3"].includes(String(v.workflow_version)) || !status(v.status) || !integer(v.config_version) || Number(v.config_version) < 1 ||
     !date(v.started_at) || (v.completed_at !== null && !date(v.completed_at)) ||
     ![null, "WORKFLOW_FAILED"].includes(v.error_code as null) || (v.safe_error_summary !== null && !text(v.safe_error_summary)) ||
     !["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(String(v.risk_level)) || !text(v.route) ||
@@ -41,12 +43,14 @@ export function decodeRun(v: unknown): HistoryRun {
     !Array.isArray(v.evidence_gaps) || !v.evidence_gaps.every((g) => object(g) && gapCodes.includes(g.code as EvidenceGap["code"]))) invalid();
   const trace = decodeEvidenceTrace(v);
   if (!trace) invalid();
-  return { ...(v as unknown as HistoryRun), ...trace };
+  const capa = decodeCAPATrace({ ...v, ...trace });
+  if (!capa) invalid();
+  return { ...(v as unknown as HistoryRun), ...trace, ...capa };
 }
 export function decodeDetail(v: unknown): HistoryRunDetail {
   const run = decodeRun(v);
   if (!object(v) || !Array.isArray(v.steps) || v.steps.length > 100 || !v.steps.every((s) => object(s) && s.agent_run_id === run.agent_run_id &&
-    ["validate_context", "history_investigation", "normalize_evidence", "evaluate_sufficiency", "rca_investigation", "persist_result"].includes(String(s.node_name)) && integer(s.sequence) && Number(s.sequence) >= 1 && Number(s.sequence) <= 6 &&
+    ["validate_context", "history_investigation", "normalize_evidence", "evaluate_sufficiency", "rca_investigation", "persist_result", "capa_proposal", "apply_capa", "request_approval", "approval_interrupt", "approval_result"].includes(String(s.node_name)) && integer(s.sequence) && Number(s.sequence) >= 1 && Number(s.sequence) <= 11 &&
     integer(s.attempt) && Number(s.attempt) > 0 && status(s.status) && date(s.started_at) && date(s.completed_at) && number(s.latency_ms) &&
     integer(s.token_spent) && number(s.cost_spent) && refs(s.evidence_refs) && (s.error_code === null || s.error_code === "WORKFLOW_FAILED"))) invalid();
   return { ...run, steps: v.steps as HistoryStep[] };

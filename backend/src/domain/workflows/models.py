@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 class WorkflowStatus(StrEnum):
     RUNNING = "RUNNING"
+    WAITING_APPROVAL = "WAITING_APPROVAL"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
@@ -121,6 +122,60 @@ class RCACandidate(SafeModel):
         return self
 
 
+class CAPAProposal(SafeModel):
+    capa_proposal_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    tenant_id: str = Field(min_length=1, max_length=128)
+    store: str = Field(min_length=1, max_length=128)
+    incident_id: str = Field(min_length=1, max_length=128)
+    agent_run_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    rca_candidate_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    summary: Literal["관련 과거 사례와 현장 절차를 담당자가 재검토합니다."] = "관련 과거 사례와 현장 절차를 담당자가 재검토합니다."
+    risk_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    expected_effect: Literal["반복 불만의 공통 원인과 추가 조사 범위를 확인합니다."] = "반복 불만의 공통 원인과 추가 조사 범위를 확인합니다."
+    verification_criteria: Literal["담당자의 이력·절차 재검토 기록과 추가 근거 목록이 존재해야 합니다."] = "담당자의 이력·절차 재검토 기록과 추가 근거 목록이 존재해야 합니다."
+    supporting_evidence_ids: tuple[str, ...] = Field(min_length=1, max_length=20)
+    required_approval: bool = True
+    proposed_action_type: Literal["MANUAL_HISTORY_REVIEW"] = "MANUAL_HISTORY_REVIEW"
+    target_reference: str = Field(min_length=1, max_length=128)
+    assumptions: tuple[Literal["HISTORY_HYPOTHESIS_NOT_CONFIRMED"], ...] = ("HISTORY_HYPOTHESIS_NOT_CONFIRMED",)
+    uncertainties: tuple[Literal["PHYSICAL_CAUSE_UNCONFIRMED"], ...] = ("PHYSICAL_CAUSE_UNCONFIRMED",)
+    config_version: int = Field(ge=1)
+    decision_reference: str = Field(min_length=1, max_length=128)
+    status: Literal["PROPOSED", "APPLIED"] = "PROPOSED"
+
+    @field_validator("supporting_evidence_ids")
+    @classmethod
+    def validate_refs(cls, value):
+        return cls.safe_refs(value)
+
+    @model_validator(mode="after")
+    def target(self):
+        if self.target_reference != self.incident_id:
+            raise ValueError("지원되는 조치 대상은 같은 Incident의 수동 검토뿐입니다.")
+        return self
+
+
+class ApprovalTrace(SafeModel):
+    approval_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    action_ids: tuple[str, ...] = Field(min_length=1, max_length=3)
+    action_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    config_version: int = Field(ge=1)
+    incident_version: int = Field(ge=1)
+    status: Literal["PENDING", "APPROVED", "REJECTED"] = "PENDING"
+    phase: Literal["WAITING_APPROVAL", "READY_TO_EXECUTE", "REJECTED"] = "WAITING_APPROVAL"
+    waiting_since: datetime
+    resumed_at: datetime | None = None
+    decision_actor: str | None = Field(default=None, max_length=128)
+    decision_reason_code: Literal["HUMAN_APPROVED", "HUMAN_REJECTED"] | None = None
+
+    @field_validator("waiting_since", "resumed_at")
+    @classmethod
+    def aware(cls, value):
+        if value is not None and value.utcoffset() is None:
+            raise ValueError("승인 시각에는 시간대가 필요합니다.")
+        return value
+
+
 class WorkflowState(SafeModel):
     tenant_id: str = Field(min_length=1, max_length=128)
     incident_id: str = Field(min_length=1, max_length=128)
@@ -137,6 +192,8 @@ class WorkflowState(SafeModel):
     normalized_evidence: tuple[NormalizedEvidence, ...] = Field(default=(), max_length=20)
     sufficiency: SufficiencyResult | None = None
     rca_candidates: tuple[RCACandidate, ...] = Field(default=(), max_length=5)
+    capa_proposals: tuple[CAPAProposal, ...] = Field(default=(), max_length=3)
+    approval: ApprovalTrace | None = None
     rca_completed: bool = False
     iteration: int = Field(default=0, ge=0, le=20)
     tool_call_count: int = Field(default=0, ge=0, le=50)
@@ -160,6 +217,17 @@ class WorkflowState(SafeModel):
                 or any(available[r].stance != "SUPPORTING" for r in candidate.supporting_refs)
                 or any(available[r].stance != "CONTRADICTING" for r in candidate.contradicting_refs)):
                 raise ValueError("RCA가 존재하지 않거나 반대 성격의 근거를 지지로 참조할 수 없습니다.")
+        causes = {c.candidate_id: c for c in self.rca_candidates}
+        for proposal in self.capa_proposals:
+            if (proposal.rca_candidate_id not in causes
+                    or proposal.tenant_id != self.tenant_id or proposal.incident_id != self.incident_id
+                    or proposal.agent_run_id != self.agent_run_id or proposal.config_version != self.config_version
+                    or not set(proposal.supporting_evidence_ids).issubset(causes[proposal.rca_candidate_id].supporting_refs)):
+                raise ValueError("CAPA는 같은 실행의 RCA와 실제 지지 근거를 참조해야 합니다.")
+        if self.approval and (self.approval.config_version != self.config_version
+                or set(self.approval.action_ids) != {p.capa_proposal_id for p in self.capa_proposals}
+                or any(p.status != "APPLIED" for p in self.capa_proposals)):
+            raise ValueError("Approval은 같은 실행에 저장된 조치만 참조해야 합니다.")
         return self
 
 
@@ -172,7 +240,11 @@ class AgentRun(SafeModel):
     correlation_id: str
     config_version: int = Field(ge=1)
     jev_decision_id: str
-    workflow_version: Literal["history-v1", "history-evidence-v2"] = "history-v1"
+    workflow_version: Literal["history-v1", "history-evidence-v2", "history-capa-v3"] = "history-v1"
+    requested_by: str | None = Field(default=None, max_length=128)
+    delegated_roles: tuple[str, ...] = ()
+    delegated_store_scope: tuple[str, ...] = ()
+    initial_incident_version: int = Field(default=0, ge=0)
     status: WorkflowStatus = WorkflowStatus.RUNNING
     started_at: datetime
     completed_at: datetime | None = None
@@ -190,6 +262,8 @@ class AgentRun(SafeModel):
             raise ValueError("Graph 저장 완료 전 실행을 완료할 수 없습니다.")
         if any(c.jev_decision_id != self.jev_decision_id for c in self.state.rca_candidates):
             raise ValueError("RCA Decision 원본을 확인해 주세요.")
+        if any(c.decision_reference != self.jev_decision_id for c in self.state.capa_proposals):
+            raise ValueError("CAPA Decision 원본을 확인해 주세요.")
         return self
 
     @field_validator("started_at", "completed_at")
@@ -202,9 +276,10 @@ class AgentRun(SafeModel):
 
 class AgentStep(SafeModel):
     agent_run_id: str
-    sequence: int = Field(ge=1, le=6)
+    sequence: int = Field(ge=1, le=11)
     node_name: Literal["validate_context", "history_investigation", "normalize_evidence",
-                       "evaluate_sufficiency", "rca_investigation", "persist_result"]
+                       "evaluate_sufficiency", "rca_investigation", "persist_result", "capa_proposal",
+                       "apply_capa", "request_approval", "approval_interrupt", "approval_result"]
     attempt: int = Field(ge=1)
     status: WorkflowStatus
     started_at: datetime

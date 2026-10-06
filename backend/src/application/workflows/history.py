@@ -4,6 +4,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 from src.application.incidents.service import IncidentNotFound
 from src.application.security.authorization import require
+from src.application.workflows.resume import RESUME_JOB, validate_approval
 from src.decision.jev.models import AgentType, DecisionRoute
 from src.domain.approvals.audit import AuditRecord
 from src.domain.config.resolution import ConfigResolver
@@ -67,13 +68,27 @@ class HistoryWorkflows:
             job = uow.jobs.save(Job(job_id, principal.tenant_id, HISTORY_JOB,
                 context.correlation_id, now, now, incident_id=incident.id, store=incident.store,
                 payload_ref=decision_id, config_version=version.config_version,
-                max_attempts=version.config.retry_limit+1))
+                max_attempts=version.config.retry_limit+1, delegated_principal_id=principal.principal_id,
+                delegated_roles=tuple(sorted(principal.roles)), delegated_store_scope=tuple(sorted(principal.store_scope))))
             uow.audit.append(AuditRecord(str(uuid5(NAMESPACE_URL, "history-audit:"+job_id)),
                 principal.tenant_id, principal.principal_id, "history_enqueue", "job", job_id,
                 "SUCCESS", context.request_id, context.correlation_id, now.isoformat(), incident.version))
             return job
 
     def prepare(self, job):
+        if job.job_type == RESUME_JOB:
+            with self.persistence.transaction(job.tenant_id) as uow:
+                approval = uow.approvals.get(job.payload_ref)
+                if approval is None:
+                    raise WorkflowNotAllowed()
+                run, incident = validate_approval(uow, approval, self.clock(), decided=True)
+                version = uow.configs.get(run.config_version)
+                decision = uow.decisions.get(run.jev_decision_id)
+                if (version is None or decision is None or run.job_id != job.parent_job_id
+                        or run.config_version != job.config_version or incident.id != job.incident_id
+                        or incident.store != job.store):
+                    raise WorkflowNotAllowed()
+                return run, ConfigResolver().resolve(version.config), decision
         if job.job_type != HISTORY_JOB:
             raise WorkflowNotAllowed()
         with self.persistence.transaction(job.tenant_id) as uow:
@@ -98,5 +113,8 @@ class HistoryWorkflows:
             run = AgentRun(agent_run_id=rid, tenant_id=job.tenant_id, incident_id=incident.id,
                 workflow_id=wid, job_id=job.job_id, correlation_id=job.correlation_id,
                 config_version=version.config_version, jev_decision_id=decision.decision_id,
-                started_at=self.clock(), state=state, workflow_version="history-evidence-v2")
+                started_at=self.clock(), state=state,
+                workflow_version="history-capa-v3" if resolved.effective.auto_capa_draft and job.delegated_principal_id else "history-evidence-v2",
+                requested_by=job.delegated_principal_id, delegated_roles=job.delegated_roles,
+                delegated_store_scope=job.delegated_store_scope, initial_incident_version=incident.version)
             return uow.agent_runs.save(run), resolved, decision

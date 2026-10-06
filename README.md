@@ -97,3 +97,5 @@ Day 22 Provider 중립 LLM 계약·Data Policy·Gemini/Ollama 어댑터와 안�
 Day 23 단일 History 조사·AgentRun·LangGraph durable Checkpoint와 실제 실행 추적은 [History Workflow 문서](docs/serviq_langgraph_history.md)를 참고하세요.
 
 Day 24 출처가 보존된 Evidence 정규화·결정적 충분성·근거 기반 미확정 RCA와 실제 Trace는 [Evidence/RCA Workflow 문서](docs/serviq_evidence_rca.md)를 참고하세요. Incident 상태 변경이나 CAPA/승인 자동 실행은 포함하지 않습니다.
+
+Day 25 근거 기반 CAPA 제안·기존 Application Command·실제 Approval·LangGraph 승인 대기/재개와 Review/Trace 연결은 [CAPA/Human Approval 문서](docs/serviq_capa_approval.md)를 참고하세요. 사람의 승인은 실행 단계 대기이며 외부 Action 실행 완료가 아닙니다.

@@ -1,5 +1,6 @@
 """HTTP smoke의 명시적 로컬 실행 조건을 외부 요청 없이 검증합니다."""
 
+import json
 import runpy
 from pathlib import Path
 from urllib.request import OpenerDirector
@@ -59,3 +60,21 @@ def test_http_smoke_requires_explicit_environment_before_any_request(
     monkeypatch.delenv("SERVIQ_TEST_API_BASE_URL", raising=False)
     with pytest.raises(SystemExit, match="SERVIQ_TEST_API_BASE_URL"):
         smoke_script["main"]()
+
+
+@pytest.mark.parametrize("capa", [False, True])
+def test_http_smoke_modes_preserve_independent_validation(smoke_script, monkeypatch, capa):
+    calls = []
+    namespace = smoke_script["main"].__globals__
+    monkeypatch.setenv("SERVIQ_TEST_API_BASE_URL", "http://127.0.0.1:18080/api/v1")
+    fixture = {"incident_id": "fixture", "job_id": "job", "config_version": 1}
+    if capa:
+        monkeypatch.setenv("SERVIQ_CAPA_HTTP_FIXTURE", json.dumps(fixture))
+    else:
+        monkeypatch.delenv("SERVIQ_CAPA_HTTP_FIXTURE", raising=False)
+    for name in ("verify_frontend", "verify_incident_flow", "verify_settings_flow", "verify_jev_flow"):
+        monkeypatch.setitem(namespace, name, lambda client, label=name: calls.append(label))
+    monkeypatch.setitem(namespace, "verify_capa_http", lambda client, body: calls.append(("capa", body)))
+    smoke_script["main"]()
+    assert calls == (["verify_frontend", ("capa", fixture)] if capa else
+                     ["verify_frontend", "verify_incident_flow", "verify_settings_flow", "verify_jev_flow"])

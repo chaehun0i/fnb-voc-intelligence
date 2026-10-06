@@ -16,18 +16,19 @@ class ApprovalService:
     def __init__(self, incidents, approvals, context):
         self.incidents, self.approvals, self.context = incidents, approvals, context
 
-    def request(self, incident_id, expected_version=None):
+    def request(self, incident_id, expected_version=None, *, workflow_metadata=None, approval_id=None):
         item = self.incidents.request_approval(incident_id, expected_version)
         now = self.incidents._now()
         ranks = list(Severity)
         risk = max((action.risk_level for action in item.corrective_actions),
                    key=ranks.index)
         self.approvals.save(Approval(
-            str(uuid4()), item.tenant_id, item.id,
+            approval_id or str(uuid4()), item.tenant_id, item.id,
             tuple(action.id for action in item.corrective_actions),
             action_digest(item), item.version, risk,
             self.context.principal.principal_id, now,
             (datetime.fromisoformat(now)+timedelta(hours=24)).isoformat(),
+            **(workflow_metadata or {}),
         ))
         return item
 
@@ -38,6 +39,10 @@ class ApprovalService:
             raise IncidentNotFound()
         item = self.incidents.get(approval.incident_id)
         require(self.context.principal, "review", item.store)
+        if approval.required_roles and not set(approval.required_roles) & self.context.principal.roles:
+            raise AccessError()
+        if decision == "approve" and approval.separation_of_duties and approval.requested_by == self.context.principal.principal_id:
+            raise AccessError()
         if approval.status != "PENDING" or (
             expected_version is not None and approval.version != expected_version
         ):
