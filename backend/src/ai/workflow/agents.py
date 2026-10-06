@@ -26,6 +26,44 @@ from src.ai.workflow.policy import server_risk
 from src.application.security.principal import AccessError
 
 
+class SourceUnavailable(OSError):
+    """Adapter 원문 오류를 노출하지 않는 read source 장애입니다."""
+
+
+def branch_gap(context, branch_id, clock, *, code, status="FAILED", retryable=False, started=None):
+    return InvestigationResult(agent_type=context.agent_type, branch_id=branch_id,
+        tenant_id=context.tenant_id, incident_id=context.incident_id, store=context.store,
+        status=status, evidence_gaps=(EvidenceGap(code=code, agent_type=context.agent_type),),
+        retryable=retryable, uncertainty="MISSING_EVIDENCE", started_at=started or clock(),
+        completed_at=clock(), context_digest=context.digest)
+
+
+def isolated_branch(action, context, branch_id, *, clock, deadline):
+    started = clock()
+    if started >= deadline:
+        return branch_gap(context, branch_id, clock, code="BRANCH_BUDGET_EXHAUSTED", started=started)
+    try:
+        result = InvestigationResult.model_validate(action(context, branch_id).model_dump(mode="json"))
+    except TimeoutError:
+        return branch_gap(context, branch_id, clock, code="BRANCH_FAILED", retryable=True, started=started)
+    except SourceUnavailable:
+        return branch_gap(context, branch_id, clock, code="SOURCE_UNAVAILABLE", retryable=True, started=started)
+    except RuntimeError:
+        return branch_gap(context, branch_id, clock, code="BRANCH_FAILED", started=started)
+    # Authorization/validation/checkpoint 오류는 branch partial success로 바꾸지 않습니다.
+    if (result.tenant_id != context.tenant_id or result.store != context.store
+            or result.incident_id != context.incident_id or result.context_digest != context.digest
+            or result.agent_type != context.agent_type or result.branch_id != branch_id):
+        raise AccessError()
+    if clock() >= deadline:
+        return branch_gap(context, branch_id, clock, code="BRANCH_BUDGET_EXHAUSTED", started=started)
+    if any(e.source_at is None or e.source_at > context.window_end
+            or (context.agent_type != "HISTORY" and e.source_at < context.window_start)
+            for e in result.evidence_candidates):
+        return branch_gap(context, branch_id, clock, code="SOURCE_STALE", status="STALE", started=started)
+    return result
+
+
 class OperationalInvestigation:
     def __init__(self, source, clock):
         self.source, self.clock = source, clock

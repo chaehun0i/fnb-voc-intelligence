@@ -134,3 +134,39 @@ def test_langgraph_fanout_fanin_is_parallel_and_deterministic():
     assert tuple(b.agent_type for b in result.branches) == tuple(sorted(calls))
     assert invoke_or_resume(graph, state) == result
     assert len(calls) == 3
+
+
+def test_branch_partial_failure_and_security_fail_closed():
+    from uuid import uuid4
+
+    from src.ai.workflow.agents import SourceUnavailable, isolated_branch
+    from src.application.security.principal import AccessError
+    pack, bid = context("INVENTORY"), str(uuid4())
+    def unavailable(*_):
+        raise SourceUnavailable("private adapter message")
+    result = isolated_branch(unavailable, pack, bid, clock=lambda: NOW, deadline=NOW+timedelta(seconds=5))
+    assert result.retryable and result.evidence_gaps[0].code == "SOURCE_UNAVAILABLE"
+    assert not result.evidence_candidates and "private" not in result.model_dump_json()
+    def unauthorized(*_):
+        raise AccessError()
+    with pytest.raises(AccessError):
+        isolated_branch(unauthorized, pack, bid, clock=lambda: NOW, deadline=NOW+timedelta(seconds=5))
+    assert isolated_branch(unavailable, pack, bid, clock=lambda: NOW, deadline=NOW).evidence_gaps[0].code == "BRANCH_BUDGET_EXHAUSTED"
+
+
+def test_failure_does_not_erase_successful_parallel_result():
+    from src.ai.workflow.agents import branch_gap
+    from src.ai.workflow.graph import history_graph, invoke_or_resume
+    from src.ai.workflow.models import InvestigationResult
+    from src.ai.workflow.runtime import memory_checkpoint
+    def branch(pack, bid):
+        if pack.agent_type == "INVENTORY":
+            return branch_gap(pack, bid, lambda: NOW, code="BRANCH_FAILED", retryable=True)
+        return InvestigationResult(agent_type=pack.agent_type, branch_id=bid, tenant_id=pack.tenant_id,
+            incident_id=pack.incident_id, store=pack.store, status="NO_EVIDENCE", uncertainty="MISSING_EVIDENCE",
+            started_at=NOW, completed_at=NOW, context_digest=pack.digest)
+    result = invoke_or_resume(history_graph(memory_checkpoint(), None, lambda s: None,
+        investigate_branch=branch, fan_in=lambda s: s), workflow())
+    assert result.status == "COMPLETED"
+    assert {b.agent_type: b.status for b in result.branches} == {
+        "HISTORY": "NO_EVIDENCE", "TRANSACTION": "NO_EVIDENCE", "INVENTORY": "FAILED"}
