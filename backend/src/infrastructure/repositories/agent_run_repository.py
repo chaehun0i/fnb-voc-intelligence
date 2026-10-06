@@ -43,6 +43,11 @@ class MemoryAgentRunRepository:
         # AccessPersistence holds its memory transaction lock.
         return self.get(run_id)
 
+    def automation_blocked(self, incident_id):
+        return any(r.tenant_id == self.tenant_id and r.incident_id == incident_id
+            and any(e.control in {"STOPPED", "MANUAL_TAKEOVER"} for e in self.events(r.agent_run_id))
+            for r in self.state.data.get("agent_runs", {}).values())
+
     def events(self, run_id):
         if self.get(run_id) is None:
             return []
@@ -114,6 +119,13 @@ class PostgresAgentRunRepository:
         row = self.connection.execute("SELECT document FROM serviq_agent_runs WHERE tenant_id=%s AND agent_run_id::text=%s FOR UPDATE",
             (self.tenant_id, run_id)).fetchone()
         return AgentRun.model_validate(row[0]) if row else None
+
+    def automation_blocked(self, incident_id):
+        return self.connection.execute("""SELECT EXISTS(SELECT 1 FROM serviq_runtime_events e
+            JOIN serviq_agent_runs r USING(tenant_id,agent_run_id)
+            WHERE r.tenant_id=%s AND r.incident_id=%s
+            AND e.document->>'control' IN ('STOPPED','MANUAL_TAKEOVER'))""",
+            (self.tenant_id, incident_id)).fetchone()[0]
 
     def events(self, run_id):
         rows = self.connection.execute("SELECT document FROM serviq_runtime_events WHERE tenant_id=%s AND agent_run_id::text=%s ORDER BY sequence",

@@ -167,3 +167,60 @@ def test_manifest_compatibility_rejects_changed_bundle():
     manifest = run.manifest.model_copy(update={"source_digest": "0"*64})
     with pytest.raises(ValueError, match="MANIFEST_INCOMPATIBLE"):
         validate_manifest(run.model_copy(update={"manifest": manifest}))
+
+
+def control_context(key="control-1", tenant="t", role="OPS_MANAGER", stores=()):
+    from src.application.security.principal import Principal, RequestContext
+    return RequestContext(Principal("operator", tenant, frozenset({role}), frozenset(stores)),
+        "control-request", "control-correlation", key)
+
+
+def test_pause_resume_stop_are_idempotent_and_queued_work_is_fenced():
+    from src.ai.workflow.controller import (
+        ControlInterrupted,
+        InvestigationLoop,
+        control_state,
+    )
+    from src.application.agent_controls import CONTINUE_JOB, AgentControls
+    from src.application.security.principal import AccessError
+    p, source, run, now = loop_setup()
+    commands = AgentControls(p, lambda: now)
+    pause = commands.execute(control_context(), "i", run.agent_run_id, "pause", 0)
+    assert commands.execute(control_context(), "i", run.agent_run_id, "pause", 0) == pause
+    with pytest.raises(ControlInterrupted, match="PAUSED"):
+        InvestigationLoop(p, run.agent_run_id, "t", source, lambda: now).authorize()
+    commands.execute(control_context("resume"), "i", run.agent_run_id, "resume", 1)
+    InvestigationLoop(p, run.agent_run_id, "t", source, lambda: now).authorize()
+    with p.transaction("t") as uow:
+        jobs = uow.jobs.list(job_type=CONTINUE_JOB)
+        assert len(jobs) == 1 and jobs[0].parent_job_id == run.job_id
+        assert control_state(uow.agent_runs.events(run.agent_run_id)) == "RUNNING"
+    commands.execute(control_context("stop"), "i", run.agent_run_id, "stop", 2)
+    with pytest.raises(ControlInterrupted, match="STOPPED"):
+        InvestigationLoop(p, run.agent_run_id, "t", source, lambda: now).authorize()
+    with pytest.raises(AccessError, match="AGENT_CONTROL_NOT_ALLOWED"):
+        commands.execute(control_context("retry"), "i", run.agent_run_id, "resume", 3)
+    with p.transaction("t") as uow:
+        assert uow.agent_runs.get(run.agent_run_id).manifest == run.manifest
+        assert uow.agent_runs.automation_blocked("i")
+        assert len(uow.audit.list()) >= 3
+
+
+def test_takeover_and_security_and_control_version_fail_closed():
+    from src.ai.workflow.controller import ControlInterrupted, InvestigationLoop
+    from src.application.agent_controls import AgentControls
+    from src.application.incidents.service import IncidentNotFound
+    from src.application.security.principal import AccessError
+    p, source, run, now = loop_setup()
+    commands = AgentControls(p, lambda: now)
+    with pytest.raises(IncidentNotFound):
+        commands.execute(control_context(tenant="other"), "i", run.agent_run_id, "pause", 0)
+    with pytest.raises(AccessError):
+        commands.execute(control_context(role="STORE_MANAGER", stores=("wrong",)), "i", run.agent_run_id, "pause", 0)
+    with pytest.raises(AccessError, match="AGENT_CONTROL_CONFLICT"):
+        commands.execute(control_context(), "i", run.agent_run_id, "pause", 10)
+    commands.execute(control_context(), "i", run.agent_run_id, "takeover", 0)
+    with pytest.raises(ControlInterrupted, match="MANUAL_TAKEOVER"):
+        InvestigationLoop(p, run.agent_run_id, "t", source, lambda: now).authorize()
+    with pytest.raises(AccessError, match="IDEMPOTENCY_CONFLICT"):
+        commands.execute(control_context(), "i", run.agent_run_id, "takeover", 1)

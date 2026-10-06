@@ -14,6 +14,7 @@ from src.ai.workflow.runtime import (
     HistoryProcessor,
     postgres_checkpoint,
 )
+from src.application.agent_controls import CONTINUE_JOB
 from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.history_search import PostgresHistorySearch
 from src.infrastructure.investigation_source import PostgresInvestigationSource
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 def snapshot_processor(repository, shadow=None, history=None):
     def process(job):
-        if job.job_type in {HISTORY_JOB, RESUME_JOB} and history is not None:
+        if job.job_type in {HISTORY_JOB, RESUME_JOB, CONTINUE_JOB} and history is not None:
             return history(job)
         if job.job_type != "incident.snapshot":
             raise ValueError("지원하지 않는 작업 종류입니다.")

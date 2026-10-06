@@ -48,6 +48,7 @@ from src.ai.workflow.policy import (
     server_risk,
     validate_manifest,
 )
+from src.application.agent_controls import CONTINUE_JOB
 from src.application.approvals.service import ApprovalService
 from src.application.incidents.service import IncidentNotFound, IncidentService
 from src.application.ports.repositories import IncidentConflict
@@ -144,6 +145,17 @@ class HistoryWorkflows:
             return job
 
     def prepare(self, job):
+        if job.job_type == CONTINUE_JOB:
+            with self.persistence.transaction(job.tenant_id) as uow:
+                run = uow.agent_runs.get(job.payload_ref)
+                if (run is None or run.job_id != job.parent_job_id or run.incident_id != job.incident_id
+                        or run.config_version != job.config_version
+                        or any(c.store != job.store for c in run.state.contexts)):
+                    raise WorkflowNotAllowed()
+                version, decision = uow.configs.get(run.config_version), uow.decisions.get(run.jev_decision_id)
+                if version is None or decision is None:
+                    raise WorkflowNotAllowed()
+                return run, ConfigResolver().resolve(version.config), decision
         if job.job_type == RESUME_JOB:
             with self.persistence.transaction(job.tenant_id) as uow:
                 approval = uow.approvals.get(job.payload_ref)
@@ -180,6 +192,8 @@ class HistoryWorkflows:
                 if version is None or decision is None:
                     raise WorkflowNotAllowed()
                 return previous, ConfigResolver().resolve(version.config), decision
+            if uow.agent_runs.automation_blocked(job.incident_id):
+                raise WorkflowNotAllowed()
             incident = uow.incidents.get(job.incident_id)
             if incident is None or incident.store != job.store:
                 raise WorkflowNotAllowed()
@@ -474,7 +488,7 @@ class HistoryProcessor:
                     return run
             if run.status == WorkflowStatus.COMPLETED:
                 return run
-            if run.status == WorkflowStatus.WAITING_APPROVAL and job.job_type != RESUME_JOB:
+            if run.status == WorkflowStatus.WAITING_APPROVAL and job.job_type not in {RESUME_JOB, CONTINUE_JOB}:
                 return run
             def record(call):
                 check()
@@ -688,8 +702,15 @@ class HistoryProcessor:
                             InvestigationLoop(self.persistence, run.agent_run_id, job.tenant_id,
                                 self.source, self.clock).authorize(operation)
                     graph = history_graph(saver, investigate, persist, observe=observe, guard=guard, **stages)
+                    approval_id = job.payload_ref if job.job_type == RESUME_JOB else None
+                    if job.job_type == CONTINUE_JOB and run.state.approval:
+                        with self.persistence.transaction(job.tenant_id) as uow:
+                            approval = uow.approvals.get(run.state.approval.approval_id)
+                            if approval is not None and approval.status in {"APPROVED", "REJECTED"}:
+                                validate_approval(uow, approval, self.clock(), decided=True)
+                                approval_id = approval.approval_id
                     result = invoke_or_resume(graph, run.state,
-                        approval_id=job.payload_ref if job.job_type == RESUME_JOB else None,
+                        approval_id=approval_id,
                         parallelism=resolved.effective.parallelism)
                 check()
                 with self.persistence.transaction(job.tenant_id) as uow:
