@@ -8,10 +8,10 @@ import pytest
 
 from src.domain.config.models import RuntimeConfig
 from src.domain.config.resolution import ConfigResolver, ConfigValidationFailed
-from src.domain.decisions.engine import JevEngine
-from src.domain.decisions.models import AgentType as Agent
-from src.domain.decisions.models import Category, DecisionValidationError, RequestedMode
 from src.domain.incidents.enums import IncidentStatus, Severity
+from src.routing.engine import JevEngine
+from src.routing.models import AgentType as Agent
+from src.routing.models import Category, DecisionValidationError, RequestedMode
 
 from .test_jev_contract import context
 

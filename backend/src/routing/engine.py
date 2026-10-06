@@ -1,13 +1,13 @@
 """같은 입력에서 같은 의미의 결과를 반환하는 순수 판단 엔진입니다."""
-from src.domain.decisions.models import (
+from src.domain.incidents.enums import Priority, Severity
+from src.routing.models import (
     AgentType,
     DecisionReasonCode,
     DecisionResult,
     DecisionRoute,
 )
-from src.domain.decisions.profiles import select_profile
-from src.domain.decisions.rules import safety_and_risk, validate
-from src.domain.incidents.enums import Priority, Severity
+from src.routing.profiles import select_profile
+from src.routing.rules import safety_and_risk, validate
 
 
 class JevEngine:

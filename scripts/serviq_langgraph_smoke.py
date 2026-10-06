@@ -15,7 +15,6 @@ from src.agents.checkpoint import postgres_checkpoint
 from src.agents.history import HistoryWorkflows
 from src.agents.processor import HistoryProcessor
 from src.api.app import create_app
-from src.application.decisions.shadow import ShadowDecisions
 from src.application.security.principal import Principal, RequestContext, Role
 from src.data.database import initialize_schema
 from src.data.models import Product, Review
@@ -39,6 +38,7 @@ from src.llm.providers.fake import FakeProvider
 from src.llm.router import ProviderRouter
 from src.rag.embeddings import FakeEmbeddingProvider
 from src.rag.indexing import index_reviews
+from src.routing.shadow import ShadowDecisions
 
 
 class FakeGemini(FakeProvider):

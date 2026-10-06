@@ -4,17 +4,17 @@ from datetime import datetime
 
 from src.domain.config.models import ResolvedConfig
 from src.domain.config.resolution import ConfigResolver
-from src.domain.decisions.models import (
+from src.domain.incidents.enums import IncidentStatus, Priority, Severity
+from src.routing.models import (
     AgentType,
     Category,
     DecisionContext,
     DecisionValidationError,
     RequestedMode,
 )
-from src.domain.decisions.models import (
+from src.routing.models import (
     DecisionReasonCode as Reason,
 )
-from src.domain.incidents.enums import IncidentStatus, Priority, Severity
 
 RISK_ORDER = tuple(Severity)
 INVESTIGABLE = frozenset({IncidentStatus.DETECTED, IncidentStatus.TRIAGED,

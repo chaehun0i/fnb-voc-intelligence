@@ -17,8 +17,8 @@ def prepared(*, internal_execution=False):
             config=replace(version.config, auto_capa_draft=True, auto_rca_draft=True,
                 internal_execution_enabled=internal_execution)), 1)
     # 테스트는 같은 Config/Jev lineage를 고정하며 enqueue 권한을 우회하지 않습니다.
-    from src.application.decisions.shadow import ShadowDecisions
     from src.domain.jobs.models import Job
+    from src.routing.shadow import ShadowDecisions
     now = workflows.clock()
     decision = ShadowDecisions(persistence, clock=lambda: now).record(
         Job("snapshot2", "t", "incident.snapshot", "c", now, now, incident_id="i", store="store"))

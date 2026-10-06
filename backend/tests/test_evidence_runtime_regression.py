@@ -18,11 +18,11 @@ from src.agents.processor import (
     HistoryProcessor,
     UncertainHistoryCall,
 )
-from src.application.decisions.shadow import ShadowDecisions
 from src.domain.jobs.models import Job
 from src.infrastructure.jobs.job_worker import RetryableJobError
 from src.llm.contracts import LLMResult, LLMUsage
 from src.llm.errors import LLMError, LLMErrorCode
+from src.routing.shadow import ShadowDecisions
 
 
 class ScopedSearch:

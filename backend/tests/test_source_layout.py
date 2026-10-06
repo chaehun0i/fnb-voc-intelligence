@@ -19,7 +19,8 @@ def imports(path):
 def test_obsolete_package_locations_have_no_source():
     for obsolete in ("decision", "runtime", "application/commands",
                      "infrastructure/queue", "infrastructure/outbox",
-                     "domain/workflows", "application/workflows", "infrastructure/workflows"):
+                     "domain/workflows", "application/workflows", "infrastructure/workflows",
+                     "domain/decisions", "application/decisions"):
         assert not list((SOURCE / obsolete).rglob("*.py")), obsolete
 
 
@@ -27,11 +28,13 @@ def test_domain_is_independent_of_application_and_execution_technology():
     files = list((SOURCE / "domain").rglob("*.py"))
     files += [SOURCE / f"agents/{name}.py" for name in
               ("models", "safe", "policy", "sufficiency", "verification_contracts", "verification_rules")]
-    assert files and (SOURCE / "domain/decisions/engine.py").is_file()
+    files += [SOURCE / f"routing/{name}.py" for name in ("models", "engine", "profiles", "rules")]
+    assert files and (SOURCE / "routing/engine.py").is_file()
     forbidden = ("src.api", "src.application", "src.infrastructure",
                  "langgraph", "psycopg", "google", "ollama", "src.llm.providers",
                  "src.agents.graph", "src.agents.checkpoint", "src.agents.processor",
-                 "src.agents.capa_commands", "src.agents.verification_commands")
+                 "src.agents.capa_commands", "src.agents.verification_commands",
+                 "src.routing.context", "src.routing.queries", "src.routing.shadow")
     for path in files:
         assert not any(module.startswith(forbidden) for module in imports(path)), path
 

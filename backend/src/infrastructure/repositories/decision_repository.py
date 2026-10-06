@@ -6,14 +6,14 @@ from datetime import datetime
 from psycopg.types.json import Jsonb
 
 from src.application.security.principal import AccessError
-from src.domain.decisions.models import (
+from src.domain.incidents.enums import Priority, Severity
+from src.routing.models import (
     AgentType,
     DecisionReasonCode,
     DecisionRecord,
     DecisionResult,
     DecisionRoute,
 )
-from src.domain.incidents.enums import Priority, Severity
 
 
 def decision_document(record):

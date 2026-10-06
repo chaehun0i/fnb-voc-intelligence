@@ -8,9 +8,9 @@ from src.application.incidents.service import IncidentNotFound
 from src.application.security.authorization import require
 from src.domain.approvals.audit import AuditRecord
 from src.domain.config.resolution import ConfigResolver
-from src.domain.decisions.models import AgentType, DecisionRoute
 from src.domain.incidents.enums import IncidentStatus
 from src.domain.jobs.models import Job
+from src.routing.models import AgentType, DecisionRoute
 
 HISTORY_JOB = "incident.history_investigation"
 

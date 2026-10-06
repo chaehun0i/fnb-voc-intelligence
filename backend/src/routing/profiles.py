@@ -1,5 +1,5 @@
 """정렬된 후보 목록은 향후 조사 제안이며 Agent를 실행하지 않습니다."""
-from src.domain.decisions.models import (
+from src.routing.models import (
     AgentType,
     Category,
     DecisionReasonCode,
