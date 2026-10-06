@@ -6,7 +6,7 @@ from datetime import datetime
 from psycopg.types.json import Jsonb
 
 from src.application.security.principal import AccessError
-from src.decision.jev.models import (
+from src.domain.decisions.models import (
     AgentType,
     DecisionReasonCode,
     DecisionRecord,

@@ -10,17 +10,17 @@ from uuid import uuid4
 import psycopg
 
 from src.application.decisions.context import build_context
-from src.decision.jev.engine import JevEngine
-from src.decision.jev.models import (
+from src.domain.approvals.audit import AuditRecord
+from src.domain.config.models import RuntimeConfig
+from src.domain.config.resolution import ConfigResolver, ConfigValidationFailed
+from src.domain.decisions.engine import JevEngine
+from src.domain.decisions.models import (
     DecisionReasonCode,
     DecisionRecord,
     DecisionResult,
     DecisionRoute,
     DecisionValidationError,
 )
-from src.domain.approvals.audit import AuditRecord
-from src.domain.config.models import RuntimeConfig
-from src.domain.config.resolution import ConfigResolver, ConfigValidationFailed
 from src.domain.incidents.enums import Severity
 
 logger = logging.getLogger(__name__)

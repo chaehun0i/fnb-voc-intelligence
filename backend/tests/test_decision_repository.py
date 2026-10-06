@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 import pytest
 
 from src.application.security.principal import AccessError
-from src.decision.jev.engine import JevEngine
-from src.decision.jev.models import DecisionRecord
+from src.domain.decisions.engine import JevEngine
+from src.domain.decisions.models import DecisionRecord
 from src.infrastructure.repositories.approval_repository import MemoryAccessState
 from src.infrastructure.repositories.decision_repository import (
     MemoryDecisionRepository,

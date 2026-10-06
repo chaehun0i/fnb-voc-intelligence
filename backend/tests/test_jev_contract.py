@@ -3,9 +3,9 @@ from datetime import UTC, datetime
 
 import pytest
 
-from src.decision.jev.models import Category, DecisionContext, RequestedMode
 from src.domain.config.models import RuntimeConfig
 from src.domain.config.resolution import ConfigResolver
+from src.domain.decisions.models import Category, DecisionContext, RequestedMode
 from src.domain.incidents.enums import IncidentStatus, Priority, Severity
 
 

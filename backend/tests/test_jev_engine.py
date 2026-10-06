@@ -1,9 +1,9 @@
 from dataclasses import replace
 
 from src.application.decisions.context import build_context
-from src.decision.jev.engine import JevEngine
-from src.decision.jev.models import AgentType, Category
 from src.domain.config.resolution import ConfigResolver
+from src.domain.decisions.engine import JevEngine
+from src.domain.decisions.models import AgentType, Category
 from src.domain.incidents.models import Incident
 from tests.test_jev_safety import active
 

@@ -2,18 +2,18 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from src.decision.jev.models import (
+from src.domain.config.models import ResolvedConfig
+from src.domain.config.resolution import ConfigResolver
+from src.domain.decisions.models import (
     AgentType,
     Category,
     DecisionContext,
     DecisionValidationError,
     RequestedMode,
 )
-from src.decision.jev.models import (
+from src.domain.decisions.models import (
     DecisionReasonCode as Reason,
 )
-from src.domain.config.models import ResolvedConfig
-from src.domain.config.resolution import ConfigResolver
 from src.domain.incidents.enums import IncidentStatus, Priority, Severity
 
 RISK_ORDER = tuple(Severity)

@@ -24,7 +24,7 @@ Drive 일부 구현현황은 Day 16 스냅샷입니다. 실제 기준 main에는
 
 | 위치 | 책임 |
 | --- | --- |
-| `backend/src/decision/jev/` | 불변 계약, 입력 검증, 안전 gate, 위험도, 정렬된 프로필, 순수 Engine |
+| `backend/src/domain/decisions/` | 불변 계약, 입력 검증, 안전 gate, 위험도, 정렬된 프로필, 순수 Engine |
 | `backend/src/application/decisions/` | Context/Config snapshot 전달, Shadow 실패 경계, 읽기 Query |
 | `backend/src/application/ports/decision_repository.py` | 조직별 append/history/by-job 계약 |
 | `backend/src/infrastructure/repositories/decision_repository.py` | Memory 테스트 어댑터와 PostgreSQL 감사 원본 |

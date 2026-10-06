@@ -1,7 +1,12 @@
 """원문을 복제하지 않고 등록된 증거 타입만 Decision 사실로 변환합니다."""
 from datetime import datetime
 
-from src.decision.jev.models import AgentType, Category, DecisionContext, RequestedMode
+from src.domain.decisions.models import (
+    AgentType,
+    Category,
+    DecisionContext,
+    RequestedMode,
+)
 from src.domain.incidents.enums import EvidenceStatus
 
 

@@ -1,12 +1,12 @@
 """같은 입력에서 같은 의미의 결과를 반환하는 순수 판단 엔진입니다."""
-from src.decision.jev.models import (
+from src.domain.decisions.models import (
     AgentType,
     DecisionReasonCode,
     DecisionResult,
     DecisionRoute,
 )
-from src.decision.jev.profiles import select_profile
-from src.decision.jev.rules import safety_and_risk, validate
+from src.domain.decisions.profiles import select_profile
+from src.domain.decisions.rules import safety_and_risk, validate
 from src.domain.incidents.enums import Priority, Severity
 
 

@@ -5,8 +5,8 @@ from unittest.mock import Mock
 import psycopg
 
 from src.application.decisions.shadow import ShadowDecisions
-from src.decision.jev.models import DecisionReasonCode
 from src.domain.config.models import ConfigVersion, RuntimeConfig
+from src.domain.decisions.models import DecisionReasonCode
 from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.models import Incident
 from src.domain.jobs.models import Job
