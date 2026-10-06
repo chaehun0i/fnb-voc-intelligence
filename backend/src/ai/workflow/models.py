@@ -7,6 +7,7 @@ from pydantic import Field, field_validator, model_validator
 
 from src.ai.execution.models import (
     ActionExecutionRecord,
+    HarnessDecision,
     VerificationCandidate,
     VerificationEvidence,
 )
@@ -46,6 +47,7 @@ class RuntimeEvent(SafeModel):
     control: Literal["RUNNING", "PAUSED", "STOPPED", "MANUAL_TAKEOVER"] | None = None
     actor_id: str | None = Field(default=None, max_length=128)
     reason: TerminationReason | None = None
+    decision: HarnessDecision | None = None
 
     @model_validator(mode="after")
     def integrity(self):

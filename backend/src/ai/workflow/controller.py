@@ -4,7 +4,7 @@ from datetime import timedelta
 from src.ai.execution.harness import harness_gate
 from src.ai.execution.models import HarnessIntent
 from src.ai.workflow.models import EvidenceGap, InvestigationResult, RuntimeEvent
-from src.ai.workflow.policy import evidence_digest
+from src.ai.workflow.policy import evidence_digest, validate_manifest
 from src.application.security.principal import AccessError, Principal
 
 
@@ -27,12 +27,48 @@ class InvestigationLoop:
         loop = run.state.loop.model_copy(update={"termination": reason})
         uow.agent_runs.save(run.model_copy(update={"state": run.state.model_copy(update={"loop": loop})}))
 
+    def authorize(self, operation=None):
+        from uuid import uuid4
+
+        from src.ai.execution.policy import validate_approval
+        from src.application.security.authorization import require
+        with self.persistence.transaction(self.tenant_id) as uow:
+            run = uow.agent_runs.lock(self.run_id)
+            if run is None:
+                raise AccessError()
+            validate_manifest(run)
+            incident, version = uow.incidents.get(run.incident_id), uow.configs.current()
+            if incident is None or version is None:
+                raise AccessError()
+            principal = Principal(run.requested_by or "", run.tenant_id,
+                frozenset(run.delegated_roles), frozenset(run.delegated_store_scope))
+            require(principal, "operate", incident.store)
+            control = control_state(uow.agent_runs.events(self.run_id))
+            if control != "RUNNING":
+                raise ControlInterrupted(control)
+            if operation is None:
+                return
+            approved = False
+            if operation == "INTERNAL_EXECUTION" and run.state.approval:
+                approval = uow.approvals.get(run.state.approval.approval_id)
+                if approval is not None:
+                    validate_approval(uow, approval, self.clock(), decided=True)
+                    approved = approval.status == "APPROVED"
+            decision = harness_gate(HarnessIntent(agent_run_id=self.run_id, operation=operation),
+                run=run, incident=incident, principal=principal, config=version.config, now=self.clock(),
+                control=control, approval_valid=approved)
+            uow.agent_runs.append_event(self.run_id, RuntimeEvent(event_id=str(uuid4()),
+                kind="HARNESS", decision=decision, created_at=self.clock()))
+        if not decision.allowed:
+            raise ControlInterrupted("BUDGET_EXHAUSTED" if decision.reason == "BUDGET_EXHAUSTED" else "POLICY_DENIED")
+
     def execute(self, pack, branch_id, action):
         while True:
             with self.persistence.transaction(self.tenant_id) as uow:
                 run = uow.agent_runs.lock(self.run_id)
                 if run is None or pack not in run.state.contexts:
                     raise AccessError()
+                validate_manifest(run)
                 events = uow.agent_runs.events(self.run_id)
                 control = control_state(events)
                 if control != "RUNNING":

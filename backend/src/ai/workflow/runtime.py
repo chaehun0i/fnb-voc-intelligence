@@ -25,7 +25,7 @@ from src.ai.workflow.agents import (
     isolated_branch,
     normalize_evidence,
 )
-from src.ai.workflow.controller import InvestigationLoop
+from src.ai.workflow.controller import ControlInterrupted, InvestigationLoop
 from src.ai.workflow.graph import history_graph, invoke_or_resume
 from src.ai.workflow.models import (
     AgentContextPack,
@@ -46,6 +46,7 @@ from src.ai.workflow.policy import (
     run_manifest,
     select_agents,
     server_risk,
+    validate_manifest,
 )
 from src.application.approvals.service import ApprovalService
 from src.application.incidents.service import IncidentNotFound, IncidentService
@@ -464,6 +465,13 @@ class HistoryProcessor:
     def __call__(self, job):
         with execution_lease(self.dsn, job, self.lease_seconds) as check:
             run, resolved, decision = HistoryWorkflows(self.persistence, self.clock, self.source).prepare(job)
+            validate_manifest(run)
+            if run.state.loop:
+                try:
+                    InvestigationLoop(self.persistence, run.agent_run_id, job.tenant_id,
+                        self.source, self.clock).authorize()
+                except ControlInterrupted:
+                    return run
             if run.status == WorkflowStatus.COMPLETED:
                 return run
             if run.status == WorkflowStatus.WAITING_APPROVAL and job.job_type != RESUME_JOB:
@@ -670,7 +678,16 @@ class HistoryProcessor:
                             vc = VerificationCommands(self.persistence, run.agent_run_id, job.tenant_id, self.clock)
                             stages.update(internal_execution=vc.execute, begin_verification=vc.begin_verification,
                                 verification=vc.evaluate, apply_verification=vc.apply)
-                    graph = history_graph(saver, investigate, persist, observe=observe, **stages)
+                    def guard(name, state):
+                        if run.state.loop:
+                            operation = {"rca_investigation": "RCA_DRAFT", "capa_proposal": "CAPA_DRAFT",
+                                "apply_capa": "CAPA_APPLY", "request_approval": "APPROVAL_REQUEST",
+                                "approval_result": "APPROVAL_RESULT", "internal_execution": "INTERNAL_EXECUTION",
+                                "begin_verification": "VERIFICATION", "verification": "VERIFICATION",
+                                "apply_verification": "VERIFICATION"}.get(name)
+                            InvestigationLoop(self.persistence, run.agent_run_id, job.tenant_id,
+                                self.source, self.clock).authorize(operation)
+                    graph = history_graph(saver, investigate, persist, observe=observe, guard=guard, **stages)
                     result = invoke_or_resume(graph, run.state,
                         approval_id=job.payload_ref if job.job_type == RESUME_JOB else None,
                         parallelism=resolved.effective.parallelism)
@@ -681,6 +698,11 @@ class HistoryProcessor:
                         return uow.agent_runs.save(current.model_copy(update={"state": result,
                             "status": WorkflowStatus.WAITING_APPROVAL, "completed_at": None}))
                     return uow.agent_runs.save(finish_run(current, result, self.clock()))
+            except ControlInterrupted as error:
+                with self.persistence.transaction(job.tenant_id) as uow:
+                    current = uow.agent_runs.lock(run.agent_run_id)
+                    loop = current.state.loop.model_copy(update={"termination": error.reason})
+                    return uow.agent_runs.save(current.model_copy(update={"state": current.state.model_copy(update={"loop": loop})}))
             except Exception as error:
                 logger.error("History 조사 실패 code=WORKFLOW_FAILED job_id=%s", job.job_id)
                 with self.persistence.transaction(job.tenant_id) as uow:

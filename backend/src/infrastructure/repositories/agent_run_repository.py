@@ -211,6 +211,8 @@ def validate_event(event, run):
         raise AccessError()
     if event.result is not None:
         validate_branch(event.result, run)
+    if event.decision is not None and event.decision.agent_run_id != run.agent_run_id:
+        raise AccessError()
 
 
 def validate_step(step, run):

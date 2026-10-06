@@ -158,3 +158,12 @@ def test_operation_budget_and_uncertain_claim_are_fail_closed():
         InvestigationLoop(p, run.agent_run_id, "t", source, lambda: now).execute(pack,
             str(uuid5(NAMESPACE_URL, run.agent_run_id+":"+pack.agent_type)), action)
     assert len(calls) == 1
+
+
+def test_manifest_compatibility_rejects_changed_bundle():
+    from src.ai.workflow.policy import validate_manifest
+    _, _, run, _ = loop_setup()
+    validate_manifest(run)
+    manifest = run.manifest.model_copy(update={"source_digest": "0"*64})
+    with pytest.raises(ValueError, match="MANIFEST_INCOMPATIBLE"):
+        validate_manifest(run.model_copy(update={"manifest": manifest}))
