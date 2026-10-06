@@ -79,17 +79,17 @@ class InvestigationLoop:
                 if len(attempts) != len(completed):
                     # Claim without result: the operation might have happened. Never guess/replay it.
                     raise ControlInterrupted("INCOMPLETE")
-                if previous and (not previous.retryable or not previous.evidence_gaps):
+                if previous and (previous.status == "SUCCESS" or not previous.retryable or not previous.evidence_gaps):
                     return previous
                 if run.state.loop.termination is not None:
                     return previous or self._gap(pack, branch_id)
                 attempt = len(attempts)+1
-                if attempt > run.state.loop.policy.max_iterations:
-                    self._terminate(uow, run, "ITERATION_LIMIT")
-                    return previous or self._gap(pack, branch_id)
                 incident, version = uow.incidents.get(run.incident_id), uow.configs.current()
                 if incident is None or version is None:
                     raise AccessError()
+                if attempt > min(run.state.loop.policy.max_iterations, version.config.max_agent_iterations):
+                    self._terminate(uow, run, "ITERATION_LIMIT")
+                    return previous or self._gap(pack, branch_id)
                 principal = Principal(run.requested_by or "", run.tenant_id,
                     frozenset(run.delegated_roles), frozenset(run.delegated_store_scope))
                 intent = HarnessIntent(agent_run_id=self.run_id, operation=pack.agent_type+"_LOOKUP",
@@ -97,6 +97,9 @@ class InvestigationLoop:
                 decision = harness_gate(intent, run=run, incident=incident, principal=principal,
                     config=version.config, now=self.clock(), control=control,
                     capabilities=self.source.capabilities(run.tenant_id, pack.store, self.clock()))
+                from uuid import uuid4
+                uow.agent_runs.append_event(self.run_id, RuntimeEvent(event_id=str(uuid4()), kind="HARNESS",
+                    decision=decision, created_at=self.clock()))
                 if not version.config.loop_enabled:
                     raise ControlInterrupted("POLICY_DENIED")
                 if not decision.allowed:

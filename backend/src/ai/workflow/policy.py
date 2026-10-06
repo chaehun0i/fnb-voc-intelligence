@@ -111,7 +111,7 @@ def run_manifest(run):
     # An actual source bundle checksum, not an invented Git/AI Release version.
     sources = tuple(directory / name for name in ("models.py", "agents.py", "graph.py", "policy.py", "runtime.py", "controller.py"))
     sources += tuple(directory.parent / "execution" / name for name in ("models.py", "policy.py", "service.py", "harness.py"))
-    digest = hashlib.sha256(b"".join(p.read_bytes() for p in sources)).hexdigest()
+    digest = hashlib.sha256(b"".join(p.read_bytes().replace(b"\r\n", b"\n") for p in sources)).hexdigest()
     return AgentRunManifest(workflow_id=run.workflow_id, workflow_version=run.workflow_version,
         config_version=run.config_version, source_digest=digest,
         agent_versions=tuple((a.agent_type, a.agent_version)

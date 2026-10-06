@@ -27,6 +27,8 @@ def validate(run, previous, tenant):
             raise ValueError("INVESTIGATION_SNAPSHOT_IMMUTABLE")
         if run.manifest != previous.manifest:
             raise ValueError("MANIFEST_IMMUTABLE")
+        if previous.state.loop is not None and (run.state.loop is None or run.state.loop.policy != previous.state.loop.policy):
+            raise ValueError("LOOP_POLICY_IMMUTABLE")
     if run.state.config_version != run.config_version or run.state.tenant_id != tenant:
         raise ValueError("실행 상태의 조직과 설정 버전을 확인해 주세요.")
 
@@ -224,6 +226,9 @@ def validate_event(event, run):
     if event.result is not None:
         validate_branch(event.result, run)
     if event.decision is not None and event.decision.agent_run_id != run.agent_run_id:
+        raise AccessError()
+    if event.kind in {"CLAIM", "RESULT"} and (event.agent_type not in {c.agent_type for c in run.state.contexts}
+            or run.state.loop is None or event.attempt > run.state.loop.policy.max_iterations):
         raise AccessError()
 
 

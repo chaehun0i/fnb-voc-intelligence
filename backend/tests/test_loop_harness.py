@@ -128,7 +128,7 @@ def test_bounded_retry_and_no_new_evidence_preserves_append_only_results():
         saved = uow.agent_runs.get(run.agent_run_id)
         assert saved.state.loop.termination == "NO_NEW_EVIDENCE"
         assert saved.state.iteration == 2 and saved.state.tool_call_count == 2
-        assert len(uow.agent_runs.events(run.agent_run_id)) == 4
+        assert len([e for e in uow.agent_runs.events(run.agent_run_id) if e.kind in {"CLAIM", "RESULT"}]) == 4
 
 
 def test_operation_budget_and_uncertain_claim_are_fail_closed():
