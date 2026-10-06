@@ -16,9 +16,9 @@ Drive 일부 구현현황은 Day 16 스냅샷입니다. 실제 main의 Day 17~22
 
 | 위치 | 역할 |
 | --- | --- |
-| `backend/src/domain/workflows/` | SDK 독립 AgentRun·WorkflowState·Finding·EvidenceCandidate·EvidenceGap·Step 계약 |
-| `backend/src/application/workflows/` | 실행 허용 정책·Jev/Config 원본 고정·Tenant/store 읽기 Query |
-| `backend/src/runtime/workflows/` | 단일 Graph·JSON Checkpoint·History Node·Worker 실행 복구 |
+| `backend/src/agents/models.py`, `policy.py` | SDK 독립 AgentRun·WorkflowState·Finding·EvidenceCandidate·EvidenceGap·Step 계약과 실행 허용 정책 |
+| `backend/src/agents/history.py`, `queries.py`, `*_node.py`, `*_commands.py` | Jev/Config 원본 고정·Tenant/store Query·조사 Node·승인/검증 Application 경계 |
+| `backend/src/agents/graph.py`, `checkpoint.py`, `processor.py` | 단일 Graph·JSON Checkpoint·Worker 실행 복구 (순수 계약과 import 경계 분리) |
 | `backend/src/infrastructure/history_search.py` | 기존 SearchService와 조직/매장 출처 연결 |
 | `backend/src/infrastructure/repositories/agent_run_repository.py` | 운영 실행 원본과 단계 이력 저장 |
 | `backend/src/api/routes/agent_runs.py` | 인증된 조회 전용 API |
@@ -91,7 +91,7 @@ Node.js 24 LTS `24.15.0` 이상을 사용합니다. 이번 최종 검증은 Node
 
 ```bash
 uv run --env-file .env python -m src.infrastructure.migrations
-uv run --env-file .env python -m src.infrastructure.queue.runtime --poll-seconds 2
+uv run --env-file .env python -m src.infrastructure.jobs.runtime --poll-seconds 2
 docker compose --profile serviq up --build -d api frontend worker
 ```
 

@@ -1,9 +1,9 @@
 """실행 시작 API 없이 명시적 Job 실행 결과만 조회합니다."""
 from fastapi import APIRouter, Query, Request
 
+from src.agents.queries import AgentRunQueries
 from src.api.dependencies.auth import request_context
 from src.api.schemas.agent_runs import AgentRunDetailResponse, AgentRunHistoryResponse
-from src.application.workflows.queries import AgentRunQueries
 
 router = APIRouter(prefix="/api/v1/incidents", tags=["history-agent-runs"])
 

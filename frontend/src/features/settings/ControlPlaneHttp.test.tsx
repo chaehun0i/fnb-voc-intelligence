@@ -5,7 +5,10 @@ import { mockApi, resetMockState } from "../../api/mockApi";
 import type { RuntimeHistory, RuntimeWorkspace } from "../../api/settings/types";
 import { ControlPlaneSettings } from "./ControlPlaneSettings";
 
-vi.mock("../../api/incidents", () => ({ apiMode: "http", apiBaseUrl: "http://test/api/v1" }));
+vi.mock("../../api/client", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../api/client")>(),
+  apiMode: "http", apiBaseUrl: "http://test/api/v1",
+}));
 let workspace: RuntimeWorkspace;
 let history: RuntimeHistory;
 beforeEach(async () => {

@@ -1,6 +1,6 @@
 import { ArrowUpRight, RefreshCw } from "lucide-react";
 import { dashboardApi } from "../../api/dashboard";
-import { apiMode } from "../../api/incidents";
+import { apiMode } from "../../api/client";
 import { Button, PageHeading, PreviewNotice, StateMessage, StatCard } from "../../components/ui";
 import { dateTime } from "../../lib/display";
 import { useQuery } from "../../lib/useQuery";

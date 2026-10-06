@@ -1,6 +1,6 @@
-from src.decision.jev.models import AgentType, Category, DecisionRoute
-from src.decision.jev.profiles import select_profile
-from src.decision.jev.rules import safety_and_risk
+from src.routing.models import AgentType, Category, DecisionRoute
+from src.routing.profiles import select_profile
+from src.routing.rules import safety_and_risk
 from tests.test_jev_safety import active
 
 

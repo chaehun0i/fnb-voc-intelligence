@@ -1,6 +1,6 @@
 """프론트엔드와 의미를 맞춘 독립적인 HTTP 계약입니다."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import (
     AwareDatetime,
@@ -126,6 +126,10 @@ class VerificationResponse(BaseModel):
     result: VerificationResult
     summary: str
     verified_at: str | None = None
+    execution_id: str | None = None
+    evidence_refs: list[str] = []
+    criteria: str | None = None
+    observation_mode: Literal["SIMULATED"] | None = None
 
 
 class TimelineResponse(BaseModel):

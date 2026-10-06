@@ -6,6 +6,20 @@ import { resetMockState } from "../../api/mockApi";
 
 beforeEach(() => { vi.restoreAllMocks(); resetMockState(); });
 describe("인시던트 상세 회귀", () => {
+  it("서버의 내부 검증 범위를 표시하고 외부 실행 완료로 과장하지 않는다", async () => {
+    const item = await incidentApi.getIncident("inc-1");
+    vi.spyOn(incidentApi, "getIncident").mockResolvedValue({ ...item!,
+      corrective_actions: item!.corrective_actions.map((action) => ({ ...action, status: "EXECUTED" })),
+      verification: { ...item!.verification!, observation_mode: "SIMULATED", criteria: "내부 검토 기준", evidence_refs: ["post-action-evidence"] } });
+    render(<IncidentDetail id="inc-1" onBack={() => {}} />);
+    await screen.findByRole("heading", { name: "강남점 냉장 보관 온도 이탈" });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "시정·예방 조치" }), { button: 0 });
+    expect(await screen.findByText(/실행 기록은 외부 시스템 변경 성공을 의미하지 않습니다/)).toBeInTheDocument();
+    expect(screen.queryByText("실행 완료")).not.toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "검증" }), { button: 0 });
+    expect(await screen.findByText(/SIMULATED · 내부 실행 기록의 검증/)).toBeInTheDocument();
+    expect(screen.getByText("검증 근거: post-action-evidence")).toBeInTheDocument();
+  });
   it("검증 시각 없는 fixture도 팝업과 7개 탭을 정상 표시한다", async () => {
     render(<IncidentDetail id="inc-1" onBack={() => {}} />);
     expect(screen.getByText("인시던트 상세 정보를 불러오는 중입니다")).toBeInTheDocument();

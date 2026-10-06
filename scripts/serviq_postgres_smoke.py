@@ -14,8 +14,8 @@ from src.application.ports.incident_repository import IncidentConflict
 from src.domain.incidents.enums import IncidentStatus, Priority, Severity
 from src.domain.incidents.models import Evidence, Incident, StateTransition
 from src.domain.incidents.transitions import transition
+from src.infrastructure.jobs.outbox_worker import OutboxWorker, RetryableProcessingError
 from src.infrastructure.migrations import migrate
-from src.infrastructure.outbox.worker import OutboxWorker, RetryableProcessingError
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )

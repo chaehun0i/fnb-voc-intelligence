@@ -24,11 +24,11 @@ Drive 일부 구현현황은 Day 16 스냅샷입니다. 실제 기준 main에는
 
 | 위치 | 책임 |
 | --- | --- |
-| `backend/src/decision/jev/` | 불변 계약, 입력 검증, 안전 gate, 위험도, 정렬된 프로필, 순수 Engine |
-| `backend/src/application/decisions/` | Context/Config snapshot 전달, Shadow 실패 경계, 읽기 Query |
+| `backend/src/routing/models.py`, `rules.py`, `profiles.py`, `engine.py` | 불변 계약, 입력 검증, 안전 gate, 위험도, 정렬된 프로필, I/O 없는 순수 Engine |
+| `backend/src/routing/context.py`, `shadow.py`, `queries.py` | Context/Config snapshot 전달, Shadow 실패 경계, 읽기 Query (순수 판단이 import하지 않음) |
 | `backend/src/application/ports/decision_repository.py` | 조직별 append/history/by-job 계약 |
 | `backend/src/infrastructure/repositories/decision_repository.py` | Memory 테스트 어댑터와 PostgreSQL 감사 원본 |
-| `backend/src/infrastructure/queue/runtime.py` | 기존 snapshot processor에 Shadow만 추가 |
+| `backend/src/infrastructure/jobs/runtime.py` | 기존 snapshot processor에 Shadow만 추가 |
 | `backend/src/api/routes/decisions.py`, `schemas/decisions.py` | Principal/Tenant/store HTTP 조회 DTO |
 | `frontend/src/api/decisions/`, `features/incidents/ShadowDecisionPanel.tsx` | 명시적 Mock/HTTP와 실제 판단 이력 |
 

@@ -1,8 +1,8 @@
 """실행 식별자는 재사용하고 단계 이력은 추가 전용으로 보존합니다."""
 from psycopg.types.json import Jsonb
 
+from src.agents.models import AgentRun, AgentStep, WorkflowStatus
 from src.application.security.principal import AccessError
-from src.domain.workflows.models import AgentRun, AgentStep, WorkflowStatus
 
 
 def validate(run, previous, tenant):

@@ -1,7 +1,7 @@
 """조회는 조직 범위, 생성은 Job 경계에 한정된 판단 감사 계약입니다."""
 from typing import Protocol
 
-from src.decision.jev.models import DecisionRecord
+from src.routing.models import DecisionRecord
 
 
 class DecisionRepository(Protocol):

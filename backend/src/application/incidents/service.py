@@ -281,6 +281,23 @@ class IncidentService:
             )
         )
 
+    def start_internal_execution(self, incident_id: str, expected_version: int) -> Incident:
+        """원자적 내부 기록 Command 전용: 외부 작업을 수행하지 않습니다."""
+        item = self._load(incident_id, expected_version)
+        return self.repo.save(transition(item, IncidentStatus.EXECUTING, self._now()))
+
+    def start_internal_verification(self, incident_id: str, expected_version: int) -> Incident:
+        """내부 기록 Command가 execution reference를 검증한 뒤에만 호출합니다."""
+        item = self._load(incident_id, expected_version)
+        require_status(item, IncidentStatus.EXECUTING)
+        if not item.approved or not item.corrective_actions or any(
+                a.status != ActionStatus.APPROVED or not a.verification_criteria.strip()
+                for a in item.corrective_actions):
+            raise DomainRuleViolation("승인된 조치와 검증 기준이 필요합니다.")
+        recorded = replace(item, corrective_actions=[replace(a, status=ActionStatus.EXECUTED)
+            for a in item.corrective_actions])
+        return self.repo.save(transition(recorded, IncidentStatus.VERIFYING, self._now()))
+
     def execute(
         self,
         incident_id: str,
@@ -305,6 +322,9 @@ class IncidentService:
         result: VerificationResult,
         summary: str,
         expected_version: int | None = None,
+        *, verification_id: str | None = None, execution_id: str | None = None,
+        evidence_refs: tuple[str, ...] = (), criteria: str | None = None,
+        observation_mode: str | None = None,
     ) -> Incident:
         item = self._load(incident_id, expected_version)
         require_status(item, IncidentStatus.VERIFYING)
@@ -314,8 +334,10 @@ class IncidentService:
             verification=Verification(
                 result=result,
                 summary=summary,
-                id=self.id_generator(),
+                id=verification_id or self.id_generator(),
                 verified_at=now,
+                execution_id=execution_id, evidence_refs=evidence_refs, criteria=criteria,
+                observation_mode=observation_mode,
             ),
         )
         if result == VerificationResult.PASS:

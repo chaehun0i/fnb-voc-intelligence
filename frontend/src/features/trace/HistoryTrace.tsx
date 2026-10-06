@@ -1,16 +1,18 @@
 import { useMemo, useState } from "react";
 import { agentRunApi, type AgentRunApi } from "../../api/agentRuns";
-import { apiMode, incidentApi } from "../../api/incidents";
+import { incidentApi } from "../../api/incidents";
+import { apiMode } from "../../api/client";
 import { SelectField } from "../../components/SelectField";
 import { Button, PageHeading, StateMessage, StatCard } from "../../components/ui";
 import { dateTime } from "../../lib/display";
 import { useQuery } from "../../lib/useQuery";
 import { EvidenceTrace } from "./EvidenceTrace";
 import { CAPATrace } from "./CAPATrace";
+import { VerificationTrace } from "./VerificationTrace";
 
 const statusLabels = { RUNNING: "조사 중", WAITING_APPROVAL: "사람의 승인 대기", COMPLETED: "Workflow 완료", FAILED: "조사 실패" };
 const gapLabels = { NO_AUTHORIZED_HISTORY: "관련 이력이 부족해 추가 근거가 필요합니다.", LLM_POLICY_DENIED: "데이터 정책에 따라 LLM 요청을 차단했습니다. 검색 근거만 확인해 주세요.", LLM_UNAVAILABLE: "LLM 보조 판단을 완료하지 못했습니다. 검색 근거는 유지했습니다.", INSUFFICIENT_SOURCE_COVERAGE: "RCA를 지지할 독립 근거가 부족합니다.", CONFLICTING_EVIDENCE: "상충하는 근거가 있어 추가 검토가 필요합니다.", RCA_DISABLED: "현재 실행의 설정에서는 RCA 자동 초안을 허용하지 않습니다.", RCA_BUDGET_EXHAUSTED: "남은 예산이 부족해 RCA 요청을 시작하지 않았습니다." };
-const nodeLabels = { validate_context: "실행 조건 확인", history_investigation: "과거 VOC와 유사 사례 조사", normalize_evidence: "원본 근거 정규화", evaluate_sufficiency: "근거 충분성 판정", rca_investigation: "근거 기반 원인 후보", persist_result: "조사 결과 기록", capa_proposal: "근거 기반 조치 제안", apply_capa: "Incident Command에 조치 반영", request_approval: "실제 승인 요청", approval_interrupt: "사람의 검토에서 Workflow 중단", approval_result: "승인 검증 후 Workflow 재개" };
+const nodeLabels = { validate_context: "실행 조건 확인", history_investigation: "과거 VOC와 유사 사례 조사", normalize_evidence: "원본 근거 정규화", evaluate_sufficiency: "근거 충분성 판정", rca_investigation: "근거 기반 원인 후보", persist_result: "조사 결과 기록", capa_proposal: "근거 기반 조치 제안", apply_capa: "Incident Command에 조치 반영", request_approval: "실제 승인 요청", approval_interrupt: "사람의 검토에서 Workflow 중단", approval_result: "승인 검증 후 Workflow 재개", internal_execution: "안전한 내부 실행 기록", begin_verification: "검증 상태 진입", verification: "조치 후 근거 기반 검증", apply_verification: "검증 결과를 Incident에 반영" };
 
 function RunDetail({ incidentId, runId, api }: { incidentId: string; runId: string; api: AgentRunApi }) {
   const loader = useMemo(() => () => api.detail(incidentId, runId), [api, incidentId, runId]);
@@ -28,6 +30,7 @@ function RunDetail({ incidentId, runId, api }: { incidentId: string; runId: stri
     </article>
     <EvidenceTrace run={run} />
     <CAPATrace run={run} />
+    <VerificationTrace run={run} />
     <article className="panel !min-h-0"><h3>실행 단계</h3><ol className="timeline">{run.steps.map((s) => <li key={`${s.sequence}-${s.attempt}`}><strong>{nodeLabels[s.node_name]} · {statusLabels[s.status]}</strong><small>시도 {s.attempt} · {s.latency_ms.toFixed(0)}ms · 토큰 {s.token_spent}</small></li>)}</ol>{!run.steps.length && <p>아직 완료된 단계 기록이 없습니다.</p>}</article>
   </div>;
 }

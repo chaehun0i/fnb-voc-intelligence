@@ -3,7 +3,7 @@ from fastapi import APIRouter, Query, Request
 
 from src.api.dependencies.auth import request_context
 from src.api.schemas.decisions import DecisionHistoryResponse, DecisionResponse
-from src.application.decisions.queries import DecisionQueries
+from src.routing.queries import DecisionQueries
 
 router = APIRouter(prefix="/api/v1/incidents", tags=["shadow-decisions"])
 

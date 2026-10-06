@@ -3,7 +3,7 @@ from datetime import timedelta
 import pytest
 
 from src.domain.jobs.models import JobRuleViolation, JobStatus, claim, finish
-from src.infrastructure.queue.worker import JobWorker
+from src.infrastructure.jobs.job_worker import JobWorker
 from tests.test_job_domain import NOW, pending
 
 

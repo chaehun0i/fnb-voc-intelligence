@@ -12,11 +12,11 @@ from src.api.app import create_app
 from src.application.security.principal import Principal, Role
 from src.domain.jobs.models import Job, JobPriority, JobStatus
 from src.infrastructure.auth.local_identity_provider import LocalIdentityProvider
+from src.infrastructure.jobs.job_dispatch import PostgresJobDispatcher
+from src.infrastructure.jobs.job_worker import JobWorker
+from src.infrastructure.jobs.outbox_worker import OutboxEvent, OutboxWorker
+from src.infrastructure.jobs.runtime import snapshot_processor
 from src.infrastructure.migrations import migrate
-from src.infrastructure.outbox.job_dispatch import PostgresJobDispatcher
-from src.infrastructure.outbox.worker import OutboxEvent, OutboxWorker
-from src.infrastructure.queue.runtime import snapshot_processor
-from src.infrastructure.queue.worker import JobWorker
 from src.infrastructure.repositories.audit_repository import PostgresAuditRepository
 from src.infrastructure.repositories.job_repository import PostgresJobRepository
 from src.infrastructure.repositories.postgres_incident_repository import (

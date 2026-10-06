@@ -6,8 +6,8 @@ import { CreateIncident } from "./CreateIncident";
 import { IncidentCommandPanel } from "./IncidentCommandPanel";
 
 const mode = vi.hoisted(() => ({ value: "http" }));
-vi.mock("../../api/incidents", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../api/incidents")>();
+vi.mock("../../api/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../api/client")>();
   return { ...actual, get apiMode() { return mode.value; } };
 });
 

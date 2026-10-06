@@ -1,8 +1,8 @@
 from contextlib import contextmanager
 from unittest.mock import Mock
 
-from src.runtime.workflows.checkpoint import memory_checkpoint
-from src.runtime.workflows.processor import HistoryProcessor
+from src.agents.checkpoint import memory_checkpoint
+from src.agents.processor import HistoryProcessor
 from tests.test_capa_application import prepared
 
 

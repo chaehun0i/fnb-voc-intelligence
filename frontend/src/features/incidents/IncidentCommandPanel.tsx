@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Incident, IncidentWorkspace, Severity } from "../../contracts/types";
-import { apiMode, IncidentApiError, incidentCommand } from "../../api/incidents";
+import { IncidentApiError, incidentCommand } from "../../api/incidents";
+import { apiMode } from "../../api/client";
 import { SelectField } from "../../components/SelectField";
 import { Button } from "../../components/ui";
 import { severityLabels } from "../../lib/display";

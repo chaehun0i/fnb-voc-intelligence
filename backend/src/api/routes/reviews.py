@@ -13,7 +13,7 @@ from src.api.schemas.reviews import (
     ReviewResponse,
 )
 from src.application.approvals.queries import ReviewQueries
-from src.application.commands.incidents import IncidentCommands
+from src.application.incidents.commands import IncidentCommands
 
 router = APIRouter(prefix="/api/v1/reviews", tags=["reviews"])
 

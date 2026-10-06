@@ -11,7 +11,6 @@ import psycopg
 from fastapi.testclient import TestClient
 
 from src.api.app import create_app
-from src.application.llm.service import LLMApplication
 from src.application.security.principal import Principal, Role
 from src.domain.config.models import ConfigVersion, LLMModelBinding, RuntimeConfig
 from src.domain.incidents.enums import IncidentStatus, Severity
@@ -28,6 +27,7 @@ from src.llm.gateway import LLMGateway
 from src.llm.providers.fake import FakeProvider
 from src.llm.providers.gemini import GeminiProvider
 from src.llm.router import ProviderRouter
+from src.llm.service import LLMApplication
 
 
 def verify(dsn):

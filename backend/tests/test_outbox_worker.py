@@ -9,8 +9,8 @@ from uuid import UUID
 
 import pytest
 
-from src.infrastructure.outbox import worker as worker_module
-from src.infrastructure.outbox.worker import (
+from src.infrastructure.jobs import outbox_worker as worker_module
+from src.infrastructure.jobs.outbox_worker import (
     CLAIM_SQL,
     COMPLETE_SQL,
     EXHAUSTED_LEASE_SQL,

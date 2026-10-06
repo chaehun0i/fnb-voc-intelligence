@@ -5,6 +5,7 @@ export type RuntimeConfig = Omit<ControlPlaneConfig, "version" | "default_llm_pr
   default_llm_provider: "gemini" | "ollama";
   fallback_llm_provider: "gemini" | "ollama";
   structured_output_retry: number;
+  internal_execution_enabled?: boolean;
   critical_manual_only: boolean;
   hosted_ai_allowed: boolean;
   llm_enabled_providers?: Array<"gemini" | "ollama">;

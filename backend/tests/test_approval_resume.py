@@ -4,7 +4,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.application.commands.incidents import IncidentCommands
+from src.agents.checkpoint import memory_checkpoint
+from src.agents.processor import HistoryProcessor
+from src.agents.resume import RESUME_JOB
+from src.application.incidents.commands import IncidentCommands
 from src.application.incidents.service import IncidentService
 from src.application.ports.incident_repository import IncidentConflict
 from src.application.security.principal import (
@@ -13,9 +16,6 @@ from src.application.security.principal import (
     RequestContext,
     Role,
 )
-from src.application.workflows.resume import RESUME_JOB
-from src.runtime.workflows.checkpoint import memory_checkpoint
-from src.runtime.workflows.processor import HistoryProcessor
 from tests.test_capa_application import prepared
 
 

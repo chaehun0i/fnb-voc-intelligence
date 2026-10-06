@@ -10,7 +10,7 @@
 
 - `backend/src/infrastructure/migrations.py`: `serviq_incidents`와 `serviq_outbox`를 초기화합니다. 기존 Product/Review 테이블과 별도로 관리합니다.
 - `PostgresIncidentRepository`: 인시던트 생성 또는 상태 변경과 Outbox 기록을 함께 커밋합니다.
-- `backend/src/infrastructure/outbox/worker.py`: 이벤트 인수, 잠금 만료 복구, 재시도, 실패 보관과 종료 신호를 처리합니다.
+- `backend/src/infrastructure/jobs/outbox_worker.py`: 이벤트 인수, 잠금 만료 복구, 재시도, 실패 보관과 종료 신호를 처리합니다.
 - `backend/tests/test_outbox_worker.py`: 외부 서비스 없이 계약 검증과 처리 흐름을 검증합니다.
 
 작업 상태는 `PENDING → RUNNING → COMPLETED`입니다. 일시적 오류는 `PENDING`으로 돌아가고, 계약 오류·예상하지 못한 오류·최대 시도 횟수 도달은 `DLQ`로 이동합니다.
@@ -35,19 +35,19 @@ uv run python -m src.infrastructure.migrations
 최대 한 건을 처리하는 실행 방법입니다. 처리할 이벤트가 없으면 즉시 종료합니다.
 
 ```powershell
-uv run python -m src.infrastructure.outbox.worker --once
+uv run python -m src.infrastructure.jobs.outbox_worker --once
 ```
 
 지속 실행에서는 빈 대기열을 1초 간격으로 확인합니다. 기본 실행 잠금은 60초이며 인수 후 처리기가 이 시간 안에 완료해야 합니다.
 
 ```powershell
-uv run python -m src.infrastructure.outbox.worker --poll-seconds 1 --lease-seconds 60
+uv run python -m src.infrastructure.jobs.outbox_worker --poll-seconds 1 --lease-seconds 60
 ```
 
 `Ctrl+C` 또는 `SIGTERM`을 받으면 새 작업 인수를 중단합니다. 현재 처리 중인 작업의 결과를 기록한 뒤 연결을 닫습니다. 프로세스가 강제로 종료되면 잠금 만료 이후 다른 실행에서 다시 인수할 수 있습니다.
 
 ```powershell
-uv run --extra dev ruff check backend/src/infrastructure/outbox backend/tests/test_outbox_worker.py
+uv run --extra dev ruff check backend/src/infrastructure/jobs backend/tests/test_outbox_worker.py
 uv run --extra dev pytest backend/tests/test_outbox_worker.py
 ```
 

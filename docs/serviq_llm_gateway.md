@@ -14,7 +14,7 @@ v0.5 일부 구현현황은 Day 16 스냅샷입니다. 실제 main의 Day 17~20 
 
 ### 공통 계약과 책임
 
-명시적 `LLMApplication` → Principal/Tenant/Config snapshot → Data Policy → Gateway/Router → Provider Protocol → Fake/Gemini/Ollama 순서입니다. `src.infrastructure.llm_runtime.configured_llm_application()`이 wiring을 제공하며 공개 prompt POST API는 없습니다.
+명시적 `LLMApplication` → Principal/Tenant/Config snapshot → Data Policy → Gateway/Router → Provider Protocol → Fake/Gemini/Ollama 순서입니다. `src.llm.runtime.configured_llm_application()`이 wiring을 제공하며 공개 prompt POST API는 없습니다.
 
 | 위치 | 역할 |
 | --- | --- |
@@ -22,7 +22,7 @@ v0.5 일부 구현현황은 Day 16 스냅샷입니다. 실제 main의 Day 17~20 
 | `backend/src/llm/data_policy.py`, `structured.py` | PII 최소화·전송 정책·schema/업무 의미 검증 |
 | `backend/src/llm/router.py`, `execution.py`, `gateway.py` | Config 선택·공유 예산·deadline·제한 retry/repair/fallback |
 | `backend/src/llm/providers/` | Fake, 공식 Gemini SDK, Ollama HTTP 어댑터 |
-| `backend/src/application/llm/` | 명시적 HQ_ADMIN 실행과 Tenant/store 읽기 Query |
+| `backend/src/llm/service.py`, `queries.py`, `runtime.py`, `config.py` | 명시적 HQ_ADMIN 실행·Tenant/store 조회·Gateway 조립·환경 설정 (공통 계약과 SDK 분리) |
 | `backend/src/infrastructure/repositories/llm_call_repository.py` | 메모리 검증용/실제 PostgreSQL 사용 기록 |
 | `db/migrations/010_llm_calls.sql` | 추가 테이블·FK·인덱스·append-only trigger |
 

@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.domain.workflows.models import NormalizedEvidence, SufficiencyPolicy
+from src.agents.models import NormalizedEvidence, SufficiencyPolicy
 
 
 def evidence(**changes):

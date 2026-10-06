@@ -19,8 +19,8 @@ Frontend-first → Contract-first → Vertical Slice 순서를 유지하며 Inci
 | `application/ports/job_repository.py` | 조직별 조회와 버전 보호 저장 계약 |
 | `application/jobs` | 조회 투영·서버 permission·권한 검사·Retry/Cancel 트랜잭션 |
 | `infrastructure/repositories/job_repository.py` | PostgreSQL 원본 및 테스트용 메모리 구현 |
-| `infrastructure/outbox/job_dispatch.py` | 대표 이벤트를 중복 없이 독립 Job으로 전달 |
-| `infrastructure/queue` | claim·lease·fencing·bounded retry·DLQ·실행 진입점 |
+| `infrastructure/jobs/job_dispatch.py` | 대표 이벤트를 중복 없이 독립 Job으로 전달 |
+| `infrastructure/jobs` | claim·lease·fencing·bounded retry·DLQ·실행 진입점 |
 | `api/routes/jobs.py`, `api/schemas/jobs.py` | HTTP DTO와 오류 변환; 업무 규칙은 Application/Domain에 위임 |
 | `frontend/src/api/jobs`, `features/operations/Queue.tsx` | Mock/HTTP 교체·상세 팝업·서버 권한 표시 |
 
@@ -59,7 +59,7 @@ ACK는 조직·버전·시도 횟수·유효 lease·소유자가 일치할 때�
 자동 backoff는 최대 300초로 제한하며 원본 예외 문자열은 저장하지 않습니다.
 
 취소는 PENDING에만 허용합니다. 실행 중 취소는 `CANCEL_NOT_SUPPORTED_WHILE_RUNNING`으로 거부해 실제 중단처럼 표시하지 않습니다.
-Compose worker는 `src.infrastructure.queue.runtime`으로 전달과 실행을 번갈아 수행합니다. 기존 Outbox 단독 Worker도 보존합니다.
+Compose worker는 `src.infrastructure.jobs.runtime`으로 전달과 실행을 번갈아 수행합니다. 기존 Outbox 단독 Worker도 보존합니다.
 종료 신호는 현재 처리를 마친 뒤 다음 인수를 중단합니다.
 
 ### PostgreSQL 원본
@@ -129,7 +129,7 @@ uv run fastapi run
 
 ```bash
 cd backend
-uv run python -m src.infrastructure.queue.runtime --poll-seconds 2
+uv run python -m src.infrastructure.jobs.runtime --poll-seconds 2
 ```
 
 Frontend .env.local을 설정하고 Vite를 재시작합니다. 개발 계정은 [Day 17 문서](serviq_access_review.md)를 따릅니다.

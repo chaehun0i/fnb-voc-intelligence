@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from src.agents.verification_contracts import VerificationCandidate
+
 
 class FindingResponse(BaseModel):
     code: Literal["RELATED_HISTORY_FOUND"]
@@ -91,6 +93,36 @@ class ApprovalTraceResponse(BaseModel):
     decision_reason_code: Literal["HUMAN_APPROVED", "HUMAN_REJECTED"] | None
 
 
+class ExecutionTraceResponse(BaseModel):
+    execution_id: str
+    incident_id: str
+    agent_run_id: str
+    action_id: str
+    approval_id: str
+    action_digest: str
+    execution_mode: Literal["INTERNAL_RECORD_ONLY"]
+    status: Literal["SUCCEEDED"]
+    started_at: datetime
+    completed_at: datetime
+    safe_result_summary: str
+    config_version: int
+    correlation_id: str
+    incident_version: int
+
+
+class PostActionEvidenceResponse(BaseModel):
+    evidence_id: str
+    agent_run_id: str
+    execution_id: str
+    action_id: str
+    source_ref: str
+    source_type: Literal["INTERNAL_REVIEW_RECORD"]
+    observation_mode: Literal["SIMULATED"]
+    observed_at: datetime
+    review_record_present: bool | None
+    additional_evidence_refs: list[str]
+
+
 class AgentRunResponse(BaseModel):
     agent_run_id: str
     incident_id: str
@@ -99,7 +131,7 @@ class AgentRunResponse(BaseModel):
     correlation_id: str
     config_version: int
     jev_decision_id: str
-    workflow_version: Literal["history-v1", "history-evidence-v2", "history-capa-v3"]
+    workflow_version: Literal["history-v1", "history-evidence-v2", "history-capa-v3", "history-verification-v4"]
     status: Literal["RUNNING", "WAITING_APPROVAL", "COMPLETED", "FAILED"]
     started_at: datetime
     completed_at: datetime | None
@@ -115,6 +147,10 @@ class AgentRunResponse(BaseModel):
     rca_candidates: list[RCAResponse] = []
     capa_proposals: list[CAPAResponse] = []
     approval: ApprovalTraceResponse | None = None
+    execution: ExecutionTraceResponse | None = None
+    verification: VerificationCandidate | None = None
+    verification_evidence: list[PostActionEvidenceResponse] = []
+    resulting_incident_status: Literal["EXECUTING", "VERIFYING", "RESOLVED", "REOPENED"] | None = None
     token_spent: int
     cost_spent: float
     iteration: int
@@ -126,7 +162,8 @@ class AgentStepResponse(BaseModel):
     sequence: int
     node_name: Literal["validate_context", "history_investigation", "normalize_evidence",
                        "evaluate_sufficiency", "rca_investigation", "persist_result", "capa_proposal",
-                       "apply_capa", "request_approval", "approval_interrupt", "approval_result"]
+                       "apply_capa", "request_approval", "approval_interrupt", "approval_result",
+                       "internal_execution", "begin_verification", "verification", "apply_verification"]
     attempt: int
     status: Literal["RUNNING", "WAITING_APPROVAL", "COMPLETED", "FAILED"]
     started_at: datetime

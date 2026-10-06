@@ -9,14 +9,20 @@ import psycopg
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 
-from src.application.decisions.shadow import ShadowDecisions
+from src.agents.checkpoint import (
+    SafeJsonSerializer,
+    memory_checkpoint,
+)
+from src.agents.models import EvidenceCandidate
+from src.agents.processor import (
+    HistoryProcessor,
+    UncertainHistoryCall,
+)
 from src.domain.jobs.models import Job
-from src.domain.workflows.models import EvidenceCandidate
-from src.infrastructure.queue.worker import RetryableJobError
+from src.infrastructure.jobs.job_worker import RetryableJobError
 from src.llm.contracts import LLMResult, LLMUsage
 from src.llm.errors import LLMError, LLMErrorCode
-from src.runtime.workflows.checkpoint import SafeJsonSerializer, memory_checkpoint
-from src.runtime.workflows.processor import HistoryProcessor, UncertainHistoryCall
+from src.routing.shadow import ShadowDecisions
 
 
 class ScopedSearch:

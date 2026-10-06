@@ -10,19 +10,22 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import ValidationError
 
+from src.agents.checkpoint import memory_checkpoint
+from src.agents.history import WorkflowNotAllowed, validate_start
+from src.agents.history_node import HistoryInvestigation
+from src.agents.models import Finding, WorkflowState
+from src.agents.processor import (
+    HistoryProcessor,
+    UncertainHistoryCall,
+)
 from src.application.incidents.service import IncidentNotFound
 from src.application.security.principal import AccessError, Role
-from src.application.workflows.history import WorkflowNotAllowed, validate_start
 from src.domain.config.models import RuntimeConfig
 from src.domain.config.resolution import ConfigResolver
-from src.domain.workflows.models import Finding, WorkflowState
 from src.llm.errors import LLMError, LLMErrorCode
 from src.rag.lexical_search import search_reviews_lexically
 from src.rag.search_models import SearchFilters
 from src.rag.vector_search import search_similar_reviews
-from src.runtime.workflows.checkpoint import memory_checkpoint
-from src.runtime.workflows.history import HistoryInvestigation
-from src.runtime.workflows.processor import HistoryProcessor, UncertainHistoryCall
 
 
 @pytest.mark.parametrize("change", [{"auto_investigation": False}, {"jev_enabled": False},
@@ -131,9 +134,8 @@ def test_search_scope_is_in_both_sql_modes():
 
 def test_domain_jev_and_history_never_import_provider_sdk():
     source = Path(__file__).parents[1]/"src"
-    files = list((source/"domain").rglob("*.py"))+list((source/"decision").rglob("*.py"))
-    files += list((source/"runtime/workflows").rglob("*.py"))
-    files += list((source/"application/workflows").rglob("*.py"))
+    files = list((source/"domain").rglob("*.py"))
+    files += list((source/"agents").rglob("*.py"))
     for path in files:
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):

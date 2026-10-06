@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { decisionApi } from "../../api/decisions";
-import { apiMode } from "../../api/incidents";
+import { apiMode } from "../../api/client";
 import { Button, StateMessage } from "../../components/ui";
 import { dateTime, severityLabels } from "../../lib/display";
 import { useQuery } from "../../lib/useQuery";

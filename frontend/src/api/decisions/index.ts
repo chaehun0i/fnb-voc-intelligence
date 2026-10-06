@@ -1,5 +1,4 @@
-import { apiBaseUrl, apiMode } from "../incidents";
-import { authHeaders } from "../auth";
+import { apiBaseUrl, apiMode, authHeaders } from "../client";
 import type { DecisionApi, DecisionHistory, ShadowDecision } from "./types";
 
 export class DecisionApiError extends Error {

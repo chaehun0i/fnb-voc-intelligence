@@ -2,22 +2,23 @@ from dataclasses import replace
 
 import pytest
 
+from src.agents.capa_commands import CAPACommands
+from src.agents.capa_node import CAPAInvestigation
 from src.application.ports.incident_repository import IncidentConflict
-from src.application.workflows.capa import CAPACommands
-from src.runtime.workflows.capa import CAPAInvestigation
 from tests.test_history_application import setup_history
 from tests.test_rca_investigation import ready
 
 
-def prepared():
+def prepared(*, internal_execution=False):
     persistence, workflows, context, decision = setup_history()
     with persistence.transaction("t") as uow:
         version = uow.configs.current()
         uow.configs.append(replace(version, config_version=2, parent_version=1,
-            config=replace(version.config, auto_capa_draft=True, auto_rca_draft=True)), 1)
+            config=replace(version.config, auto_capa_draft=True, auto_rca_draft=True,
+                internal_execution_enabled=internal_execution)), 1)
     # 테스트는 같은 Config/Jev lineage를 고정하며 enqueue 권한을 우회하지 않습니다.
-    from src.application.decisions.shadow import ShadowDecisions
     from src.domain.jobs.models import Job
+    from src.routing.shadow import ShadowDecisions
     now = workflows.clock()
     decision = ShadowDecisions(persistence, clock=lambda: now).record(
         Job("snapshot2", "t", "incident.snapshot", "c", now, now, incident_id="i", store="store"))
@@ -26,11 +27,11 @@ def prepared():
     base = ready()
     items = tuple(e.model_copy(update={"tenant_id": "t", "store": "store", "agent_run_id": run.agent_run_id})
                   for e in base.normalized_evidence)
-    from src.domain.workflows.models import EvidenceCandidate
+    from src.agents.models import EvidenceCandidate
     candidates = tuple(EvidenceCandidate.model_validate(e.model_dump(exclude={"agent_run_id", "source_id", "step_name"})) for e in items)
     state = run.state.model_copy(update={"normalized_evidence": items, "sufficiency": base.sufficiency,
         "evidence_candidates": candidates, "evidence_refs": tuple(e.source_ref for e in items)})
-    from src.runtime.workflows.rca import RCAInvestigation
+    from src.agents.rca_node import RCAInvestigation
     state = RCAInvestigation(resolved, decision.decision_id, requires_llm=False, clock=lambda: now)(state)
     state = CAPAInvestigation(resolved, decision.decision_id, store="store", incident_severity="MEDIUM")(state)
     with persistence.transaction("t") as uow:

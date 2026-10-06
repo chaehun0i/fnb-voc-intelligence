@@ -1,9 +1,9 @@
 """기존 Graph를 확장하며 불충분 경로는 RCA를 건너뜁니다."""
 from unittest.mock import Mock
 
-from src.domain.workflows.sufficiency import evaluate_sufficiency
-from src.runtime.workflows.checkpoint import memory_checkpoint
-from src.runtime.workflows.graph import history_graph, invoke_or_resume
+from src.agents.checkpoint import memory_checkpoint
+from src.agents.graph import history_graph, invoke_or_resume
+from src.agents.sufficiency import evaluate_sufficiency
 from tests.test_rca_investigation import node, ready
 
 

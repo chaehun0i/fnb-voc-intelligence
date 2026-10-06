@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import psycopg
 
-from src.infrastructure.outbox.config_events import ConfigEvents
+from src.infrastructure.jobs.config_events import ConfigEvents
 from src.infrastructure.repositories.agent_run_repository import (
     MemoryAgentRunRepository,
     PostgresAgentRunRepository,
@@ -28,6 +28,7 @@ from src.infrastructure.repositories.decision_repository import (
     MemoryDecisionRepository,
     PostgresDecisionRepository,
 )
+from src.infrastructure.repositories.execution_repository import ExecutionRepository
 from src.infrastructure.repositories.idempotency_repository import (
     MemoryIdempotencyRepository,
     PostgresIdempotencyRepository,
@@ -61,6 +62,7 @@ class AccessUnitOfWork:
     decisions: object = None
     llm_calls: object = None
     agent_runs: object = None
+    executions: object = None
 
 
 class AccessPersistence:
@@ -74,7 +76,7 @@ class AccessPersistence:
             with psycopg.connect(self.incidents.dsn) as connection:
                 connection.execute("SET LOCAL lock_timeout='2s'")
                 repo = PostgresIncidentRepository(self.incidents.dsn, connection)
-                yield AccessUnitOfWork(ScopedIncidentRepository(repo, tenant_id),
+                work = AccessUnitOfWork(ScopedIncidentRepository(repo, tenant_id),
                                        PostgresApprovalRepository(connection, tenant_id),
                                        PostgresAuditRepository(connection, tenant_id),
                                        PostgresIdempotencyRepository(connection, tenant_id), connection,
@@ -84,12 +86,14 @@ class AccessPersistence:
                                        PostgresDecisionRepository(connection, tenant_id),
                                        PostgresLLMCallRepository(connection, tenant_id),
                                        PostgresAgentRunRepository(connection, tenant_id))
+                work.executions = ExecutionRepository(work, self.memory, tenant_id)
+                yield work
         else:
             with self.incidents._lock, self.memory.lock:
                 incidents = deepcopy(self.incidents._items)
                 records = deepcopy(self.memory.data)
                 try:
-                    yield AccessUnitOfWork(
+                    work = AccessUnitOfWork(
                         ScopedIncidentRepository(self.incidents, tenant_id),
                         MemoryApprovalRepository(self.memory, tenant_id),
                         MemoryAuditRepository(self.memory, tenant_id),
@@ -101,6 +105,8 @@ class AccessPersistence:
                         llm_calls=MemoryLLMCallRepository(self.memory, tenant_id),
                         agent_runs=MemoryAgentRunRepository(self.memory, tenant_id),
                     )
+                    work.executions = ExecutionRepository(work, self.memory, tenant_id)
+                    yield work
                 except Exception:
                     self.incidents._items = incidents
                     self.memory.data = records
