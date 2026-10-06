@@ -224,3 +224,34 @@ def test_takeover_and_security_and_control_version_fail_closed():
         InvestigationLoop(p, run.agent_run_id, "t", source, lambda: now).authorize()
     with pytest.raises(AccessError, match="IDEMPOTENCY_CONFLICT"):
         commands.execute(control_context(), "i", run.agent_run_id, "takeover", 1)
+
+
+def test_control_http_and_safe_ax_projection():
+    from fastapi.testclient import TestClient
+
+    from src.api.app import create_app
+    from src.infrastructure.auth.local_identity_provider import LocalIdentityProvider
+    p, _, run, _ = loop_setup()
+    identities = LocalIdentityProvider({"operator": control_context().principal,
+        "other": control_context(tenant="other").principal,
+        "store": control_context(role="STORE_MANAGER", stores=("wrong",)).principal,
+        "reader": control_context(role="AUDITOR").principal}, environment="test")
+    app = create_app(p.incidents, identity_provider=identities)
+    app.state.access_persistence = p
+    client = TestClient(app)
+    path = "/api/v1/incidents/i/agent-runs/"+run.agent_run_id
+    header = {"Authorization": "Bearer operator", "Idempotency-Key": "pause"}
+    detail = client.get(path, headers=header)
+    assert detail.status_code == 200
+    assert detail.json()["runtime"]["permissions"]["pause"]
+    assert not client.get(path, headers={"Authorization": "Bearer reader"}).json()["runtime"]["permissions"]["pause"]
+    for token, code in (("other", 404), ("store", 403), ("reader", 403)):
+        assert client.post(path+"/controls/pause", headers=header | {"Authorization": "Bearer "+token},
+            json={"expected_version": 0}).status_code == code
+    assert client.post(path+"/controls/pause", headers=header,
+        json={"expected_version": 0, "token_budget": 999999}).status_code == 422
+    assert client.post(path+"/controls/pause", headers=header, json={"expected_version": 0}).json() == {"control_status": "PAUSED"}
+    response = client.get(path, headers=header)
+    assert response.json()["runtime"]["control_version"] == 1
+    assert response.json()["runtime"]["permissions"]["resume"]
+    assert not any(s in response.text for s in ("raw_prompt", "source_digest", "actor_id", "Idempotency-Key", "delegated_roles"))

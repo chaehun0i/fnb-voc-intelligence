@@ -152,6 +152,7 @@ class InvestigationResponse(BaseModel):
 
 
 class AgentRunResponse(BaseModel):
+    runtime: "RuntimeAXResponse | None" = None
     agent_run_id: str
     incident_id: str
     workflow_id: str
@@ -213,3 +214,21 @@ class AgentRunHistoryResponse(BaseModel):
     limit: int
     offset: int
     has_more: bool
+
+
+class RuntimeAXResponse(BaseModel):
+    control_status: Literal["RUNNING", "PAUSED", "STOPPED", "MANUAL_TAKEOVER"]
+    control_version: int
+    termination_reason: str | None
+    message: str
+    budget_summary: str
+    remaining_operations: int
+    new_evidence: bool
+    human_action: str
+    permissions: dict[Literal["pause", "resume", "stop", "takeover"], bool]
+    versions: dict[str, str]
+
+
+AgentRunResponse.model_rebuild()
+AgentRunDetailResponse.model_rebuild()
+AgentRunHistoryResponse.model_rebuild()

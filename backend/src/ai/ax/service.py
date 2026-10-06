@@ -1,10 +1,11 @@
 """ai/ax/service: 통합된 기능 책임, 기존 실행 계약 유지."""
 import psycopg
 
+from src.ai.workflow.controller import control_state
 from src.ai.workflow.policy import AGENT_REGISTRY
 from src.application.incidents.service import IncidentNotFound
 from src.application.ports.repositories import AgentRunsUnavailable
-from src.application.security.authorization import require
+from src.application.security.authorization import allowed, require
 
 
 def investigation_projection(run, branches=None):
@@ -40,7 +41,7 @@ def investigation_projection(run, branches=None):
 def projection(run, branches=None):
     state = run.state
     return {**run.model_dump(mode="json", exclude={"tenant_id", "state", "requested_by",
-            "delegated_roles", "delegated_store_scope", "initial_incident_version"}),
+            "delegated_roles", "delegated_store_scope", "initial_incident_version", "manifest"}),
         "route": state.route, "risk_level": state.risk_level,
         "findings": [f.model_dump() for f in state.findings],
         "evidence_candidates": [e.model_dump(mode="json", exclude={"tenant_id", "store"}) for e in state.evidence_candidates],
@@ -58,10 +59,39 @@ def projection(run, branches=None):
         "iteration": state.iteration, "tool_call_count": state.tool_call_count}
 
 
-def projected_run(uow, run):
+def runtime_projection(uow, run, principal, store):
+    if run.state.loop is None:
+        return None
+    events = uow.agent_runs.events(run.agent_run_id)
+    control = control_state(events)
+    reason = control if control != "RUNNING" else run.state.loop.termination
+    messages = {"COMPLETED": "설정된 범위의 자동 조사를 완료했습니다.",
+        "NO_NEW_EVIDENCE": "추가 자동 조사에서 새로운 근거를 찾지 못해 조사를 중단했습니다.",
+        "BUDGET_EXHAUSTED": "설정된 자동 조사 한도에 도달했습니다. 담당자가 추가 조사 범위를 검토해 주세요.",
+        "ITERATION_LIMIT": "자동 조사 반복 한도에 도달했습니다.", "POLICY_DENIED": "현재 안전 정책에 따라 자동 조사를 중단했습니다.",
+        "PAUSED": "자동 조사를 일시정지했습니다. 확보한 근거는 유지합니다.", "STOPPED": "자동 조사를 중단했습니다. 자동으로 재개하지 않습니다.",
+        "MANUAL_TAKEOVER": "담당자가 직접 처리를 이어가고 있습니다.", "INCOMPLETE": "실행 결과가 불확실해 담당자의 확인이 필요합니다."}
+    eligible = allowed(principal, "operate", store) and run.status not in {"COMPLETED", "FAILED"}
+    policy = run.state.loop.policy
+    version = uow.configs.current()
+    operations = min(policy.max_operations, version.config.max_tool_calls) if version else 0
+    resumable = bool(version and version.config.loop_enabled and version.config.auto_investigation)
+    return {"control_status": control, "control_version": sum(e.kind == "CONTROL" for e in events),
+        "termination_reason": reason, "message": messages.get(reason, "사용 가능한 자료를 제한된 범위에서 조사하고 있습니다."),
+        "budget_summary": f"읽기 조사 {run.state.tool_call_count} / {operations}회 · 반복 {run.state.iteration} / {policy.max_iterations}회",
+        "remaining_operations": max(0, operations-run.state.tool_call_count), "new_evidence": run.state.loop.new_evidence,
+        "human_action": "담당자가 근거와 조사 범위를 검토해 주세요." if reason in {"BUDGET_EXHAUSTED", "NO_NEW_EVIDENCE", "INCOMPLETE", "POLICY_DENIED", "MANUAL_TAKEOVER"} else "확보한 근거와 승인 요청을 확인해 주세요.",
+        "permissions": {"pause": eligible and control == "RUNNING", "resume": eligible and control == "PAUSED" and resumable,
+            "stop": eligible and control in {"RUNNING", "PAUSED"}, "takeover": eligible and control in {"RUNNING", "PAUSED"}},
+        "versions": {"workflow": run.workflow_version, "config": str(run.config_version),
+            "loop": policy.version, "harness": run.manifest.harness_policy_version if run.manifest else "legacy"}}
+
+
+def projected_run(uow, run, principal=None, store=None):
     branches = tuple(b for a in (run.state.selection.selected if run.state.selection else ())
         if (b := uow.agent_runs.branch(run.agent_run_id, a.agent_type)) is not None)
-    return projection(run) | {"investigation": investigation_projection(run, branches)}
+    return projection(run) | {"investigation": investigation_projection(run, branches),
+        "runtime": runtime_projection(uow, run, principal, store) if principal else None}
 
 
 class AgentRunQueries:
@@ -82,7 +112,7 @@ class AgentRunQueries:
                     run = uow.agent_runs.get(run_id)
                     if run is None or run.incident_id != incident_id:
                         raise IncidentNotFound()
-                    detail = projected_run(uow, run)
+                    detail = projected_run(uow, run, self.principal, incident.store)
                     if run.state.approval:
                         approval = uow.approvals.get(run.state.approval.approval_id)
                         if approval and approval.agent_run_id == run.agent_run_id:
@@ -92,7 +122,7 @@ class AgentRunQueries:
                     return {**detail, "steps": [s.model_dump(mode="json", exclude={"result"})
                             for s in uow.agent_runs.steps(run_id)]}
                 runs = uow.agent_runs.history(incident_id, limit+1, offset)
-                return {"runs": [projected_run(uow, r) for r in runs[:limit]], "limit": limit,
+                return {"runs": [projected_run(uow, r, self.principal, incident.store) for r in runs[:limit]], "limit": limit,
                         "offset": offset, "has_more": len(runs)>limit}
         except psycopg.Error as error:
             raise AgentRunsUnavailable() from error
