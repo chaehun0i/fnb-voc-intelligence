@@ -6,6 +6,7 @@ from unittest.mock import Mock
 import psycopg
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
+from pydantic import ValidationError
 
 from src.application.ports.incident_repository import IncidentConflict
 from src.application.security.principal import (
@@ -16,6 +17,7 @@ from src.application.security.principal import (
 )
 from src.application.workflows.resume import RESUME_JOB
 from src.application.workflows.verification import VerificationCommands
+from src.domain.workflows.models import WorkflowState
 from src.domain.workflows.verification import InternalReviewSimulation
 from src.infrastructure.queue.worker import RetryableJobError
 from src.runtime.workflows.checkpoint import SafeJsonSerializer
@@ -88,6 +90,15 @@ def test_fabricated_pass_candidate_and_missing_evidence_cannot_resolve():
     with pytest.raises(IncidentConflict):
         c.apply(fabricated)
     assert p.incidents.get("i").status == "VERIFYING"
+
+
+@pytest.mark.parametrize("change", [{"tenant_id": "other"}, {"store": "elsewhere"},
+    {"agent_run_id": "other"}, {"action_id": "other"}, {"additional_evidence_refs": ("review:fake",)}])
+def test_restored_state_rejects_foreign_verification_source(change):
+    _, _, state = verifying_state()
+    evidence = post_evidence(state, True).model_copy(update=change)
+    with pytest.raises(ValidationError):
+        WorkflowState.model_validate(state.model_copy(update={"verification_evidence": (evidence,)}).model_dump(mode="json"))
 
 
 class FailExecutionCheckpoint(InMemorySaver):

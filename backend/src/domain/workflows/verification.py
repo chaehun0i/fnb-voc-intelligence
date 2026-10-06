@@ -94,6 +94,8 @@ class VerificationCandidate(SafeModel):
 
     @model_validator(mode="after")
     def grounded(self):
+        if tuple(c.code for c in self.criterion_results) != ("REVIEW_RECORD_PRESENT", "ADDITIONAL_EVIDENCE_LIST"):
+            raise ValueError("검증 기준은 중복 없이 정해진 순서로 각각 평가해야 합니다.")
         results = [c.result for c in self.criterion_results]
         expected = "INCONCLUSIVE" if "INCONCLUSIVE" in results else "FAIL" if "FAIL" in results else "PASS"
         if self.result != expected or (self.result in {"PASS", "FAIL"} and not self.evidence_ids):

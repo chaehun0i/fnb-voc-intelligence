@@ -235,6 +235,14 @@ class WorkflowState(SafeModel):
                     or e.approval_id != self.approval.approval_id or e.action_digest != self.approval.action_digest
                     or e.action_id not in self.approval.action_ids):
                 raise ValueError("내부 실행 기록의 승인·조직·설정 lineage를 확인해 주세요.")
+        for evidence in self.verification_evidence:
+            if (not self.execution or evidence.tenant_id != self.tenant_id
+                    or evidence.agent_run_id != self.agent_run_id
+                    or evidence.execution_id != self.execution.execution_id
+                    or evidence.action_id != self.execution.action_id
+                    or not self.capa_proposals or evidence.store != self.capa_proposals[0].store
+                    or not set(evidence.additional_evidence_refs) <= {e.source_ref for e in self.normalized_evidence}):
+                raise ValueError("복원된 검증 근거의 조직·매장·실행·원본 참조가 일치해야 합니다.")
         if self.verification and (not self.execution or self.verification.execution_id != self.execution.execution_id
                 or self.verification.action_id != self.execution.action_id
                 or self.verification.incident_id != self.incident_id or self.verification.config_version != self.config_version
