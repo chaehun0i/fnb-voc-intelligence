@@ -6,8 +6,10 @@ from src.application.incidents.service import IncidentNotFound, IncidentService
 from src.application.ports.incident_repository import IncidentConflict
 from src.application.security.authorization import require
 from src.application.security.principal import AccessError, Principal
+from src.application.workflows.approval_policy import approval_policy_digest
 from src.application.workflows.resume import validate_approval
 from src.domain.approvals.audit import AuditRecord
+from src.domain.approvals.models import action_digest
 from src.domain.workflows.models import WorkflowState
 from src.domain.workflows.verification import ActionExecutionRecord
 
@@ -67,4 +69,28 @@ class VerificationCommands:
                 "resulting_incident_status": "EXECUTING"}).model_dump(mode="json"))
             uow.agent_runs.save(run.model_copy(update={"state": result}))
             self.audit(uow, run, principal, "internal_execution_recorded", saved.version)
+            return result
+
+    def begin_verification(self, state):
+        with self.persistence.transaction(self.tenant_id) as uow:
+            run, incident, principal = self.load(uow)
+            record = uow.executions.get(run.agent_run_id)
+            if record is None or state.execution != record or run.state.execution != record:
+                raise IncidentConflict()
+            if run.state.resulting_incident_status in {"VERIFYING", "RESOLVED", "REOPENED"}:
+                return run.state
+            approval = uow.approvals.get(record.approval_id)
+            current = uow.configs.current()
+            if (approval is None or approval.status != "APPROVED" or current is None
+                    or not current.config.internal_execution_enabled
+                    or approval.policy_digest != approval_policy_digest(current.config)
+                    or self.clock() >= datetime.fromisoformat(approval.expires_at)
+                    or action_digest(incident) != record.action_digest
+                    or incident.version != record.incident_version or incident.status != "EXECUTING"):
+                raise IncidentConflict()
+            saved = IncidentService(uow.incidents, clock=self.clock, principal=principal).start_internal_verification(
+                incident.id, record.incident_version)
+            result = run.state.model_copy(update={"resulting_incident_status": "VERIFYING"})
+            uow.agent_runs.save(run.model_copy(update={"state": result}))
+            self.audit(uow, run, principal, "internal_verification_started", saved.version)
             return result

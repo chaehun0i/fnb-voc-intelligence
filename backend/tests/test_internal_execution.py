@@ -42,3 +42,15 @@ def test_execution_rechecks_digest_and_tenant():
         uow.incidents.save(replace(incident, owner="changed"))
     with pytest.raises(IncidentConflict):
         VerificationCommands(p, run.agent_run_id, "t", clock=lambda: run.started_at).execute(state)
+
+
+def test_verifying_requires_valid_execution_and_replays_without_new_version():
+    p, run, state, _ = approved_run()
+    c = VerificationCommands(p, run.agent_run_id, "t", clock=lambda: run.started_at)
+    with pytest.raises(IncidentConflict):
+        c.begin_verification(state)
+    executing = c.execute(state)
+    result = c.begin_verification(executing)
+    assert result.resulting_incident_status == "VERIFYING"
+    assert c.begin_verification(executing) == result
+    assert p.incidents.get("i").version == executing.execution.incident_version+1
