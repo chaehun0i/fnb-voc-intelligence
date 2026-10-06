@@ -136,9 +136,11 @@ def test_search_scope_is_in_both_sql_modes():
 def test_domain_jev_and_history_never_import_provider_sdk():
     source = Path(__file__).parents[1]/"src"
     files = list((source/"domain").rglob("*.py"))
-    files += list((source/"agents").rglob("*.py"))
+    for area in ("decision", "workflow", "execution"):
+        files += list((source/"ai"/area).rglob("*.py"))
+    assert any("workflow" in path.parts for path in files)
     for path in files:
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             modules = [item.name for item in node.names] if isinstance(node, ast.Import) else [node.module or ""] if isinstance(node, ast.ImportFrom) else []
-            assert not any(name.startswith(("google", "ollama", "src.llm.providers")) for name in modules), path
+            assert not any(name.startswith(("google", "ollama", "src.ai.intelligence.providers")) for name in modules), path

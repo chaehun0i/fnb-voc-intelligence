@@ -123,8 +123,10 @@ def test_ollama_unavailable_without_network():
 
 def test_sdk_does_not_leak_into_domain_application_or_jev():
     root = Path(__file__).parents[1] / "src"
-    for directory in ("domain", "application", "agents", "routing"):
+    for directory in ("domain", "application", "ai"):
         for path in (root / directory).rglob("*.py"):
+            if path.parent == root / "ai" / "intelligence" / "providers":
+                continue
             for node in ast.walk(ast.parse(path.read_text(encoding="utf-8-sig"))):
                 if isinstance(node, ast.Import):
                     assert all(not item.name.startswith(("google", "ollama")) for item in node.names), path

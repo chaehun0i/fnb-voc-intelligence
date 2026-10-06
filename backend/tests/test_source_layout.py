@@ -34,7 +34,7 @@ def modules():
 def test_runtime_role_dependency_direction(role):
     found = set()
     forbidden = PURE if role != "nodes" else (
-        "src.infrastructure.repositories", "src.ai.intelligence.providers", "src.llm.providers",
+        "src.infrastructure.repositories", "src.ai.intelligence.providers",
         "langgraph", *SDK)
     for path, tree, definitions, imports in modules():
         matched = definitions & ROLES[role]
@@ -85,3 +85,23 @@ def test_execution_does_not_bypass_application_or_open_external_transport():
         if path.relative_to(SOURCE).parts[:2] == ("ai", "execution"):
             assert not any(name.startswith(("src.infrastructure.repositories", "httpx", "requests",
                 "subprocess", "google", "ollama", "mcp")) for name in imports), path
+
+
+def test_ai_modules_have_no_dependency_cycle():
+    graph = {}
+    for path, _, _, imports in modules():
+        if path.relative_to(SOURCE).parts[0] != "ai":
+            continue
+        module = "src." + ".".join(path.relative_to(SOURCE).with_suffix("").parts)
+        graph[module] = imports
+    assert graph
+    edges = {module: {target for target in graph if any(
+        name == target or name.startswith(target + ".") for name in imports)} - {module}
+        for module, imports in graph.items()}
+
+    def visit(module, chain):
+        assert module not in chain, " → ".join((*chain, module))
+        for target in edges[module]:
+            visit(target, (*chain, module))
+    for module in graph:
+        visit(module, ())
