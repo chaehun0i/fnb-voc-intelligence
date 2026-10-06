@@ -4,6 +4,7 @@ import { decodeCAPATrace, type ApprovalTrace, type CAPAProposal } from "./capa";
 import { decodeClosedLoop, type ClosedLoopTrace } from "./verification";
 
 export type HistoryRun = {
+  runtime?: RuntimeAX | null;
   agent_run_id: string; incident_id: string; workflow_id: string; job_id: string;
   correlation_id: string; config_version: number; jev_decision_id: string; workflow_version: "history-v1" | "history-evidence-v2" | "history-capa-v3" | "history-verification-v4" | "multi-investigation-v5";
   status: "RUNNING" | "WAITING_APPROVAL" | "COMPLETED" | "FAILED"; started_at: string; completed_at: string | null;
@@ -19,7 +20,15 @@ export type HistoryRun = {
 export type HistoryStep = { agent_run_id: string; sequence: number; node_name: "validate_context" | "history_investigation" | "normalize_evidence" | "evaluate_sufficiency" | "rca_investigation" | "persist_result" | "capa_proposal" | "apply_capa" | "request_approval" | "approval_interrupt" | "approval_result" | "internal_execution" | "begin_verification" | "verification" | "apply_verification"; attempt: number; status: HistoryRun["status"]; started_at: string; completed_at: string; latency_ms: number; token_spent: number; cost_spent: number; evidence_refs: string[]; error_code: string | null };
 export type HistoryRunDetail = HistoryRun & { steps: HistoryStep[] };
 export type HistoryRunPage = { runs: HistoryRun[]; limit: number; offset: number; has_more: boolean };
-export type AgentRunApi = { list(id: string): Promise<HistoryRunPage>; detail(id: string, runId: string): Promise<HistoryRunDetail> };
+export type ControlAction = "pause" | "resume" | "stop" | "takeover";
+export type RuntimeAX = {
+  control_status: "RUNNING" | "PAUSED" | "STOPPED" | "MANUAL_TAKEOVER";
+  control_version: number; termination_reason: string | null; message: string;
+  budget_summary: string; remaining_operations: number; new_evidence: boolean; human_action: string;
+  permissions: Record<ControlAction, boolean>; versions: Record<string, string>;
+};
+export type AgentRunApi = { list(id: string): Promise<HistoryRunPage>; detail(id: string, runId: string): Promise<HistoryRunDetail>;
+  control?(id: string, runId: string, action: ControlAction, version: number, key: string): Promise<void> };
 
 export type InvestigationProgress = {
   status: "RUNNING" | "PARTIAL" | "COMPLETED"; evidence_count: number;
@@ -52,6 +61,15 @@ export function decodeRun(v: unknown): HistoryRun {
     !Array.isArray(v.evidence_candidates) || v.evidence_candidates.length > 20 || !v.evidence_candidates.every((e) => object(e) && refs([e.source_ref]) && ["VOC_REVIEW", "TRANSACTION", "INVENTORY"].includes(String(e.source_type)) && integer(e.rank) && Number(e.rank) > 0 && date(e.retrieved_at)) ||
     !Array.isArray(v.evidence_gaps) || !v.evidence_gaps.every((g) => object(g) && gapCodes.includes(g.code as EvidenceGap["code"]))) invalid();
   const trace = decodeEvidenceTrace(v);
+  if (v.runtime !== undefined && v.runtime !== null) {
+    const r = v.runtime;
+    if (!object(r) || !["RUNNING", "PAUSED", "STOPPED", "MANUAL_TAKEOVER"].includes(String(r.control_status)) ||
+      !integer(r.control_version) || !integer(r.remaining_operations) || typeof r.new_evidence !== "boolean" ||
+      !["message", "budget_summary", "human_action"].every((f) => text(r[f])) ||
+      !(r.termination_reason === null || ["COMPLETED", "NO_NEW_EVIDENCE", "BUDGET_EXHAUSTED", "ITERATION_LIMIT", "POLICY_DENIED", "PAUSED", "STOPPED", "MANUAL_TAKEOVER", "INCOMPLETE"].includes(String(r.termination_reason))) ||
+      !object(r.permissions) || !["pause", "resume", "stop", "takeover"].every((a) => typeof (r.permissions as Record<string, unknown>)[a] === "boolean") ||
+      !object(r.versions) || !Object.values(r.versions).every(text)) invalid();
+  }
   if (!trace) invalid();
   const capa = decodeCAPATrace({ ...v, ...trace });
   if (!capa) invalid();
@@ -77,9 +95,9 @@ export function decodeDetail(v: unknown): HistoryRunDetail {
   return { ...run, steps: v.steps as HistoryStep[] };
 }
 export function createHttpAgentRunApi(baseUrl: string, transport: typeof fetch = fetch): AgentRunApi {
-  async function query(path: string): Promise<unknown> {
+  async function query(path: string, options: RequestInit = {}): Promise<unknown> {
     let response: Response;
-    try { response = await transport(`${baseUrl.replace(/\/$/, "")}${path}`, { headers: authHeaders() }); }
+    try { response = await transport(`${baseUrl.replace(/\/$/, "")}${path}`, { ...options, headers: { ...authHeaders(), ...options.headers } }); }
     catch { throw new AgentRunApiError("NETWORK_ERROR", "조사 기록 서버에 연결할 수 없습니다. 연결을 확인해 주세요."); }
     const requestId = response.headers.get("X-Request-ID") ?? undefined;
     if (!response.ok) {
@@ -98,6 +116,11 @@ export function createHttpAgentRunApi(baseUrl: string, transport: typeof fetch =
       return { runs: v.runs.map(decodeRun), limit: 20, offset: 0, has_more: v.has_more };
     },
     async detail(id, runId) { return decodeDetail(await query(`/incidents/${encodeURIComponent(id)}/agent-runs/${encodeURIComponent(runId)}`)); },
+    async control(id, runId, action, version, key) {
+      const value = await query(`/incidents/${encodeURIComponent(id)}/agent-runs/${encodeURIComponent(runId)}/controls/${action}`,
+        { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key }, body: JSON.stringify({ expected_version: version }) });
+      if (!object(value) || !["RUNNING", "PAUSED", "STOPPED", "MANUAL_TAKEOVER"].includes(String(value.control_status))) invalid();
+    },
   };
 }
 // 예시 Multi-Agent와 실제 History 기록을 섞지 않습니다.
