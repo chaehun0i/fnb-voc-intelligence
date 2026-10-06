@@ -19,7 +19,9 @@ class MemoryInvestigationSource:
         for agent in ("TRANSACTION", "INVENTORY"):
             times = [o.observed_at for o in self.items if o.tenant_id == tenant_id and o.store == store and o.agent_type == agent]
             result.append(TenantCapability(tenant_id=tenant_id, store=store, capability=agent+"_DATA",
-                available=bool(times), source="SYNTHETIC_OPERATIONAL_FIXTURE", freshness="FRESH" if times
+                available=bool(times), source="FILE_IMPORTED_OBSERVATION" if any(o.source == "FILE_IMPORTED_OBSERVATION"
+                    for o in self.items if o.tenant_id == tenant_id and o.store == store and o.agent_type == agent)
+                    else "SYNTHETIC_OPERATIONAL_FIXTURE", freshness="FRESH" if times
                     and timedelta(0) <= now-max(times) <= timedelta(hours=24) else "STALE" if times else "UNKNOWN",
                 health="HEALTHY", checked_at=now))
         return tuple(result)
@@ -36,8 +38,8 @@ class PostgresInvestigationSource:
     def capabilities(self, tenant_id, store, now):
         with psycopg.connect(self.dsn, connect_timeout=5) as connection:
             connection.execute("SET LOCAL statement_timeout='5s'")
-            history = connection.execute("SELECT EXISTS(SELECT 1 FROM serviq_history_sources WHERE tenant_id=%s AND store=%s)",
-                (tenant_id, store)).fetchone()[0]
+            history = connection.execute("SELECT EXISTS(SELECT 1 FROM serviq_history_sources WHERE tenant_id=%s AND store=%s) OR EXISTS(SELECT 1 FROM serviq_data_intake WHERE tenant_id=%s AND store=%s AND kind='SOURCE' AND document->>'kind'='VOC')",
+                (tenant_id, store, tenant_id, store)).fetchone()[0]
             rows = connection.execute("SELECT DISTINCT ON (agent_type) document FROM serviq_operational_observations WHERE tenant_id=%s AND store=%s ORDER BY agent_type,observed_at DESC,source_ref",
                 (tenant_id, store)).fetchall()
         return MemoryInvestigationSource([OperationalObservation.model_validate(r[0]) for r in rows],

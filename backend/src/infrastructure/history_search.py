@@ -19,18 +19,21 @@ class PostgresHistorySearch:
     def search_evidence(self, tenant_id, store, query):
         with psycopg.connect(self.dsn) as connection:
             connection.execute("SET LOCAL statement_timeout='10s'")
-            if not connection.execute("SELECT 1 FROM serviq_history_sources WHERE tenant_id=%s AND store=%s LIMIT 1", (tenant_id, store)).fetchone():
-                return []
+            has_legacy = connection.execute("SELECT 1 FROM serviq_history_sources WHERE tenant_id=%s AND store=%s LIMIT 1", (tenant_id, store)).fetchone()
             results = SearchService(connection.cursor(), self.embedding_provider).search(
                 SearchQuery(text=query, mode="hybrid", top_k=5, candidate_k=20,
-                            filters=SearchFilters(tenant_id=tenant_id, store=store)))
+                            filters=SearchFilters(tenant_id=tenant_id, store=store))) if has_legacy else []
+            imported = connection.execute("""SELECT resource_id,document->>'observed_at' FROM serviq_data_intake
+                WHERE tenant_id=%s AND store=%s AND kind='SOURCE' AND document->>'kind'='VOC'
+                AND to_tsvector('simple',document->>'text') @@ plainto_tsquery('simple',%s)
+                ORDER BY created_at DESC,resource_id LIMIT 5""", (tenant_id, store, query)).fetchall()
             source_dates = dict(connection.execute("""SELECT r.review_id,r.review_date FROM reviews r
                 JOIN serviq_history_sources hs ON hs.review_id=r.review_id
                 WHERE hs.tenant_id=%s AND hs.store=%s AND r.review_id=ANY(%s)""",
                 (tenant_id, store, [r.review_id for r in results])).fetchall())
         # 원문은 일시적인 검색 결과에만 존재합니다. Node에는 안전한 출처 ID/순위만 넘깁니다.
         now = datetime.now(UTC)
-        return [EvidenceCandidate(source_ref="review:"+r.review_id, rank=r.rank, retrieved_at=now,
+        legacy = [EvidenceCandidate(source_ref="review:"+r.review_id, rank=r.rank, retrieved_at=now,
                 tenant_id=tenant_id, store=store,
                 source_at=datetime.combine(source_dates[r.review_id], time(tzinfo=UTC))
                     if source_dates.get(r.review_id) else None,
@@ -38,3 +41,7 @@ class PostgresHistorySearch:
                     if (r.lexical_rank if name == "lexical" else r.vector_rank) is not None) or (r.mode,),
                 observation_code="RELATED_HISTORY_MATCH", stance="SUPPORTING")
                 for r in results if re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", r.review_id)]
+        return [*legacy, *(EvidenceCandidate(source_ref="review:intake-"+identity, rank=rank,
+            retrieved_at=now, tenant_id=tenant_id, store=store, source_at=datetime.fromisoformat(observed),
+            provenance=("lexical",), observation_code="RELATED_HISTORY_MATCH", stance="SUPPORTING")
+            for rank, (identity, observed) in enumerate(imported, 1))]

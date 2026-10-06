@@ -98,7 +98,7 @@ class TenantCapability(SafeModel):
     store: str = Field(min_length=1, max_length=128)
     capability: DataCapability
     available: bool
-    source: Literal["AUTHORIZED_HISTORY_SEARCH", "SYNTHETIC_OPERATIONAL_FIXTURE"]
+    source: Literal["AUTHORIZED_HISTORY_SEARCH", "SYNTHETIC_OPERATIONAL_FIXTURE", "FILE_IMPORTED_OBSERVATION"]
     health: Literal["HEALTHY", "UNAVAILABLE"]
     freshness: Literal["FRESH", "STALE", "UNKNOWN"]
     checked_at: datetime
@@ -121,7 +121,7 @@ class AgentSelection(SafeModel):
 class ContextReference(SafeModel):
     source_ref: str = Field(pattern=r"^(review|transaction|inventory):[A-Za-z0-9_.:-]{1,128}$")
     source_at: datetime | None = None
-    provenance: Literal["AUTHORIZED_HISTORY_SEARCH", "SYNTHETIC_OPERATIONAL_FIXTURE"]
+    provenance: Literal["AUTHORIZED_HISTORY_SEARCH", "SYNTHETIC_OPERATIONAL_FIXTURE", "FILE_IMPORTED_OBSERVATION"]
 
     @field_validator("source_at")
     @classmethod
@@ -182,7 +182,7 @@ class EvidenceCandidate(SafeModel):
     retrieved_at: datetime
     tenant_id: str | None = Field(default=None, min_length=1, max_length=128)
     store: str | None = Field(default=None, min_length=1, max_length=128)
-    provenance: tuple[Literal["lexical", "vector", "hybrid", "legacy_reference", "synthetic_operational"], ...] = ("legacy_reference",)
+    provenance: tuple[Literal["lexical", "vector", "hybrid", "legacy_reference", "synthetic_operational", "file_imported_operational"], ...] = ("legacy_reference",)
     source_at: datetime | None = None
     stance: Literal["SUPPORTING", "CONTRADICTING", "NEUTRAL"] = "NEUTRAL"
     observation_code: Literal["RELATED_HISTORY_MATCH", "REFERENCE_ONLY", "REFUND_SIGNAL", "CANCEL_SIGNAL", "STOCK_SHORTAGE", "STOCK_ADJUSTMENT"] = "REFERENCE_ONLY"
@@ -217,7 +217,7 @@ class OperationalObservation(SafeModel):
     observed_at: datetime
     signal: Literal["REFUND_SIGNAL", "CANCEL_SIGNAL", "STOCK_SHORTAGE", "STOCK_ADJUSTMENT"]
     stance: Literal["SUPPORTING", "CONTRADICTING", "NEUTRAL"] = "NEUTRAL"
-    source: Literal["SYNTHETIC_OPERATIONAL_FIXTURE"] = "SYNTHETIC_OPERATIONAL_FIXTURE"
+    source: Literal["SYNTHETIC_OPERATIONAL_FIXTURE", "FILE_IMPORTED_OBSERVATION"] = "SYNTHETIC_OPERATIONAL_FIXTURE"
 
     @model_validator(mode="after")
     def integrity(self):

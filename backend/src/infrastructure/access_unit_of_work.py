@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import psycopg
 
+from src.infrastructure.data_intake import IntakeRepository
 from src.infrastructure.jobs.config_events import ConfigEvents
 from src.infrastructure.repositories.agent_run_repository import (
     MemoryAgentRunRepository,
@@ -63,6 +64,7 @@ class AccessUnitOfWork:
     llm_calls: object = None
     agent_runs: object = None
     executions: object = None
+    intake: object = None
 
 
 class AccessPersistence:
@@ -90,6 +92,7 @@ class AccessPersistence:
                     agent_runs=PostgresAgentRunRepository(connection, tenant_id),
                 )
                 work.executions = ExecutionRepository(work, self.memory, tenant_id)
+                work.intake = IntakeRepository(tenant_id, self.memory, connection)
                 yield work
         else:
             with self.incidents._lock, self.memory.lock:
@@ -109,6 +112,7 @@ class AccessPersistence:
                         agent_runs=MemoryAgentRunRepository(self.memory, tenant_id),
                     )
                     work.executions = ExecutionRepository(work, self.memory, tenant_id)
+                    work.intake = IntakeRepository(tenant_id, self.memory)
                     yield work
                 except Exception:
                     self.incidents._items = incidents

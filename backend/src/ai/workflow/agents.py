@@ -76,7 +76,7 @@ class OperationalInvestigation:
             raise AccessError()
         candidates = tuple(EvidenceCandidate(source_ref=o.source_ref, source_type=context.agent_type,
             tenant_id=o.tenant_id, store=o.store, rank=rank, source_at=o.observed_at,
-            retrieved_at=self.clock(), provenance=("synthetic_operational",),
+            retrieved_at=self.clock(), provenance=("file_imported_operational" if o.source == "FILE_IMPORTED_OBSERVATION" else "synthetic_operational",),
             observation_code=o.signal, stance=o.stance) for rank, o in enumerate(observations, 1))
         return InvestigationResult(agent_type=context.agent_type, branch_id=branch_id,
             tenant_id=context.tenant_id, incident_id=context.incident_id, store=context.store,
