@@ -115,6 +115,9 @@ class CAPACommands:
     def approval_result(self, state):
         from src.application.workflows.resume import validate_approval
         with self.persistence.transaction(self.tenant_id) as uow:
+            existing = uow.agent_runs.get(self.run_id)
+            if existing and existing.state.execution and state.approval and existing.state.approval.approval_id == state.approval.approval_id:
+                return existing.state
             if state.approval is None:
                 raise IncidentConflict()
             approval = uow.approvals.get(state.approval.approval_id)

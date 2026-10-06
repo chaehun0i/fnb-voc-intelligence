@@ -81,7 +81,20 @@ class HistoryWorkflows:
                 approval = uow.approvals.get(job.payload_ref)
                 if approval is None:
                     raise WorkflowNotAllowed()
-                run, incident = validate_approval(uow, approval, self.clock(), decided=True)
+                run = uow.agent_runs.get(approval.agent_run_id) if approval.agent_run_id else None
+                if run and run.state.execution:
+                    from src.domain.approvals.models import action_digest
+                    record = uow.executions.get(run.agent_run_id)
+                    incident = uow.incidents.get(run.incident_id)
+                    result = run.state.verification
+                    if (record != run.state.execution or incident is None or approval.status != "APPROVED"
+                            or record.approval_id != approval.approval_id or record.action_digest != approval.action_digest
+                            or incident.version != record.incident_version+int(run.state.resulting_incident_status != "EXECUTING")+int(result is not None)
+                            or (result and (incident.verification is None or incident.verification.id != result.verification_id))
+                            or (not result and action_digest(incident) != record.action_digest)):
+                        raise WorkflowNotAllowed()
+                else:
+                    run, incident = validate_approval(uow, approval, self.clock(), decided=True)
                 version = uow.configs.get(run.config_version)
                 decision = uow.decisions.get(run.jev_decision_id)
                 if (version is None or decision is None or run.job_id != job.parent_job_id

@@ -14,12 +14,16 @@ class GraphState(TypedDict):
 
 def history_graph(checkpointer, investigate, persist, *, observe=None,
                   normalize=None, evaluate=None, rca=None, capa=None, apply_capa=None,
-                  request_approval=None, approval_result=None):
+                  request_approval=None, approval_result=None, internal_execution=None,
+                  begin_verification=None, verification=None, apply_verification=None):
     if any(action is not None for action in (normalize, evaluate, rca)) and not all(
             callable(action) for action in (normalize, evaluate, rca)):
         raise ValueError("Evidence 단계는 모두 명시적으로 연결해야 합니다.")
     if capa is not None and not all(callable(a) for a in (normalize, evaluate, rca, apply_capa, request_approval, approval_result)):
         raise ValueError("CAPA 단계는 Application 승인 경계까지 연결해야 합니다.")
+    if internal_execution is not None and (capa is None or not all(callable(a) for a in
+            (begin_verification, verification, apply_verification))):
+        raise ValueError("내부 실행은 Verification Application 경계까지 연결해야 합니다.")
     def node(name, action):
         def execute(value):
             state = WorkflowState.model_validate(value["snapshot"])
@@ -83,7 +87,19 @@ def history_graph(checkpointer, investigate, persist, *, observe=None,
             builder.add_edge("apply_capa", "request_approval")
             builder.add_edge("request_approval", "approval_interrupt")
             builder.add_edge("approval_interrupt", "approval_result")
-            builder.add_edge("approval_result", "persist_result")
+            if internal_execution is not None:
+                for name, action in (("internal_execution", internal_execution), ("begin_verification", begin_verification),
+                        ("verification", verification), ("apply_verification", apply_verification)):
+                    builder.add_node(name, node(name, action))
+                builder.add_conditional_edges("approval_result", lambda value:
+                    "internal_execution" if WorkflowState.model_validate(value["snapshot"]).approval.phase == "READY_TO_EXECUTE"
+                    else "persist_result", ["internal_execution", "persist_result"])
+                builder.add_edge("internal_execution", "begin_verification")
+                builder.add_edge("begin_verification", "verification")
+                builder.add_edge("verification", "apply_verification")
+                builder.add_edge("apply_verification", "persist_result")
+            else:
+                builder.add_edge("approval_result", "persist_result")
         else:
             builder.add_edge("rca_investigation", "persist_result")
     else:
@@ -93,8 +109,8 @@ def history_graph(checkpointer, investigate, persist, *, observe=None,
 
 
 def invoke_or_resume(graph, state, *, approval_id=None):
-    # v3은 단일 경로에 11 노드가 있으므로 한 경로를 완료할 수 있는 상한입니다.
-    config = {"configurable": {"thread_id": state.workflow_id}, "recursion_limit": 16}
+    # v4 단일 경로의 15개 노드 + START/END를 완료할 수 있는 bounded 상한입니다.
+    config = {"configurable": {"thread_id": state.workflow_id}, "recursion_limit": 20}
     checkpoint = graph.get_state(config)
     restored = WorkflowState.model_validate(checkpoint.values["snapshot"]) if checkpoint.values else None
     if restored and not checkpoint.next and restored.status == WorkflowStatus.COMPLETED:

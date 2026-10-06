@@ -10,6 +10,7 @@ from src.application.workflows.capa import CAPACommands
 from src.application.workflows.evidence import normalize_evidence
 from src.application.workflows.history import HistoryWorkflows
 from src.application.workflows.resume import RESUME_JOB
+from src.application.workflows.verification import VerificationCommands
 from src.domain.workflows.models import AgentStep, WorkflowStatus, finish_run
 from src.domain.workflows.sufficiency import evaluate_sufficiency
 from src.infrastructure.llm_runtime import configured_llm_executor
@@ -186,7 +187,10 @@ class HistoryProcessor:
                         "evaluate_sufficiency": 4, "rca_investigation": 5,
                         "capa_proposal": 6, "apply_capa": 7, "request_approval": 8,
                         "approval_interrupt": 9, "approval_result": 10,
+                        "internal_execution": 11, "begin_verification": 12,
+                        "verification": 13, "apply_verification": 14,
                         "persist_result": 3 if run.workflow_version == "history-v1" else
+                            15 if run.workflow_version == "history-verification-v4" else
                             11 if run.workflow_version == "history-capa-v3" else 6}[name],
                     node_name=name, attempt=job.attempt or 1,
                     status=WorkflowStatus.FAILED if failed else
@@ -204,7 +208,7 @@ class HistoryProcessor:
                 with self.checkpoint_factory() as saver:
                     stages = {} if run.workflow_version == "history-v1" else {
                         "normalize": normalize, "evaluate": evaluate, "rca": rca}
-                    if run.workflow_version == "history-capa-v3":
+                    if run.workflow_version in {"history-capa-v3", "history-verification-v4"}:
                         commands = CAPACommands(self.persistence, run.agent_run_id, job.tenant_id, self.clock)
                         def request_approval(state):
                             check()
@@ -214,6 +218,10 @@ class HistoryProcessor:
                         stages.update(capa=CAPAInvestigation(resolved, run.jev_decision_id,
                             store=job.store, incident_severity=incident.severity), apply_capa=commands.apply,
                             request_approval=request_approval, approval_result=commands.approval_result)
+                        if run.workflow_version == "history-verification-v4":
+                            vc = VerificationCommands(self.persistence, run.agent_run_id, job.tenant_id, self.clock)
+                            stages.update(internal_execution=vc.execute, begin_verification=vc.begin_verification,
+                                verification=vc.evaluate, apply_verification=vc.apply)
                     graph = history_graph(saver, investigate, persist, observe=observe, **stages)
                     result = invoke_or_resume(graph, run.state,
                         approval_id=job.payload_ref if job.job_type == RESUME_JOB else None)

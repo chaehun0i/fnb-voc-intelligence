@@ -62,6 +62,18 @@ class CriterionResult(SafeModel):
     result: Literal["PASS", "FAIL", "INCONCLUSIVE"]
 
 
+class InternalReviewSimulation(SafeModel):
+    """합성 검토 입력은 실행 후 생성하는 Evidence와 구분합니다."""
+    tenant_id: str
+    store: str
+    agent_run_id: str
+    source_ref: str = Field(pattern=r"^internal-review:[a-f0-9-]{36}$")
+    observation_mode: Literal["SIMULATED"] = "SIMULATED"
+    review_record_present: bool | None
+    additional_evidence_refs: tuple[str, ...] = Field(default=(), max_length=20)
+    _refs = field_validator("additional_evidence_refs")(SafeModel.safe_refs.__func__)
+
+
 class VerificationCandidate(SafeModel):
     verification_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
     incident_id: str

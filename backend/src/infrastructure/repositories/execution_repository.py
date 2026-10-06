@@ -4,6 +4,7 @@ from psycopg.types.json import Jsonb
 from src.application.ports.incident_repository import IncidentConflict
 from src.domain.workflows.verification import (
     ActionExecutionRecord,
+    InternalReviewSimulation,
     VerificationEvidence,
 )
 
@@ -60,3 +61,26 @@ class ExecutionRepository:
                 (self.tenant_id, execution.execution_id, evidence.evidence_id, Jsonb(evidence.model_dump(mode="json"))))
         else:
             self.memory.data.setdefault("verification_evidence", {})[(self.tenant_id, evidence.evidence_id)] = evidence
+
+    def simulation(self, run_id):
+        if self.uow.connection:
+            row = self.uow.connection.execute("SELECT document FROM serviq_internal_review_simulations WHERE tenant_id=%s AND agent_run_id=%s",
+                (self.tenant_id, run_id)).fetchone()
+            return InternalReviewSimulation.model_validate(row[0]) if row else None
+        return self.memory.data.get("review_simulations", {}).get((self.tenant_id, run_id))
+
+    def prepare_simulation(self, source):
+        InternalReviewSimulation.model_validate(source.model_dump(mode="json"))
+        if source.tenant_id != self.tenant_id or self.uow.agent_runs.get(source.agent_run_id) is None:
+            raise IncidentConflict()
+        previous = self.simulation(source.agent_run_id)
+        if previous:
+            if previous != source:
+                raise IncidentConflict()
+            return previous
+        if self.uow.connection:
+            self.uow.connection.execute("INSERT INTO serviq_internal_review_simulations(tenant_id,agent_run_id,document) VALUES(%s,%s,%s)",
+                (self.tenant_id, source.agent_run_id, Jsonb(source.model_dump(mode="json"))))
+        else:
+            self.memory.data.setdefault("review_simulations", {})[(self.tenant_id, source.agent_run_id)] = source
+        return source

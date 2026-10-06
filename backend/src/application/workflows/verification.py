@@ -11,7 +11,10 @@ from src.application.workflows.resume import validate_approval
 from src.domain.approvals.audit import AuditRecord
 from src.domain.approvals.models import action_digest
 from src.domain.workflows.models import WorkflowState
-from src.domain.workflows.verification import ActionExecutionRecord
+from src.domain.workflows.verification import (
+    ActionExecutionRecord,
+    VerificationEvidence,
+)
 from src.domain.workflows.verification_rules import evaluate_verification
 
 
@@ -66,10 +69,32 @@ class VerificationCommands:
                 action_id=incident.corrective_actions[0].id, approval_id=approval.approval_id,
                 action_digest=approval.action_digest, started_at=self.clock(), completed_at=self.clock(),
                 config_version=run.config_version, correlation_id=run.correlation_id, incident_version=saved.version))
+            simulation = repo.simulation(run.agent_run_id)
+            if simulation:
+                if (simulation.store != incident.store or not set(simulation.additional_evidence_refs)
+                        <= {e.source_ref for e in run.state.normalized_evidence}):
+                    raise IncidentConflict()
+                repo.append_evidence(record, VerificationEvidence(
+                    **simulation.model_dump(), evidence_id=str(uuid5(NAMESPACE_URL, "post-review:"+record.execution_id)),
+                    execution_id=record.execution_id, action_id=record.action_id, observed_at=record.completed_at))
             result = WorkflowState.model_validate(run.state.model_copy(update={"execution": record,
                 "resulting_incident_status": "EXECUTING"}).model_dump(mode="json"))
             uow.agent_runs.save(run.model_copy(update={"state": result}))
             self.audit(uow, run, principal, "internal_execution_recorded", saved.version)
+            return result
+
+    def prepare_simulation(self, context, source):
+        if context.principal.tenant_id != self.tenant_id:
+            raise AccessError()
+        with self.persistence.transaction(self.tenant_id) as uow:
+            run, incident, _ = self.load(uow)
+            require(context.principal, "operate", incident.store)
+            if (source.agent_run_id != run.agent_run_id or source.store != incident.store
+                    or run.workflow_version != "history-verification-v4" or run.state.execution
+                    or not set(source.additional_evidence_refs) <= {e.source_ref for e in run.state.normalized_evidence}):
+                raise IncidentConflict()
+            result = uow.executions.prepare_simulation(source)
+            self.audit(uow, run, context.principal, "internal_simulation_prepared", incident.version)
             return result
 
     def begin_verification(self, state):
@@ -109,7 +134,9 @@ class VerificationCommands:
                     or evidence.observed_at < record.completed_at or evidence.observed_at > self.clock()
                     or not set(evidence.additional_evidence_refs) <= {e.source_ref for e in run.state.normalized_evidence}):
                 raise IncidentConflict()
-            return uow.executions.append_evidence(record, evidence)
+            result = uow.executions.append_evidence(record, evidence)
+            self.audit(uow, run, context.principal, "verification_evidence_recorded", incident.version)
+            return result
 
     def evaluate(self, state):
         with self.persistence.transaction(self.tenant_id) as uow:
