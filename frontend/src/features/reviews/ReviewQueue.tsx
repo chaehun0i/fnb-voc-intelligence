@@ -1,8 +1,7 @@
 import { useState, useRef } from "react";
 import { Check, FilePenLine, FileSearch, X } from "lucide-react";
 import { reviewApi, reviewAsOf } from "../../api/reviews";
-import { apiMode } from "../../api/incidents";
-import { commandKey } from "../../api/auth";
+import { apiMode, commandKey } from "../../api/client";
 import type { ReviewAction, ReviewDetail } from "../../contracts/types";
 import { Button, PageHeading, PreviewNotice, StateMessage } from "../../components/ui";
 import { ageLabel, dateTime } from "../../lib/display";

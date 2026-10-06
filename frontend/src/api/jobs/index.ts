@@ -1,5 +1,4 @@
-import { authHeaders } from "../auth";
-import { apiBaseUrl, apiMode } from "../incidents";
+import { authHeaders, apiBaseUrl, apiMode } from "../client";
 import { mockApi } from "../mockApi";
 import type { QueueJob } from "../../contracts/types";
 

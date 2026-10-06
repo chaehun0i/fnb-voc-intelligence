@@ -1,6 +1,6 @@
 import type { Incident, IncidentWorkspace, Severity } from "../../contracts/types";
 import { mockApi } from "../mockApi";
-import { authHeaders, commandKey } from "../auth";
+import { apiMode, apiBaseUrl, authHeaders, commandKey } from "../client";
 
 export class IncidentApiError extends Error {
   constructor(public code: string, message: string, public requestId?: string) {
@@ -166,8 +166,6 @@ export function createHttpIncidentApi(baseUrl: string, fetcher: typeof fetch = f
   };
 }
 
-export const apiMode = import.meta.env.VITE_API_MODE === "http" ? "http" : "mock";
-export const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
 export const incidentApi: IncidentApi = apiMode === "http" ? createHttpIncidentApi(apiBaseUrl) : {
   listIncidents: mockApi.listIncidents,
   getIncident: mockApi.getIncident,

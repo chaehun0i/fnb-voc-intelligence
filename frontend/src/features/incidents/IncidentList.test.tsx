@@ -6,8 +6,8 @@ import { ageLabel } from "../../lib/display";
 import { IncidentList } from "./IncidentList";
 
 const mode = vi.hoisted(() => ({ value: "mock" }));
-vi.mock("../../api/incidents", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../api/incidents")>();
+vi.mock("../../api/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../api/client")>();
   return { ...actual, get apiMode() { return mode.value; } };
 });
 
