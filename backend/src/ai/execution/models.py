@@ -6,6 +6,27 @@ from pydantic import Field, field_validator, model_validator
 
 from src.ai.models import SafeModel
 
+OperationName = Literal["HISTORY_LOOKUP", "TRANSACTION_LOOKUP", "INVENTORY_LOOKUP",
+    "RCA_DRAFT", "CAPA_DRAFT", "CAPA_APPLY", "APPROVAL_REQUEST", "APPROVAL_RESULT",
+    "INTERNAL_EXECUTION", "VERIFICATION"]
+
+
+class HarnessIntent(SafeModel):
+    agent_run_id: str
+    operation: OperationName
+    context_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+
+
+class HarnessDecision(SafeModel):
+    policy_version: Literal["operation-gate-1"] = "operation-gate-1"
+    agent_run_id: str
+    operation: OperationName
+    allowed: bool
+    reason: Literal["ALLOWED", "REPLAY_CACHED", "AUTHORIZATION_DENIED", "POLICY_DENIED",
+        "CAPABILITY_UNAVAILABLE", "APPROVAL_REQUIRED", "BUDGET_EXHAUSTED",
+        "PAUSED", "STOPPED", "MANUAL_TAKEOVER", "MANIFEST_INCOMPATIBLE"]
+    risk: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+
 
 class ActionExecutionRecord(SafeModel):
     execution_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
