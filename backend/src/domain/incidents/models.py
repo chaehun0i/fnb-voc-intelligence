@@ -62,9 +62,14 @@ class Verification:
     summary: str
     id: str = ""
     verified_at: str | None = None
+    execution_id: str | None = None
+    evidence_refs: tuple[str, ...] = ()
+    criteria: str | None = None
+    observation_mode: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "result", VerificationResult(self.result))
+        object.__setattr__(self, "evidence_refs", tuple(self.evidence_refs))
 
 
 @dataclass(frozen=True)

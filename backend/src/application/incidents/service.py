@@ -322,6 +322,9 @@ class IncidentService:
         result: VerificationResult,
         summary: str,
         expected_version: int | None = None,
+        *, verification_id: str | None = None, execution_id: str | None = None,
+        evidence_refs: tuple[str, ...] = (), criteria: str | None = None,
+        observation_mode: str | None = None,
     ) -> Incident:
         item = self._load(incident_id, expected_version)
         require_status(item, IncidentStatus.VERIFYING)
@@ -331,8 +334,10 @@ class IncidentService:
             verification=Verification(
                 result=result,
                 summary=summary,
-                id=self.id_generator(),
+                id=verification_id or self.id_generator(),
                 verified_at=now,
+                execution_id=execution_id, evidence_refs=evidence_refs, criteria=criteria,
+                observation_mode=observation_mode,
             ),
         )
         if result == VerificationResult.PASS:

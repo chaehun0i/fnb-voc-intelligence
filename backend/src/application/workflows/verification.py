@@ -12,6 +12,7 @@ from src.domain.approvals.audit import AuditRecord
 from src.domain.approvals.models import action_digest
 from src.domain.workflows.models import WorkflowState
 from src.domain.workflows.verification import ActionExecutionRecord
+from src.domain.workflows.verification_rules import evaluate_verification
 
 
 class VerificationCommands:
@@ -93,4 +94,67 @@ class VerificationCommands:
             result = run.state.model_copy(update={"resulting_incident_status": "VERIFYING"})
             uow.agent_runs.save(run.model_copy(update={"state": result}))
             self.audit(uow, run, principal, "internal_verification_started", saved.version)
+            return result
+
+    def record_evidence(self, context, evidence, expected_version):
+        """공개 Agent 실행 API가 아닌 좁은 인증된 내부 source ingest 경계입니다."""
+        if context.principal.tenant_id != self.tenant_id:
+            raise AccessError()
+        with self.persistence.transaction(self.tenant_id) as uow:
+            run, incident, _ = self.load(uow)
+            require(context.principal, "operate", incident.store)
+            record = uow.executions.get(run.agent_run_id)
+            if (record is None or incident.status != "VERIFYING" or incident.version != expected_version
+                    or run.state.verification is not None or evidence.store != incident.store
+                    or evidence.observed_at < record.completed_at or evidence.observed_at > self.clock()
+                    or not set(evidence.additional_evidence_refs) <= {e.source_ref for e in run.state.normalized_evidence}):
+                raise IncidentConflict()
+            return uow.executions.append_evidence(record, evidence)
+
+    def evaluate(self, state):
+        with self.persistence.transaction(self.tenant_id) as uow:
+            run, _, _ = self.load(uow)
+            if run.state.verification:
+                return run.state
+            if state != run.state or not state.execution:
+                raise IncidentConflict()
+            evidence = uow.executions.evidence(state.execution)
+            pinned = uow.configs.get(run.config_version)
+            if pinned is None:
+                raise IncidentConflict()
+            result = evaluate_verification(state.model_copy(update={"verification_evidence": evidence}),
+                self.clock(), window_hours=pinned.config.verification_window_hours)
+            # 후보를 저장하지 않고 다음 Command에서 저장 원본과 함께 재검증합니다.
+            return result
+
+    def apply(self, state):
+        with self.persistence.transaction(self.tenant_id) as uow:
+            run, incident, principal = self.load(uow)
+            if run.state.verification:
+                if state.verification != run.state.verification:
+                    raise IncidentConflict()
+                return run.state
+            record = uow.executions.get(run.agent_run_id)
+            evidence = uow.executions.evidence(record) if record else ()
+            pinned = uow.configs.get(run.config_version)
+            if (record is None or pinned is None or run.state.execution != record
+                    or incident.status != "VERIFYING" or incident.version != record.incident_version+1
+                    or action_digest(incident) != record.action_digest or state.execution != record
+                    or state.verification_evidence != evidence or state.verification is None):
+                raise IncidentConflict()
+            regenerated = evaluate_verification(run.state.model_copy(update={"verification_evidence": evidence}),
+                state.verification.verified_at, window_hours=pinned.config.verification_window_hours)
+            if (regenerated.verification != state.verification or state.verification.verified_at > self.clock()
+                    or state.verification.verified_at < record.completed_at):
+                raise IncidentConflict()
+            candidate = state.verification
+            saved = IncidentService(uow.incidents, clock=self.clock, principal=principal).verify(
+                incident.id, candidate.result, candidate.summary, incident.version,
+                verification_id=candidate.verification_id, execution_id=record.execution_id,
+                evidence_refs=candidate.evidence_ids, criteria=candidate.criteria,
+                observation_mode=candidate.observation_mode)
+            result = WorkflowState.model_validate(state.model_copy(update={
+                "resulting_incident_status": saved.status}).model_dump(mode="json"))
+            uow.agent_runs.save(run.model_copy(update={"state": result}))
+            self.audit(uow, run, principal, "verification_"+candidate.result.lower(), saved.version)
             return result
