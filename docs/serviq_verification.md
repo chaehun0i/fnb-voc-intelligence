@@ -98,7 +98,7 @@ raw VOC/prompt/response/credential/불필요 PII·delegation token을 Trace/API/
 
 | 영역 | 실제 결과 |
 | --- | --- |
-| Python | `ruff check .` 통과, 구조 리팩토링 회귀 5개 포함 전체 `pytest` **650 passed** |
+| Python | `ruff check .` 통과, 기능 중심 구조 회귀 6개 포함 전체 `pytest` **651 passed** |
 | Backend | `uv sync --locked`, UTF-8 환경의 `fastapi run --help`, locked app import 통과 |
 | Frontend | Node 24.19 / `npm ci` 통과(취약점 0), lint·전체 **28 files / 173 passed**·TypeScript/Vite build 통과 |
 | PostgreSQL | postgres/security/queue/dashboard/settings/jev/llm_gateway/langgraph 기존 8종 및 verification smoke 모두 최신 API 이미지에서 통과 |
@@ -109,7 +109,7 @@ raw VOC/prompt/response/credential/불필요 PII·delegation token을 Trace/API/
 
 검증 중 frontend 전체 테스트와 Docker/DB 작업을 동시에 실행한 첫 시도에서는 worker 시작 timeout이 발생했습니다. timeout이나 assertion을 바꾸지 않고 작업을 직렬화한 뒤 전체 suite를 다시 실행해 통과했으며, 마지막 UI 수정 후에도 전체 173개를 재검증했습니다. PostgreSQL smoke도 Golden 데이터가 섞인 DB에서 시작하지 않고 깨끗한 격리 DB에서 기존 정확한 assertion을 유지해 실행했습니다.
 
-추가 수정은 복원된 근거의 Tenant/store/source 검증, checkpoint 대기 후 현재 freshness 재검증, 기존 Incident 화면의 내부 기록/외부 실행 구분입니다. 기본 구현·테스트·문서 10개에 이 3개 fix를 더했습니다. 이후 사용자의 별도 요청으로 [현재 프로젝트 구조](serviq_structure.md)에 따라 기능을 바꾸지 않는 6개 refactor/test/docs 커밋을 추가해 총 19개입니다. 커밋 수를 맞추기 위한 변경이나 빈 커밋은 없습니다.
+추가 수정은 복원된 근거의 Tenant/store/source 검증, checkpoint 대기 후 현재 freshness 재검증, 기존 Incident 화면의 내부 기록/외부 실행 구분입니다. 기본 구현·테스트·문서 10개에 이 3개 fix를 더했습니다. 이후 사용자 요청의 1차 구조 정리 6개, 기능 중심 `agents`/`routing`/`llm` 통합과 최종 문서 4개를 더해 총 23개입니다. [현재 프로젝트 구조](serviq_structure.md)에 실제 파일 책임과 import 경계를 기록했습니다. 커밋 수를 맞추기 위한 변경이나 빈 커밋은 없습니다.
 
 검증은 기존 고정 `serviq` 프로젝트와 `serviq_postgres_data` 볼륨을 사용하되 task 전용 DB 세 개로 격리했습니다. 기존 `fnb_voc` DB/볼륨은 보존합니다. 원격 GitHub Actions 결과는 PR의 최신 check가 source of truth이며, 로컬 성공만으로 원격 CI 통과를 선언하지 않습니다. PR을 자동 merge하지 않습니다.
 

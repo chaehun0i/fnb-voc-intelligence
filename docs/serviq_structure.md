@@ -2,22 +2,22 @@
 
 ## 목적
 
-Day 16에 정한 `backend/`, `db/`, `frontend/` 실행 경계를 유지하고, Day 26 이후 흩어진 작은 패키지를 기존 책임별 폴더에 통합했습니다. API는 백엔드 디렉터리에서 `uv run fastapi run`, 화면은 프론트엔드 디렉터리에서 `npm run dev`를 사용합니다. Python 구현과 테스트는 `backend/src/`, `backend/tests/`에 모으며 기존 RAG/CLI 기능을 유지합니다.
+Day 16에 정한 `backend/`, `db/`, `frontend/` 실행 경계를 유지하고, Day 26 이후 흩어진 작은 패키지를 기능별로 통합했습니다. Agent·LLM·Jev는 각각 `agents/`, `llm/`, `routing/` 한곳에서 찾습니다. Incident 핵심 규칙과 공유 권한·저장소는 기존 경계를 유지합니다. API는 백엔드 디렉터리에서 `uv run fastapi run`, 화면은 프론트엔드 디렉터리에서 `npm run dev`를 사용합니다. 기존 RAG/CLI 기능도 유지합니다.
 
 ## 코드를 찾는 기준
 
 ```text
 backend/src/
-├─ domain/          # 순수 업무 계약·규칙 (Jev는 decisions/, 실행 계약은 workflows/)
-├─ application/     # 권한·UoW를 거치는 Command/Query, 기능별 서비스
-│  ├─ incidents/    # Incident service와 commands를 한곳에 배치
-│  └─ workflows/    # History/RCA/CAPA node와 승인·검증 Application 경계
-├─ infrastructure/  # DB와 실행 기술 adapter
+├─ agents/          # 실행 계약, History/RCA/CAPA, 승인·검증, Graph/Checkpoint
+├─ llm/             # Gateway, 정책, Provider 선택, 서비스·조회·실행 설정
+│  └─ providers/    # Fake/Gemini/Ollama SDK adapter만 격리
+├─ routing/         # Jev 순수 판단 + Context/Shadow/Query 연결
+├─ domain/          # Incident·Approval·Job·Config의 순수 업무 계약·규칙
+├─ application/     # 공유 보안·UoW port와 Incident/Approval/Job/Config 서비스
+├─ infrastructure/  # 공통 DB와 외부 기술 adapter
 │  ├─ repositories/ # tenant-scoped persistence
 │  ├─ jobs/         # Outbox 전달, Job claim/lease, runtime 진입점
-│  └─ workflows/    # LangGraph graph/checkpoint/processor
 ├─ api/             # HTTP routes/DTO/auth dependency, 업무 판단은 하지 않음
-├─ llm/             # provider-neutral Gateway 및 격리된 Provider adapter
 └─ data·rag·ingestion·analysis·dashboard·config/ # 기존 Data Intelligence/설정 기능
 
 frontend/src/
@@ -28,13 +28,15 @@ frontend/src/
 └─ app·lib·test/    # 앱 조립, 표시 도우미, 테스트 fixture
 ```
 
-순수 Jev는 `domain/decisions`로 이동했습니다. 별도 `decision/jev`·`runtime/workflows`·`application/commands` 패키지는 남기지 않습니다. History/RCA/CAPA 처리 로직은 SDK 독립적인 `application/workflows/*_node.py`, LangGraph 복구는 `infrastructure/workflows`에 있습니다. 순수 Verification 규칙의 중복 re-export 모듈도 제거했습니다.
+같은 기능을 Domain/Application/Infrastructure 세 군데로 나누던 Agent 코드는 `agents`로 모았습니다. `models.py`·`verification_contracts.py`·`verification_rules.py`는 SDK 독립 계약/규칙이고, `*_node.py`는 조사 로직, `*_commands.py`는 권한·UoW를 거치는 업무 명령, `graph.py`·`checkpoint.py`·`processor.py`는 durable 실행입니다. 폴더 통합이 책임 통합은 아닙니다. 순수 계약이 Graph/DB/Provider를 import하지 않는 테스트를 유지합니다.
+
+`routing/models.py`·`rules.py`·`profiles.py`·`engine.py`는 I/O 없는 Jev 판단입니다. 같은 폴더의 `context.py`·`shadow.py`·`queries.py`만 Application 연결을 담당합니다. Provider 선택은 별도 업무 라우팅이 아니라 Gateway 책임이므로 `llm/router.py`에 남깁니다. `llm/runtime.py`는 조립, `service.py`는 인증된 실행, `queries.py`는 운영 조회이며 실제 SDK는 `providers` 밖으로 나오지 않습니다. 별도 `decision/jev`·`runtime/workflows`·계층별 `workflows`/`decisions`/`application/llm` 패키지나 compatibility shim은 남기지 않습니다.
 
 Outbox와 Job Worker는 `infrastructure/jobs`에 모으되 `outbox_worker.py`와 `job_worker.py`의 상태 저장/lease 책임은 합치지 않습니다. Compose와 문서의 실행 경로는 `src.infrastructure.jobs.runtime`입니다. 과거 module path는 프로젝트 내부 계약이므로 import/script를 한 번에 갱신했고 compatibility shim을 새로 만들지 않았습니다.
 
 프론트엔드의 연결 모드·API 주소·인증 헤더·명령 키는 `api/client.ts`에서 가져옵니다. Queue/Settings/Dashboard가 이를 위해 Incident adapter를 import하지 않습니다. Review가 실제 Incident DTO decoder를 재사용하는 의존은 유지합니다. 응답 검증과 feature-specific 오류, 같은 요청 키 재사용, HTTP 실패 시 Mock fallback 금지는 바꾸지 않았습니다.
 
-소스가 포함된 백엔드 폴더는 39개에서 35개, 최상위 기능 폴더는 13개에서 11개로 줄었습니다. 빈 폴더·generated cache는 수치에 넣지 않습니다. Domain/Application/Infrastructure/API 경계와 기존 RAG 폴더, 기능별 frontend API는 규모에 맞는 책임 구분이므로 무조건 평탄화하지 않습니다.
+소스가 포함된 백엔드 하위 폴더는 최초 39개 → 1차 정리 35개 → 기능 중심 정리 31개로 줄었습니다(`backend/src` 자체와 빈 폴더/cache 제외). Agent/Jev/LLM 관련 폴더는 8개 → 4개이며 Agent/Jev는 깊이 3에서 1로 줄었습니다. 기능 진입점을 루트로 올렸으므로 최상위 폴더 수 자체를 감소 목표로 삼지 않습니다. 공통 Incident Domain/Application/Infrastructure/API와 기존 RAG, 기능별 frontend API는 그대로 유지합니다.
 
 ## 구성
 
@@ -48,8 +50,9 @@ Outbox와 Job Worker는 `infrastructure/jobs`에 모으되 `outbox_worker.py`와
 | `backend/src/api/` | 기존 FastAPI Factory, Routes, DTO, 오류 변환 | `backend/main.py`가 가져오는 API 구현 |
 | `backend/src/domain/`, `backend/src/application/` | Incident 상태 규칙과 Query/Command 서비스 | HTTP 및 저장 기술과 분리된 계층 |
 | `backend/src/infrastructure/` | Repository, SQL 초기화 로더, Outbox Worker | 공통 Python 패키지 |
-| `backend/src/llm/`, `backend/src/application/llm/` | Day 22 Provider 중립 AI 계약·정책·Gateway와 명시적 Application 경계 | SDK는 Provider 어댑터에만 격리, Shadow 자동 호출 없음 |
-| `backend/src/domain/workflows/`, `backend/src/application/workflows/`, `backend/src/infrastructure/workflows/` | Day 23 AgentRun·실행 허용·단일 History Graph와 복구 | 기존 Job으로 명시적 실행, Config 고정, 참조만 Checkpoint 저장 |
+| `backend/src/llm/` | Provider 중립 계약·정책·Gateway·실행 조립·사용량 조회 | SDK는 Provider 어댑터에만 격리, Shadow 자동 호출 없음 |
+| `backend/src/agents/` | AgentRun·실행 허용·History/RCA/CAPA·승인·검증·Graph 복구 | 기존 Job으로 명시적 실행, Config 고정, 참조만 Checkpoint 저장 |
+| `backend/src/routing/` | Jev 판단·정책 snapshot·Shadow·감사 조회 | 순수 판단과 I/O 연결 파일은 import 경계로 분리 |
 | `backend/src/data/`, `backend/src/rag/`, `backend/src/ingestion/`, `backend/src/dashboard/` | Day 1~12 Data Intelligence 구현 | 기존 CLI와 Streamlit 실행 유지 |
 
 `backend/`는 저장소 루트 Python 프로젝트를 로컬 editable dependency로 사용합니다. 루트 패키지 설정은 실제 `backend/src/` 코드를 `src` 패키지로 등록하므로 Domain/API 코드를 복사하지 않습니다. `backend/uv.lock`은 백엔드 실행 환경의 재현 가능한 의존성을 기록합니다. 루트의 기존 `src/`, `tests/`를 중복으로 남기지 않습니다.
@@ -148,9 +151,9 @@ npm run build
 
 ## 제한 사항
 
-Day 16의 최초 디렉터리 이동 스냅샷은 Python 200개 회귀를 통과했습니다. 현재 Day 26 추가 정리는 구조 경계 테스트 5개를 포함해 전체 Python 650개, frontend 28 files / 173개와 lint/build를 통과했습니다. backend locked 설치/진입점도 검증했습니다. 실제 PostgreSQL smoke 9종과 이미지 안의 새 패키지/기존 RAG import, Compose Worker 시작을 검증하며 DB/Checkpoint payload나 API 응답 계약은 바꾸지 않습니다.
+Day 16 최초 이동은 Python 200개, Day 26의 1차 정리는 Python 650개와 frontend 28 files / 173개를 통과했습니다. 이번 기능 중심 통합은 LLM 계약 경계 테스트를 하나 더 추가해 구조 테스트 6개를 포함합니다. 검증 명령과 최신 결과는 [Day 26 검증 기록](serviq_verification.md) 및 PR #51의 최신 check를 따릅니다. DB/Checkpoint payload나 API 응답 계약은 바꾸지 않습니다.
 
-추가 작업은 Incident 명령 통합, Jev Domain 통합, Workflow 책임별 위치 정리, Outbox/Job 실행 위치 통합, frontend 연결/인증 통합, 구조 회귀·문서의 6개 독립 커밋입니다. 각 커밋 전에 관련 lint/test를 실행합니다. 기존 CI/테스트를 삭제·약화하거나 새 라이브러리를 추가하지 않았습니다. 원격 최종 CI는 기존 Day 26 PR #51의 최신 check로 확인합니다.
+1차 정리 6개 커밋에 이어 Agent 통합, Routing 통합, LLM 통합, 구조 문서·최종 회귀의 4개 독립 커밋으로 마감합니다. 각 커밋 전에 관련 lint/test를 실행합니다. 기존 CI/테스트를 삭제·약화하거나 새 라이브러리를 추가하지 않습니다. 운영 DB/볼륨은 보존하고 검증 DB만 격리합니다.
 
 Python 코드를 `backend/src/`로 옮기며 실행 위치를 정리하지만 Domain/Application/API의 책임이나 기존 Data Intelligence 동작은 변경하지 않습니다. 루트 Python 패키지는 기존 기능과 새 백엔드가 공유하며, `backend/`의 로컬 경로 의존성은 저장소 전체가 함께 있어야 합니다.
 
