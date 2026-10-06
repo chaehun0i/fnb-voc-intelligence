@@ -18,7 +18,7 @@ from src.agents.resume import RESUME_JOB
 from src.agents.sufficiency import evaluate_sufficiency
 from src.agents.verification_commands import VerificationCommands
 from src.infrastructure.jobs.job_worker import RetryableJobError
-from src.infrastructure.llm_runtime import configured_llm_executor
+from src.llm.runtime import configured_llm_executor
 
 logger = logging.getLogger(__name__)
 

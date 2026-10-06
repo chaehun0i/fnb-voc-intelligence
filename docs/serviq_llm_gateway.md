@@ -14,7 +14,7 @@ v0.5 일부 구현현황은 Day 16 스냅샷입니다. 실제 main의 Day 17~20 
 
 ### 공통 계약과 책임
 
-명시적 `LLMApplication` → Principal/Tenant/Config snapshot → Data Policy → Gateway/Router → Provider Protocol → Fake/Gemini/Ollama 순서입니다. `src.infrastructure.llm_runtime.configured_llm_application()`이 wiring을 제공하며 공개 prompt POST API는 없습니다.
+명시적 `LLMApplication` → Principal/Tenant/Config snapshot → Data Policy → Gateway/Router → Provider Protocol → Fake/Gemini/Ollama 순서입니다. `src.llm.runtime.configured_llm_application()`이 wiring을 제공하며 공개 prompt POST API는 없습니다.
 
 | 위치 | 역할 |
 | --- | --- |

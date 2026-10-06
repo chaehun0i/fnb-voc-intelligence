@@ -1,10 +1,10 @@
 """명시적으로 구성한 Application만 Provider를 호출하며 startup에서는 호출하지 않습니다."""
-from src.application.llm.service import LLMApplication
-from src.infrastructure.llm_config import local_llm_config
+from src.llm.config import local_llm_config
 from src.llm.execution import RoutedLLMExecutor
 from src.llm.providers.gemini import GeminiProvider
 from src.llm.providers.ollama import OllamaProvider
 from src.llm.router import ProviderRouter
+from src.llm.service import LLMApplication
 
 
 def configured_llm_executor(recorder=None):

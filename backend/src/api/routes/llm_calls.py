@@ -3,7 +3,7 @@ from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
 
 from src.api.dependencies.auth import request_context
-from src.application.llm.queries import LLMCallQueries
+from src.llm.queries import LLMCallQueries
 from src.llm.usage import LLMCallRecord
 
 router = APIRouter(prefix="/api/v1/incidents", tags=["llm-usage"])

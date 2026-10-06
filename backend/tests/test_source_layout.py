@@ -20,7 +20,7 @@ def test_obsolete_package_locations_have_no_source():
     for obsolete in ("decision", "runtime", "application/commands",
                      "infrastructure/queue", "infrastructure/outbox",
                      "domain/workflows", "application/workflows", "infrastructure/workflows",
-                     "domain/decisions", "application/decisions"):
+                     "domain/decisions", "application/decisions", "application/llm"):
         assert not list((SOURCE / obsolete).rglob("*.py")), obsolete
 
 
@@ -47,6 +47,18 @@ def test_workflow_nodes_do_not_import_graph_or_provider_adapters():
             "src.llm.providers", "google", "ollama")) for module in imports(path)), path
     for name in ("graph", "checkpoint", "processor"):
         assert (SOURCE / f"agents/{name}.py").is_file()
+
+
+def test_llm_contracts_do_not_import_provider_sdk_or_runtime_wiring():
+    for name in ("contracts", "errors"):
+        path = SOURCE / f"llm/{name}.py"
+        assert path.is_file()
+        assert not any(module.startswith(("google", "ollama", "src.llm.providers",
+            "src.llm.runtime", "src.llm.service", "psycopg")) for module in imports(path)), path
+    for name in ("runtime", "config", "service", "queries"):
+        assert (SOURCE / f"llm/{name}.py").is_file()
+    assert not (SOURCE / "infrastructure/llm_runtime.py").exists()
+    assert not (SOURCE / "infrastructure/llm_config.py").exists()
 
 
 def test_compose_worker_uses_real_consolidated_entrypoint():
