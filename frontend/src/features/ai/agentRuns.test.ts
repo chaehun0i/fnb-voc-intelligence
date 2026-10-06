@@ -2,6 +2,15 @@ import { expect, it, vi } from "vitest";
 import { createHttpAgentRunApi, decodeDetail, decodeRun, mockAgentRunApi } from "./api";
 import { historyFixture } from "../../test/agentRunFixture";
 
+it("멀티 조사 업무 상태를 검증하고 위조 상태를 거부한다", () => {
+  const investigation = { status: "PARTIAL", evidence_count: 1,
+    uncertainty: "관측 근거이며 원인 확정은 아닙니다.", updated_at: historyFixture.started_at,
+    agents: [{ agent_type: "HISTORY", business_label: "과거 사례 조사", status: "SUCCESS", evidence_count: 1, retryable: false, gap_codes: [], updated_at: historyFixture.started_at }],
+    coverage: [{ dimension: "HISTORY", status: "CONFIRMED" }] };
+  expect(decodeRun({ ...historyFixture, workflow_version: "multi-investigation-v5", investigation }).investigation).toEqual(investigation);
+  expect(() => decodeRun({ ...historyFixture, investigation: { ...investigation, agents: [{ ...investigation.agents[0], status: "EXECUTED" }] } })).toThrow("응답 형식");
+});
+
 it("동일 서버 계약으로 목록과 상세를 읽는다", async () => {
   const transport = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ runs: [historyFixture], limit: 20, offset: 0, has_more: false }))).mockResolvedValueOnce(new Response(JSON.stringify(historyFixture)));
   const api = createHttpAgentRunApi("/api/v1", transport);

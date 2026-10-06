@@ -271,3 +271,18 @@ def test_processor_pins_selection_and_deduplicates_branch_delivery():
     assert search.search_evidence.call_count == 1
     with p.transaction("t") as uow:
         assert uow.agent_runs.branch(first.agent_run_id, "INVENTORY")
+
+
+def test_safe_progress_projection_and_response_contract():
+    from src.ai.ax.service import AgentRunQueries
+    from src.api.schemas.agent_runs import AgentRunDetailResponse
+    from src.application.security.principal import Principal, Role
+    p, service, _, job = multi_setup(all_agents=True, inventory=False)
+    run = service.prepare(job)[0]
+    principal = Principal("reader", "t", frozenset({Role.AUDITOR}), frozenset({"store"}))
+    detail = AgentRunQueries(p, principal).execute("i", run_id=run.agent_run_id)
+    response = AgentRunDetailResponse.model_validate(detail).model_dump(mode="json")
+    progress = response["investigation"]
+    assert {a["agent_type"]: a["status"] for a in progress["agents"]} == {
+        "HISTORY": "RUNNING", "TRANSACTION": "RUNNING", "INVENTORY": "UNAVAILABLE"}
+    assert not any(key in str(response) for key in ("raw_prompt", "checkpoint", "delegated_roles", "context_digest"))
