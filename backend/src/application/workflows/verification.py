@@ -1,0 +1,70 @@
+"""내부 기록/검증은 Graph가 아닌 인증된 Application Command로 적용합니다."""
+from datetime import UTC, datetime
+from uuid import NAMESPACE_URL, uuid5
+
+from src.application.incidents.service import IncidentNotFound, IncidentService
+from src.application.ports.incident_repository import IncidentConflict
+from src.application.security.authorization import require
+from src.application.security.principal import AccessError, Principal
+from src.application.workflows.resume import validate_approval
+from src.domain.approvals.audit import AuditRecord
+from src.domain.workflows.models import WorkflowState
+from src.domain.workflows.verification import ActionExecutionRecord
+
+
+class VerificationCommands:
+    def __init__(self, persistence, run_id, tenant_id, clock=None):
+        self.persistence, self.run_id, self.tenant_id = persistence, run_id, tenant_id
+        self.clock = clock or (lambda: datetime.now(UTC))
+
+    def load(self, uow):
+        run = uow.agent_runs.get(self.run_id)
+        if run is None or not run.requested_by:
+            raise AccessError()
+        incident = uow.incidents.get(run.incident_id)
+        if incident is None:
+            raise IncidentNotFound()
+        principal = Principal(run.requested_by, run.tenant_id, frozenset(run.delegated_roles),
+            frozenset(run.delegated_store_scope), "workflow-delegation")
+        require(principal, "operate", incident.store)
+        return run, incident, principal
+
+    def audit(self, uow, run, principal, operation, version):
+        uow.audit.append(AuditRecord(str(uuid5(NAMESPACE_URL, operation+":"+run.agent_run_id)),
+            run.tenant_id, principal.principal_id, operation, "incident", run.incident_id,
+            "SUCCESS", run.agent_run_id, run.correlation_id, self.clock().isoformat(), version))
+
+    def execute(self, state):
+        WorkflowState.model_validate(state.model_dump(mode="json"))
+        with self.persistence.transaction(self.tenant_id) as uow:
+            run, incident, principal = self.load(uow)
+            repo = uow.executions
+            existing = repo.get(run.agent_run_id)
+            if existing:
+                if state.execution and state.execution != existing:
+                    raise IncidentConflict()
+                return run.state
+            pinned, current = uow.configs.get(run.config_version), uow.configs.current()
+            if (run.workflow_version != "history-verification-v4" or pinned is None or current is None
+                    or not pinned.config.internal_execution_enabled or not current.config.internal_execution_enabled
+                    or state != run.state or not state.approval or state.approval.phase != "READY_TO_EXECUTE"
+                    or len(state.capa_proposals) != 1):
+                raise AccessError("INTERNAL_EXECUTION_NOT_ALLOWED", 409)
+            approval = uow.approvals.get(state.approval.approval_id)
+            if approval is None or approval.status != "APPROVED":
+                raise IncidentConflict()
+            validate_approval(uow, approval, self.clock(), decided=True)
+            if not incident.corrective_actions[0].verification_criteria.strip():
+                raise IncidentConflict()
+            saved = IncidentService(uow.incidents, clock=self.clock, principal=principal).start_internal_execution(
+                incident.id, state.approval.incident_version+1)
+            record = repo.append(ActionExecutionRecord(execution_id=str(uuid5(NAMESPACE_URL, "internal-execution:"+run.agent_run_id)),
+                tenant_id=run.tenant_id, incident_id=incident.id, agent_run_id=run.agent_run_id,
+                action_id=incident.corrective_actions[0].id, approval_id=approval.approval_id,
+                action_digest=approval.action_digest, started_at=self.clock(), completed_at=self.clock(),
+                config_version=run.config_version, correlation_id=run.correlation_id, incident_version=saved.version))
+            result = WorkflowState.model_validate(run.state.model_copy(update={"execution": record,
+                "resulting_incident_status": "EXECUTING"}).model_dump(mode="json"))
+            uow.agent_runs.save(run.model_copy(update={"state": result}))
+            self.audit(uow, run, principal, "internal_execution_recorded", saved.version)
+            return result

@@ -51,6 +51,7 @@ class RuntimeConfig:
     auto_rca_draft: bool = False
     auto_capa_draft: bool = False
     auto_execute: bool = False
+    internal_execution_enabled: bool = False
     approval_policy_by_risk: RiskApproval = field(default_factory=RiskApproval)
     required_roles: tuple[str, ...] = ("REVIEWER", "HQ_ADMIN")
     separation_of_duties: bool = True

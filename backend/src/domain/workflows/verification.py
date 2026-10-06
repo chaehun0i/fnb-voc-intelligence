@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from src.domain.workflows.models import SafeModel
+from src.domain.workflows.safe import SafeModel
 
 
 class ActionExecutionRecord(SafeModel):

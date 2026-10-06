@@ -114,7 +114,8 @@ class HistoryWorkflows:
                 workflow_id=wid, job_id=job.job_id, correlation_id=job.correlation_id,
                 config_version=version.config_version, jev_decision_id=decision.decision_id,
                 started_at=self.clock(), state=state,
-                workflow_version="history-capa-v3" if resolved.effective.auto_capa_draft and job.delegated_principal_id else "history-evidence-v2",
+                workflow_version=("history-verification-v4" if resolved.effective.internal_execution_enabled else "history-capa-v3")
+                    if resolved.effective.auto_capa_draft and job.delegated_principal_id else "history-evidence-v2",
                 requested_by=job.delegated_principal_id, delegated_roles=job.delegated_roles,
                 delegated_store_scope=job.delegated_store_scope, initial_incident_version=incident.version)
             return uow.agent_runs.save(run), resolved, decision

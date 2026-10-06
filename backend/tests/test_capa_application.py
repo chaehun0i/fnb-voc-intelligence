@@ -9,12 +9,13 @@ from tests.test_history_application import setup_history
 from tests.test_rca_investigation import ready
 
 
-def prepared():
+def prepared(*, internal_execution=False):
     persistence, workflows, context, decision = setup_history()
     with persistence.transaction("t") as uow:
         version = uow.configs.current()
         uow.configs.append(replace(version, config_version=2, parent_version=1,
-            config=replace(version.config, auto_capa_draft=True, auto_rca_draft=True)), 1)
+            config=replace(version.config, auto_capa_draft=True, auto_rca_draft=True,
+                internal_execution_enabled=internal_execution)), 1)
     # 테스트는 같은 Config/Jev lineage를 고정하며 enqueue 권한을 우회하지 않습니다.
     from src.application.decisions.shadow import ShadowDecisions
     from src.domain.jobs.models import Job

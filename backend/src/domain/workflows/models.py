@@ -3,7 +3,14 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
+
+from src.domain.workflows.safe import SafeModel
+from src.domain.workflows.verification import (
+    ActionExecutionRecord,
+    VerificationCandidate,
+    VerificationEvidence,
+)
 
 
 class WorkflowStatus(StrEnum):
@@ -11,18 +18,6 @@ class WorkflowStatus(StrEnum):
     WAITING_APPROVAL = "WAITING_APPROVAL"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
-
-
-class SafeModel(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid", allow_inf_nan=False)
-
-    @field_validator("evidence_refs", check_fields=False)
-    @classmethod
-    def safe_refs(cls, values):
-        import re
-        if any(not re.fullmatch(r"review:[A-Za-z0-9_.:-]{1,128}", value) for value in values):
-            raise ValueError("원문 대신 안전한 Review 출처 참조를 사용해 주세요.")
-        return values
 
 
 class EvidenceCandidate(SafeModel):
@@ -194,6 +189,10 @@ class WorkflowState(SafeModel):
     rca_candidates: tuple[RCACandidate, ...] = Field(default=(), max_length=5)
     capa_proposals: tuple[CAPAProposal, ...] = Field(default=(), max_length=3)
     approval: ApprovalTrace | None = None
+    execution: ActionExecutionRecord | None = None
+    verification_evidence: tuple[VerificationEvidence, ...] = Field(default=(), max_length=20)
+    verification: VerificationCandidate | None = None
+    resulting_incident_status: Literal["EXECUTING", "VERIFYING", "RESOLVED", "REOPENED"] | None = None
     rca_completed: bool = False
     iteration: int = Field(default=0, ge=0, le=20)
     tool_call_count: int = Field(default=0, ge=0, le=50)
@@ -228,6 +227,19 @@ class WorkflowState(SafeModel):
                 or set(self.approval.action_ids) != {p.capa_proposal_id for p in self.capa_proposals}
                 or any(p.status != "APPLIED" for p in self.capa_proposals)):
             raise ValueError("Approval은 같은 실행에 저장된 조치만 참조해야 합니다.")
+        if self.execution:
+            e = self.execution
+            if (not self.approval or self.approval.status != "APPROVED"
+                    or e.tenant_id != self.tenant_id or e.incident_id != self.incident_id
+                    or e.agent_run_id != self.agent_run_id or e.config_version != self.config_version
+                    or e.approval_id != self.approval.approval_id or e.action_digest != self.approval.action_digest
+                    or e.action_id not in self.approval.action_ids):
+                raise ValueError("내부 실행 기록의 승인·조직·설정 lineage를 확인해 주세요.")
+        if self.verification and (not self.execution or self.verification.execution_id != self.execution.execution_id
+                or self.verification.action_id != self.execution.action_id
+                or self.verification.incident_id != self.incident_id or self.verification.config_version != self.config_version
+                or not set(self.verification.evidence_ids) <= {e.evidence_id for e in self.verification_evidence}):
+            raise ValueError("검증 후보는 같은 실행의 실제 조치 후 근거를 참조해야 합니다.")
         return self
 
 
@@ -240,7 +252,7 @@ class AgentRun(SafeModel):
     correlation_id: str
     config_version: int = Field(ge=1)
     jev_decision_id: str
-    workflow_version: Literal["history-v1", "history-evidence-v2", "history-capa-v3"] = "history-v1"
+    workflow_version: Literal["history-v1", "history-evidence-v2", "history-capa-v3", "history-verification-v4"] = "history-v1"
     requested_by: str | None = Field(default=None, max_length=128)
     delegated_roles: tuple[str, ...] = ()
     delegated_store_scope: tuple[str, ...] = ()

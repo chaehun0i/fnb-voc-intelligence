@@ -16,7 +16,7 @@ def validate_approval(uow, approval, now, *, decided=False):
     current = uow.configs.current()
     trace = run.state.approval if run else None
     if (run is None or trace is None or item is None or current is None
-            or run.workflow_version != "history-capa-v3"
+            or run.workflow_version not in {"history-capa-v3", "history-verification-v4"}
             or run.config_version != approval.config_version
             or trace.approval_id != approval.approval_id or trace.action_digest != approval.action_digest
             or set(approval.action_ids) != {a.id for a in item.corrective_actions}

@@ -281,6 +281,11 @@ class IncidentService:
             )
         )
 
+    def start_internal_execution(self, incident_id: str, expected_version: int) -> Incident:
+        """원자적 내부 기록 Command 전용: 외부 작업을 수행하지 않습니다."""
+        item = self._load(incident_id, expected_version)
+        return self.repo.save(transition(item, IncidentStatus.EXECUTING, self._now()))
+
     def execute(
         self,
         incident_id: str,
