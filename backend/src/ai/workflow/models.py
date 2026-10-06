@@ -55,6 +55,56 @@ class AgentSelection(SafeModel):
     capabilities: tuple[TenantCapability, ...] = Field(default=(), max_length=3)
 
 
+class ContextReference(SafeModel):
+    source_ref: str = Field(pattern=r"^(review|transaction|inventory):[A-Za-z0-9_.:-]{1,128}$")
+    source_at: datetime | None = None
+    provenance: Literal["AUTHORIZED_HISTORY_SEARCH", "SYNTHETIC_OPERATIONAL_FIXTURE"]
+
+    @field_validator("source_at")
+    @classmethod
+    def aware(cls, value):
+        if value is not None and value.utcoffset() is None:
+            raise ValueError("Context 출처 시각에는 시간대가 필요합니다.")
+        return value
+
+
+class AgentContextPack(SafeModel):
+    agent_type: InvestigationAgent
+    tenant_id: str = Field(min_length=1, max_length=128)
+    incident_id: str = Field(min_length=1, max_length=128)
+    store: str = Field(min_length=1, max_length=128)
+    category: str = Field(pattern=r"^[A-Z_]{1,64}$")
+    severity: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    objective: Literal["READ_ONLY_INVESTIGATION"] = "READ_ONLY_INVESTIGATION"
+    data_policy: Literal["REFERENCE_ONLY"] = "REFERENCE_ONLY"
+    policy_version: Literal["minimal-context-1"] = "minimal-context-1"
+    window_start: datetime
+    window_end: datetime
+    fetched_at: datetime
+    freshness: Literal["FRESH", "STALE", "UNKNOWN"]
+    references: tuple[ContextReference, ...] = Field(default=(), max_length=20)
+    excluded_count: int = Field(default=0, ge=0)
+    budget_bytes: int = Field(ge=256, le=20000)
+    used_bytes: int = Field(ge=0)
+    digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def bounds(self):
+        import hashlib
+        import json
+        document = self.model_dump(mode="json", exclude={"digest", "used_bytes"})
+        encoded = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
+        if (self.used_bytes != len(encoded) or self.used_bytes > self.budget_bytes
+                or self.digest != hashlib.sha256(encoded).hexdigest()
+                or any(d.utcoffset() is None for d in (self.window_start, self.window_end, self.fetched_at))
+                or not self.window_start <= self.window_end <= self.fetched_at):
+            raise ValueError("CONTEXT_INTEGRITY_INVALID")
+        prefix = {"HISTORY": "review:", "TRANSACTION": "transaction:", "INVENTORY": "inventory:"}[self.agent_type]
+        if any(not r.source_ref.startswith(prefix) for r in self.references):
+            raise ValueError("CONTEXT_AGENT_SOURCE_MISMATCH")
+        return self
+
+
 class WorkflowStatus(StrEnum):
     RUNNING = "RUNNING"
     WAITING_APPROVAL = "WAITING_APPROVAL"
