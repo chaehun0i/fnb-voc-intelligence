@@ -25,7 +25,8 @@ def harness_gate(intent, *, run, incident, principal, config, now, capabilities=
         reason = "MANIFEST_INCOMPATIBLE"
     elif control != "RUNNING":
         reason = control if control in {"PAUSED", "STOPPED", "MANUAL_TAKEOVER"} else "POLICY_DENIED"
-    elif (not config.auto_investigation or (run.state.selection and not config.multi_agent_enabled)):
+    elif (not config.auto_investigation or (run.state.selection and not config.multi_agent_enabled)
+            or (run.state.loop is not None and not config.loop_enabled)):
         reason = "POLICY_DENIED"
     elif read:
         agent, tool, capability = read

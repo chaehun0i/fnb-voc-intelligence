@@ -42,6 +42,7 @@ from src.ai.workflow.policy import (
     approval_policy_digest,
     build_context,
     evaluate_sufficiency,
+    evidence_digest,
     loop_policy,
     run_manifest,
     select_agents,
@@ -484,8 +485,13 @@ class HistoryProcessor:
                 try:
                     InvestigationLoop(self.persistence, run.agent_run_id, job.tenant_id,
                         self.source, self.clock).authorize()
-                except ControlInterrupted:
-                    return run
+                except ControlInterrupted as error:
+                    if run.status == WorkflowStatus.COMPLETED:
+                        return run
+                    with self.persistence.transaction(job.tenant_id) as uow:
+                        current = uow.agent_runs.lock(run.agent_run_id)
+                        loop = current.state.loop.model_copy(update={"termination": error.reason})
+                        return uow.agent_runs.save(current.model_copy(update={"state": current.state.model_copy(update={"loop": loop})}))
             if run.status == WorkflowStatus.COMPLETED:
                 return run
             if run.status == WorkflowStatus.WAITING_APPROVAL and job.job_type not in {RESUME_JOB, CONTINUE_JOB}:
@@ -671,7 +677,19 @@ class HistoryProcessor:
                             if run.state.loop:
                                 with self.persistence.transaction(job.tenant_id) as uow:
                                     stored = uow.agent_runs.get(run.agent_run_id).state
-                                loop = stored.loop.model_copy(update={"termination": stored.loop.termination or "COMPLETED"})
+                                    events = uow.agent_runs.events(run.agent_run_id)
+                                    current_config = uow.configs.current().config
+                                baseline = {e.source_ref for event in events if event.kind == "RESULT" and event.attempt == 1
+                                    for e in event.result.evidence_candidates}
+                                new_evidence = bool(set(result.evidence_refs)-baseline) if stored.iteration > 1 else bool(result.evidence_refs)
+                                termination = stored.loop.termination
+                                if termination is None:
+                                    termination = "NO_NEW_EVIDENCE" if not result.evidence_refs or (stored.iteration > 1 and not new_evidence) else (
+                                        "ITERATION_LIMIT" if any(b.retryable and b.evidence_gaps for b in state.branches)
+                                        and stored.iteration >= min(stored.loop.policy.max_iterations, current_config.max_agent_iterations)
+                                        else "COMPLETED")
+                                loop = stored.loop.model_copy(update={"termination": termination,
+                                    "evidence_digest": evidence_digest(result.evidence_refs), "new_evidence": new_evidence})
                                 result = result.model_copy(update={"iteration": stored.iteration,
                                     "tool_call_count": stored.tool_call_count, "loop": loop})
                             persist(result)

@@ -126,7 +126,8 @@ def test_bounded_retry_and_no_new_evidence_preserves_append_only_results():
     assert controller.execute(pack, bid, unavailable) == first and len(calls) == 2
     with p.transaction("t") as uow:
         saved = uow.agent_runs.get(run.agent_run_id)
-        assert saved.state.loop.termination == "NO_NEW_EVIDENCE"
+        # Branch exhaustion is sticky; the global termination is decided only after all branches fan in.
+        assert saved.state.loop.termination is None
         assert saved.state.iteration == 2 and saved.state.tool_call_count == 2
         assert len([e for e in uow.agent_runs.events(run.agent_run_id) if e.kind in {"CLAIM", "RESULT"}]) == 4
 
@@ -255,3 +256,25 @@ def test_control_http_and_safe_ax_projection():
     assert response.json()["runtime"]["control_version"] == 1
     assert response.json()["runtime"]["permissions"]["resume"]
     assert not any(s in response.text for s in ("raw_prompt", "source_digest", "actor_id", "Idempotency-Key", "delegated_roles"))
+
+
+def test_pinned_loop_budget_cannot_be_increased_and_completed_branch_never_retried():
+    from uuid import NAMESPACE_URL, uuid5
+
+    from src.ai.workflow.controller import InvestigationLoop
+    from src.ai.workflow.models import InvestigationResult
+    p, source, run, now = loop_setup()
+    raised = run.state.loop.model_copy(update={"policy": run.state.loop.policy.model_copy(update={"max_operations": 50})})
+    with p.transaction("t") as uow, pytest.raises(ValueError, match="LOOP_POLICY_IMMUTABLE"):
+        uow.agent_runs.save(run.model_copy(update={"state": run.state.model_copy(update={"loop": raised})}))
+    pack = run.state.contexts[0]
+    bid = str(uuid5(NAMESPACE_URL, run.agent_run_id+":"+pack.agent_type))
+    calls = []
+    def success(context, identity):
+        calls.append(identity)
+        return InvestigationResult(agent_type=context.agent_type, branch_id=identity, tenant_id=context.tenant_id,
+            incident_id=context.incident_id, store=context.store, status="SUCCESS", context_digest=context.digest,
+            started_at=now, completed_at=now, uncertainty="OBSERVATIONS_NOT_CAUSE", retryable=True)
+    loop = InvestigationLoop(p, run.agent_run_id, "t", source, lambda: now)
+    first = loop.execute(pack, bid, success)
+    assert loop.execute(pack, bid, success) == first and len(calls) == 1

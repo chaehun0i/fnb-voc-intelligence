@@ -46,6 +46,8 @@ class InvestigationLoop:
             control = control_state(uow.agent_runs.events(self.run_id))
             if control != "RUNNING":
                 raise ControlInterrupted(control)
+            if not version.config.loop_enabled or not version.config.auto_investigation:
+                raise ControlInterrupted("POLICY_DENIED")
             if operation is None:
                 return
             approved = False
@@ -81,14 +83,18 @@ class InvestigationLoop:
                     raise ControlInterrupted("INCOMPLETE")
                 if previous and (previous.status == "SUCCESS" or not previous.retryable or not previous.evidence_gaps):
                     return previous
+                if len(completed) >= 2 and not (
+                        {e.source_ref for e in completed[-1].result.evidence_candidates}
+                        - {e.source_ref for e in completed[-2].result.evidence_candidates}):
+                    return previous
                 if run.state.loop.termination is not None:
-                    return previous or self._gap(pack, branch_id)
+                    return previous or self._gap(pack, branch_id, code="BRANCH_BUDGET_EXHAUSTED"
+                        if run.state.loop.termination == "BUDGET_EXHAUSTED" else "INSUFFICIENT_SOURCE_COVERAGE")
                 attempt = len(attempts)+1
                 incident, version = uow.incidents.get(run.incident_id), uow.configs.current()
                 if incident is None or version is None:
                     raise AccessError()
                 if attempt > min(run.state.loop.policy.max_iterations, version.config.max_agent_iterations):
-                    self._terminate(uow, run, "ITERATION_LIMIT")
                     return previous or self._gap(pack, branch_id)
                 principal = Principal(run.requested_by or "", run.tenant_id,
                     frozenset(run.delegated_roles), frozenset(run.delegated_store_scope))
@@ -105,8 +111,11 @@ class InvestigationLoop:
                 if not decision.allowed:
                     if decision.reason == "AUTHORIZATION_DENIED":
                         raise AccessError()
+                    if decision.reason == "CAPABILITY_UNAVAILABLE":
+                        return previous or self._gap(pack, branch_id, code="CAPABILITY_UNAVAILABLE")
                     self._terminate(uow, run, "BUDGET_EXHAUSTED" if decision.reason == "BUDGET_EXHAUSTED" else "POLICY_DENIED")
-                    return previous or self._gap(pack, branch_id)
+                    return previous or self._gap(pack, branch_id, code="BRANCH_BUDGET_EXHAUSTED"
+                        if decision.reason == "BUDGET_EXHAUSTED" else "INSUFFICIENT_SOURCE_COVERAGE")
                 identity = pack.agent_type+":"+str(attempt)
                 uow.agent_runs.append_event(self.run_id, RuntimeEvent(event_id=identity+":claim",
                     kind="CLAIM", agent_type=pack.agent_type, attempt=attempt, created_at=self.clock()))
@@ -125,17 +134,16 @@ class InvestigationLoop:
                     "new_evidence": bool(set(refs)-set(before))})
                 run = uow.agent_runs.save(run.model_copy(update={"state": run.state.model_copy(update={"loop": loop})}))
                 if attempt > 1 and not set(refs)-set(before):
-                    self._terminate(uow, run, "NO_NEW_EVIDENCE")
                     return result
                 if not result.retryable or not result.evidence_gaps:
                     return result
             # Only unsuccessful, retryable branches with a real gap can reach the next attempt.
 
-    def _gap(self, pack, branch_id):
+    def _gap(self, pack, branch_id, *, code="BRANCH_BUDGET_EXHAUSTED"):
         now = self.clock()
         return InvestigationResult(agent_type=pack.agent_type, branch_id=branch_id,
             tenant_id=pack.tenant_id, incident_id=pack.incident_id, store=pack.store,
-            status="UNAVAILABLE", evidence_gaps=(EvidenceGap(code="BRANCH_BUDGET_EXHAUSTED", agent_type=pack.agent_type),),
+            status="UNAVAILABLE", evidence_gaps=(EvidenceGap(code=code, agent_type=pack.agent_type),),
             started_at=now, completed_at=now, context_digest=pack.digest, uncertainty="MISSING_EVIDENCE")
 
     def deadline(self, run):
