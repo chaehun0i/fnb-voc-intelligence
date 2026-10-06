@@ -21,6 +21,14 @@
 
 ## 시작하기
 
+### 처음 ServIQ를 체험한다면
+
+기존 `.env`와 DB/volume을 보존하고 `docker compose --profile serviq up --build -d --wait api frontend worker`로 실행한 뒤 `http://localhost:8080`에 접속하세요. 현재 로컬 호환 인증은 별도 로그인 화면이나 production OIDC가 아닙니다.
+
+**데이터 시작하기 → 매장 등록 → 샘플 데이터 또는 Excel/CSV → 컬럼 확인 → 검증/미리보기 → 확인 Import → 시작 체크리스트 → 첫 조사** 순서로 진행합니다. 처음에는 개인정보 없는 샘플과 검색어 `품질`을 권장합니다. 공식 Excel 템플릿은 화면에서 다운로드합니다. 기존 운영 설정을 자동으로 덮어쓰지 않으며, 설정이 없는 조직의 관리자만 동의 후 안전한 초기 조사 설정을 적용할 수 있습니다. 실제 조사는 Worker/PostgreSQL이 필요합니다.
+
+지원 형식·매핑·날짜·파일 제한·샘플 의미와 실제 첫 분석 방법은 [처음 사용하는 ServIQ](docs/serviq_onboarding_import.md)를 참고하세요. 거래/재고는 관측 자료이며 POS/ERP 연결이나 외부 시스템 변경이 아닙니다.
+
 Python 3.12 환경에서 의존성을 설치한 뒤 검증 명령을 실행합니다.
 
 ```bash
@@ -107,3 +115,5 @@ Day 25 근거 기반 CAPA 제안·기존 Application Command·실제 Approval·L
 Day 26 승인 재검증·내부 실행 기록·Evidence 기반 Verification과 PASS/FAIL/INCONCLUSIVE Golden Closed Loop는 [Verification 문서](docs/serviq_verification.md)를 참고하세요. 실행은 INTERNAL_RECORD_ONLY, 검증 근거는 SIMULATED이며 외부 시스템 변경이나 실제 현장 개선 효과를 주장하지 않습니다. 자동 CLOSED도 수행하지 않습니다.
 
 Day 27 capability-aware Registry·최소 Context Pack·History/Transaction/Inventory read-only fan-out/fan-in·부분 실패 격리·checkpoint 복구와 실제 업무 AX는 [Multi-Agent 문서](docs/serviq_multi_agent.md)를 참고하세요. 거래/재고는 합성 운영 관측 자료이며 실제 POS/ERP 연결이나 외부 write가 아닙니다. 기존 Sufficiency/RCA/승인/내부 실행/Verification 흐름을 재사용하고 Jev Shadow는 자동 실행하지 않습니다.
+
+Day 28 제한 반복·종료·현재 정책 Harness·불변 Manifest·안전 Replay·Pause/Resume/Stop/수동 인계는 [Loop/Harness 문서](docs/serviq_loop_harness.md)를, 첫 실행·Excel Template·컬럼 매핑·확인 Import·Demo·첫 조사 체크리스트는 [온보딩 문서](docs/serviq_onboarding_import.md)를 참고하세요. MCP/LangChain 신규 Runtime과 실제 외부 write는 미구현입니다.
