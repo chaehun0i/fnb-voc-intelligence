@@ -100,9 +100,9 @@ class InvestigationLoop:
                     frozenset(run.delegated_roles), frozenset(run.delegated_store_scope))
                 intent = HarnessIntent(agent_run_id=self.run_id, operation=pack.agent_type+"_LOOKUP",
                     context_digest=pack.digest)
+                capabilities = self.source.capabilities(run.tenant_id, pack.store, self.clock())
                 decision = harness_gate(intent, run=run, incident=incident, principal=principal,
-                    config=version.config, now=self.clock(), control=control,
-                    capabilities=self.source.capabilities(run.tenant_id, pack.store, self.clock()))
+                    config=version.config, now=self.clock(), control=control, capabilities=capabilities)
                 from uuid import uuid4
                 uow.agent_runs.append_event(self.run_id, RuntimeEvent(event_id=str(uuid4()), kind="HARNESS",
                     decision=decision, created_at=self.clock()))

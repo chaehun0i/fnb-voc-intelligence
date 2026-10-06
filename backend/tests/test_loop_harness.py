@@ -299,3 +299,22 @@ def test_pinned_loop_budget_cannot_be_increased_and_completed_branch_never_retri
     loop = InvestigationLoop(p, run.agent_run_id, "t", source, lambda: now)
     first = loop.execute(pack, bid, success)
     assert loop.execute(pack, bid, success) == first and len(calls) == 1
+
+
+def test_capability_is_checked_before_harness_evaluation_with_advancing_clock():
+    from itertools import count
+    from uuid import NAMESPACE_URL, uuid5
+
+    from src.ai.workflow.controller import InvestigationLoop
+    from src.ai.workflow.models import InvestigationResult
+    p, source, run, now = loop_setup()
+    ticks = count()
+    clock = lambda: now+timedelta(microseconds=next(ticks))
+    pack = run.state.contexts[0]
+    bid = str(uuid5(NAMESPACE_URL, run.agent_run_id+":"+pack.agent_type))
+    def action(context, identity):
+        return InvestigationResult(agent_type=context.agent_type, branch_id=identity,
+            tenant_id=context.tenant_id, incident_id=context.incident_id, store=context.store,
+            status="SUCCESS", context_digest=context.digest, started_at=clock(), completed_at=clock())
+    result = InvestigationLoop(p, run.agent_run_id, "t", source, clock).execute(pack, bid, action)
+    assert result.status == "SUCCESS"
