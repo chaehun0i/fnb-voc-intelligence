@@ -387,6 +387,31 @@ def main() -> None:
     verify_incident_flow(client)
     verify_settings_flow(client)
     verify_jev_flow(client)
+    verify_data_intake_http(client)
+
+
+def verify_data_intake_http(client):
+    store = "http-intake-"+uuid4().hex
+    client.api("POST", "/data/stores", {"store": store})
+    check(store in client.api("GET", "/data/onboarding")["stores"], "서버 매장 상태가 필요합니다.")
+    status, workbook, _ = client.fetch("GET", client.base_url+"/data/template")
+    check(status == 200 and workbook.startswith(b"PK"), "실제 Excel 템플릿을 다운로드해야 합니다.")
+    boundary = "ServIQ"+uuid4().hex
+    csv = f"매장명,자료ID,발생일시,VOC 내용,평점\n{store},http-voc,2026-10-07,품질 점검 필요,2\n"
+    body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"store\"\r\n\r\n{store}\r\n"
+        f"--{boundary}\r\nContent-Disposition: form-data; name=\"kind\"\r\n\r\nVOC\r\n"
+        f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"voc.csv\"\r\nContent-Type: text/csv\r\n\r\n{csv}\r\n--{boundary}--\r\n").encode()
+    request = Request(client.base_url+"/data/preview", data=body,
+        headers={"Content-Type": "multipart/form-data; boundary="+boundary}, method="POST")
+    with client.opener.open(request, timeout=10) as response:
+        preview = json.loads(response.read())
+    check(preview["valid"] and preview["row_count"] == 1, "nginx 업로드 검증이 필요합니다.")
+    path = "/data/imports/"+preview["preview_id"]+"/confirm"
+    key, payload = str(uuid4()), {"digest": preview["digest"], "confirmed": True}
+    receipt = client.api("POST", path, payload, idempotency_key=key)
+    check(client.api("POST", path, payload, idempotency_key=key) == receipt, "Import 재전송은 중복 저장하면 안 됩니다.")
+    check(not receipt["sample"] and "품질 점검 필요" not in json.dumps(receipt), "입력 원문은 조회 Trace에 복제하지 않습니다.")
+    print("[통과] nginx 온보딩·템플릿·multipart CSV 검증·미리보기·확인 Import·멱등성")
 
 
 def verify_loop_harness_http(client, fixtures):
