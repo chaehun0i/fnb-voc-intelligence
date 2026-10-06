@@ -105,3 +105,5 @@ Day 24 출처가 보존된 Evidence 정규화·결정적 충분성·근거 기�
 Day 25 근거 기반 CAPA 제안·기존 Application Command·실제 Approval·LangGraph 승인 대기/재개와 Review/Trace 연결은 [CAPA/Human Approval 문서](docs/serviq_capa_approval.md)를 참고하세요. 사람의 승인은 실행 단계 대기이며 외부 Action 실행 완료가 아닙니다.
 
 Day 26 승인 재검증·내부 실행 기록·Evidence 기반 Verification과 PASS/FAIL/INCONCLUSIVE Golden Closed Loop는 [Verification 문서](docs/serviq_verification.md)를 참고하세요. 실행은 INTERNAL_RECORD_ONLY, 검증 근거는 SIMULATED이며 외부 시스템 변경이나 실제 현장 개선 효과를 주장하지 않습니다. 자동 CLOSED도 수행하지 않습니다.
+
+Day 27 capability-aware Registry·최소 Context Pack·History/Transaction/Inventory read-only fan-out/fan-in·부분 실패 격리·checkpoint 복구와 실제 업무 AX는 [Multi-Agent 문서](docs/serviq_multi_agent.md)를 참고하세요. 거래/재고는 합성 운영 관측 자료이며 실제 POS/ERP 연결이나 외부 write가 아닙니다. 기존 Sufficiency/RCA/승인/내부 실행/Verification 흐름을 재사용하고 Jev Shadow는 자동 실행하지 않습니다.

@@ -75,6 +75,18 @@ def test_verification_http_mode_preserves_preceding_full_regression(smoke_script
     assert calls == ["verify_frontend", ("verification", fixture)]
 
 
+def test_multi_http_mode_uses_real_worker_projection_boundary(smoke_script, monkeypatch):
+    calls = []
+    namespace = smoke_script["main"].__globals__
+    fixture = {"incident_id": "fixture", "job_id": "job"}
+    monkeypatch.setenv("SERVIQ_TEST_API_BASE_URL", "http://127.0.0.1:18080/api/v1")
+    monkeypatch.setenv("SERVIQ_MULTI_AGENT_HTTP_FIXTURE", json.dumps(fixture))
+    monkeypatch.setitem(namespace, "verify_frontend", lambda client: calls.append("frontend"))
+    monkeypatch.setitem(namespace, "verify_multi_agent_http", lambda client, body: calls.append(("multi", body)))
+    smoke_script["main"]()
+    assert calls == ["frontend", ("multi", fixture)]
+
+
 @pytest.mark.parametrize("capa", [False, True])
 def test_http_smoke_modes_preserve_independent_validation(smoke_script, monkeypatch, capa):
     calls = []

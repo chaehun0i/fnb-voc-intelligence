@@ -7,6 +7,9 @@ from uuid import NAMESPACE_URL, uuid5
 
 from src.ai.execution.models import CriterionResult, VerificationCandidate
 from src.ai.workflow.models import (
+    AgentContextPack,
+    AgentDefinition,
+    AgentSelection,
     CAPAProposal,
     EvidenceGap,
     SufficiencyPolicy,
@@ -15,6 +18,63 @@ from src.ai.workflow.models import (
 )
 
 RISK_ORDER = ("LOW", "MEDIUM", "HIGH", "CRITICAL")
+
+AGENT_REGISTRY = tuple(AgentDefinition(agent_type=agent, business_label=label, purpose=purpose,
+    required_capabilities=(capability,)) for agent, label, purpose, capability in (
+    ("HISTORY", "과거 사례 조사", "RELATED_HISTORY", "HISTORY_DATA"),
+    ("TRANSACTION", "거래 내역 조사", "TRANSACTION_SIGNALS", "TRANSACTION_DATA"),
+    ("INVENTORY", "재고 조사", "INVENTORY_SIGNALS", "INVENTORY_DATA")))
+
+
+def select_agents(candidates, capabilities, *, tenant_id, store, category,
+                  allowed_agents, now, max_age=timedelta(minutes=5), registry=AGENT_REGISTRY):
+    capabilities = tuple(sorted(capabilities, key=lambda c: c.capability))
+    # Capability는 조직뿐 아니라 실제 조회 가능한 매장 범위에 묶습니다.
+    if any(c.tenant_id != tenant_id or c.store != store for c in capabilities):
+        raise ValueError("CAPABILITY_SCOPE_MISMATCH")
+    if len({c.capability for c in capabilities}) != len(capabilities):
+        raise ValueError("CAPABILITY_DUPLICATE")
+    available = {c.capability for c in capabilities if c.available and c.health == "HEALTHY"
+        and c.freshness == "FRESH" and timedelta(0) <= now-c.checked_at <= max_age}
+    eligible = tuple(a for a in registry if a.agent_type in candidates)
+    selected = tuple(a for a in eligible if a.enabled and a.parallel_safe
+        and a.agent_type in allowed_agents and category in a.supported_categories
+        and set(a.required_capabilities) <= available)
+    return AgentSelection(selected=selected,
+        excluded=tuple(a.agent_type for a in eligible if a not in selected), capabilities=tuple(capabilities))
+
+
+def build_context(agent, *, tenant_id, incident_id, store, category, severity,
+                  window_start, window_end, now, references=(), budget_bytes=4096,
+                  freshness_hours=24):
+    # 바이트 상한은 UTF-8 token 수의 보수적인 상한입니다. 원문 요약/지시를 입력받지 않습니다.
+    grouped = {}
+    for ref in sorted(references, key=lambda r: (r.source_ref,
+            r.source_at.timestamp() if r.source_at else float("-inf"), r.provenance)):
+        # 동일 참조의 새 시각이 오래된/미확인 시각을 덮어 freshness를 올리지 않습니다.
+        grouped.setdefault(ref.source_ref, ref)
+    refs = list(grouped.values())
+    excluded = max(0, len(refs)-20)
+    refs = refs[:20]
+    while True:
+        freshness = "UNKNOWN" if not refs or any(r.source_at is None for r in refs) else (
+            "STALE" if any(r.source_at > now or now-r.source_at > timedelta(hours=freshness_hours)
+                for r in refs) else "FRESH")
+        document = {"agent_type": agent, "tenant_id": tenant_id, "incident_id": incident_id,
+            "store": store, "category": category, "severity": severity, "objective": "READ_ONLY_INVESTIGATION",
+            "data_policy": "REFERENCE_ONLY", "policy_version": "minimal-context-1",
+            "window_start": window_start.isoformat().replace("+00:00", "Z"),
+            "window_end": window_end.isoformat().replace("+00:00", "Z"),
+            "fetched_at": now.isoformat().replace("+00:00", "Z"), "freshness": freshness,
+            "references": [r.model_dump(mode="json") for r in refs], "excluded_count": excluded,
+            "budget_bytes": budget_bytes}
+        encoded = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
+        if len(encoded) <= budget_bytes:
+            return AgentContextPack(**document, used_bytes=len(encoded), digest=hashlib.sha256(encoded).hexdigest())
+        if not refs:
+            raise ValueError("CONTEXT_BUDGET_EXHAUSTED")
+        refs.pop()
+        excluded += 1
 
 
 def server_risk(*values):

@@ -1,12 +1,43 @@
 """ai/ax/service: 통합된 기능 책임, 기존 실행 계약 유지."""
 import psycopg
 
+from src.ai.workflow.policy import AGENT_REGISTRY
 from src.application.incidents.service import IncidentNotFound
 from src.application.ports.repositories import AgentRunsUnavailable
 from src.application.security.authorization import require
 
 
-def projection(run):
+def investigation_projection(run, branches=None):
+    state = run.state
+    if state.selection is None:
+        return None
+    results = {b.agent_type: b for b in (branches if branches is not None else state.branches)}
+    selected = {a.agent_type for a in state.selection.selected}
+    progress, coverage = [], []
+    for a in AGENT_REGISTRY:
+        if a.agent_type not in selected and a.agent_type not in state.selection.excluded:
+            continue
+        result = results.get(a.agent_type)
+        status = result.status if result else ("FAILED" if run.status == "FAILED" else "RUNNING") if a.agent_type in selected else "UNAVAILABLE"
+        count = len({e.source_ref for e in result.evidence_candidates}) if result else 0
+        coverage_status = "CONFLICTING" if result and any(e.stance == "CONTRADICTING" for e in result.evidence_candidates) else (
+            "CONFIRMED" if count else "STALE" if status == "STALE" else "MISSING")
+        progress.append({"agent_type": a.agent_type, "business_label": a.business_label,
+            "status": status, "evidence_count": count, "retryable": result.retryable if result else False,
+            "gap_codes": [g.code for g in result.evidence_gaps] if result else
+                ["CAPABILITY_UNAVAILABLE"] if status == "UNAVAILABLE" else [],
+            "updated_at": (result.completed_at if result else run.started_at).isoformat()})
+        coverage.append({"dimension": a.agent_type, "status": coverage_status})
+    pending = any(p["status"] == "RUNNING" for p in progress)
+    partial = any(p["status"] in {"FAILED", "UNAVAILABLE", "STALE", "NO_EVIDENCE"} for p in progress)
+    refs = {e.source_ref for b in results.values() for e in b.evidence_candidates}
+    return {"status": "RUNNING" if pending else "PARTIAL" if partial else "COMPLETED",
+        "agents": progress, "coverage": coverage, "evidence_count": len(state.normalized_evidence) if state.iteration else min(20, len(refs)),
+        "uncertainty": "관측 근거이며 원인 확정은 아닙니다.",
+        "updated_at": max((p["updated_at"] for p in progress), default=run.started_at.isoformat())}
+
+
+def projection(run, branches=None):
     state = run.state
     return {**run.model_dump(mode="json", exclude={"tenant_id", "state", "requested_by",
             "delegated_roles", "delegated_store_scope", "initial_incident_version"}),
@@ -27,6 +58,12 @@ def projection(run):
         "iteration": state.iteration, "tool_call_count": state.tool_call_count}
 
 
+def projected_run(uow, run):
+    branches = tuple(b for a in (run.state.selection.selected if run.state.selection else ())
+        if (b := uow.agent_runs.branch(run.agent_run_id, a.agent_type)) is not None)
+    return projection(run) | {"investigation": investigation_projection(run, branches)}
+
+
 class AgentRunQueries:
     def __init__(self, persistence, principal):
         self.persistence, self.principal = persistence, principal
@@ -45,7 +82,7 @@ class AgentRunQueries:
                     run = uow.agent_runs.get(run_id)
                     if run is None or run.incident_id != incident_id:
                         raise IncidentNotFound()
-                    detail = projection(run)
+                    detail = projected_run(uow, run)
                     if run.state.approval:
                         approval = uow.approvals.get(run.state.approval.approval_id)
                         if approval and approval.agent_run_id == run.agent_run_id:
@@ -55,7 +92,7 @@ class AgentRunQueries:
                     return {**detail, "steps": [s.model_dump(mode="json", exclude={"result"})
                             for s in uow.agent_runs.steps(run_id)]}
                 runs = uow.agent_runs.history(incident_id, limit+1, offset)
-                return {"runs": [projection(r) for r in runs[:limit]], "limit": limit,
+                return {"runs": [projected_run(uow, r) for r in runs[:limit]], "limit": limit,
                         "offset": offset, "has_more": len(runs)>limit}
         except psycopg.Error as error:
             raise AgentRunsUnavailable() from error

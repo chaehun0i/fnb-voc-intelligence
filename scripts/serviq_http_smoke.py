@@ -366,6 +366,10 @@ def main() -> None:
         raise SystemExit("로컬 테스트 스택의 SERVIQ_TEST_API_BASE_URL을 명시해 주세요.")
     client = SmokeClient(base_url)
     verify_frontend(client)
+    multi_fixture = os.getenv("SERVIQ_MULTI_AGENT_HTTP_FIXTURE")
+    if multi_fixture:
+        verify_multi_agent_http(client, json.loads(multi_fixture))
+        return
     verification_fixture = os.getenv("SERVIQ_VERIFICATION_HTTP_FIXTURE")
     if verification_fixture:
         verify_verification_http(client, json.loads(verification_fixture))
@@ -379,6 +383,26 @@ def main() -> None:
     verify_incident_flow(client)
     verify_settings_flow(client)
     verify_jev_flow(client)
+
+
+def verify_multi_agent_http(client, fixture):
+    identifier = str(UUID(fixture["incident_id"]))
+    path = f"/incidents/{identifier}/agent-runs"
+    detail = None
+    for _ in range(30):
+        runs = client.api("GET", path)["runs"]
+        if runs and runs[0]["status"] in {"COMPLETED", "FAILED"}:
+            detail = client.api("GET", path+"/"+runs[0]["agent_run_id"])
+            break
+        time.sleep(.5)
+    check(detail is not None and detail["status"] == "COMPLETED", "실제 Worker가 독립 조사를 완료해야 합니다.")
+    check(detail["workflow_version"] == "multi-investigation-v5", "명시적 Multi-Agent 버전이 필요합니다.")
+    check({a["agent_type"] for a in detail["investigation"]["agents"] if a["status"] == "SUCCESS"} == {"HISTORY", "TRANSACTION", "INVENTORY"}, "사용 가능한 3개 read-only Agent를 실행해야 합니다.")
+    check(detail["investigation"]["evidence_count"] == 4 and len(detail["normalized_evidence"]) == 4, "중복되지 않은 출처 근거가 필요합니다.")
+    check(detail["sufficiency"]["status"] == "SUFFICIENT" and detail["rca_candidates"], "기존 충분성/RCA로 합류해야 합니다.")
+    check(client.api("GET", "/incidents/"+identifier)["status"] == "INVESTIGATING", "조사만으로 업무 상태를 바꾸면 안 됩니다.")
+    check(not any(v in json.dumps(detail) for v in ("MULTI-RAW-SENTINEL", "raw_prompt", "raw_response", "context_digest", "delegated_roles")), "AX 응답에 민감 Context를 노출하면 안 됩니다.")
+    print("[통과] nginx→실제 Worker→3개 독립 조사→Evidence fan-in/RCA→업무 AX · 외부 호출/변경 0")
 
 
 def verify_verification_http(client, fixture):

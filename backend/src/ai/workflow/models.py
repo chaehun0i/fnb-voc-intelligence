@@ -12,6 +12,98 @@ from src.ai.execution.models import (
 )
 from src.ai.models import SafeModel
 
+InvestigationAgent = Literal["HISTORY", "TRANSACTION", "INVENTORY"]
+DataCapability = Literal["HISTORY_DATA", "TRANSACTION_DATA", "INVENTORY_DATA"]
+
+
+class AgentDefinition(SafeModel):
+    agent_type: InvestigationAgent
+    agent_version: Literal["1"] = "1"
+    business_label: Literal["과거 사례 조사", "거래 내역 조사", "재고 조사"]
+    purpose: Literal["RELATED_HISTORY", "TRANSACTION_SIGNALS", "INVENTORY_SIGNALS"]
+    supported_categories: tuple[str, ...] = ("GENERAL", "UNKNOWN", "TRANSACTION", "COLD_CHAIN", "FOOD_SAFETY", "SUPPLIER_LOT")
+    required_capabilities: tuple[DataCapability, ...] = Field(min_length=1)
+    optional_capabilities: tuple[DataCapability, ...] = ()
+    output_schema_version: Literal["investigation-1"] = "investigation-1"
+    parallel_safe: bool = True
+    default_budget_profile: Literal["READ_ONLY_BOUNDED"] = "READ_ONLY_BOUNDED"
+    enabled: bool = True
+
+
+class TenantCapability(SafeModel):
+    tenant_id: str = Field(min_length=1, max_length=128)
+    store: str = Field(min_length=1, max_length=128)
+    capability: DataCapability
+    available: bool
+    source: Literal["AUTHORIZED_HISTORY_SEARCH", "SYNTHETIC_OPERATIONAL_FIXTURE"]
+    health: Literal["HEALTHY", "UNAVAILABLE"]
+    freshness: Literal["FRESH", "STALE", "UNKNOWN"]
+    checked_at: datetime
+
+    @field_validator("checked_at")
+    @classmethod
+    def aware(cls, value):
+        if value.utcoffset() is None:
+            raise ValueError("Capability 확인 시각에 시간대가 필요합니다.")
+        return value
+
+
+class AgentSelection(SafeModel):
+    registry_version: Literal["investigation-1"] = "investigation-1"
+    selected: tuple[AgentDefinition, ...] = Field(default=(), max_length=3)
+    excluded: tuple[InvestigationAgent, ...] = ()
+    capabilities: tuple[TenantCapability, ...] = Field(default=(), max_length=3)
+
+
+class ContextReference(SafeModel):
+    source_ref: str = Field(pattern=r"^(review|transaction|inventory):[A-Za-z0-9_.:-]{1,128}$")
+    source_at: datetime | None = None
+    provenance: Literal["AUTHORIZED_HISTORY_SEARCH", "SYNTHETIC_OPERATIONAL_FIXTURE"]
+
+    @field_validator("source_at")
+    @classmethod
+    def aware(cls, value):
+        if value is not None and value.utcoffset() is None:
+            raise ValueError("Context 출처 시각에는 시간대가 필요합니다.")
+        return value
+
+
+class AgentContextPack(SafeModel):
+    agent_type: InvestigationAgent
+    tenant_id: str = Field(min_length=1, max_length=128)
+    incident_id: str = Field(min_length=1, max_length=128)
+    store: str = Field(min_length=1, max_length=128)
+    category: str = Field(pattern=r"^[A-Z_]{1,64}$")
+    severity: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    objective: Literal["READ_ONLY_INVESTIGATION"] = "READ_ONLY_INVESTIGATION"
+    data_policy: Literal["REFERENCE_ONLY"] = "REFERENCE_ONLY"
+    policy_version: Literal["minimal-context-1"] = "minimal-context-1"
+    window_start: datetime
+    window_end: datetime
+    fetched_at: datetime
+    freshness: Literal["FRESH", "STALE", "UNKNOWN"]
+    references: tuple[ContextReference, ...] = Field(default=(), max_length=20)
+    excluded_count: int = Field(default=0, ge=0)
+    budget_bytes: int = Field(ge=256, le=20000)
+    used_bytes: int = Field(ge=0)
+    digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def bounds(self):
+        import hashlib
+        import json
+        document = self.model_dump(mode="json", exclude={"digest", "used_bytes"})
+        encoded = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
+        if (self.used_bytes != len(encoded) or self.used_bytes > self.budget_bytes
+                or self.digest != hashlib.sha256(encoded).hexdigest()
+                or any(d.utcoffset() is None for d in (self.window_start, self.window_end, self.fetched_at))
+                or not self.window_start <= self.window_end <= self.fetched_at):
+            raise ValueError("CONTEXT_INTEGRITY_INVALID")
+        prefix = {"HISTORY": "review:", "TRANSACTION": "transaction:", "INVENTORY": "inventory:"}[self.agent_type]
+        if any(not r.source_ref.startswith(prefix) for r in self.references):
+            raise ValueError("CONTEXT_AGENT_SOURCE_MISMATCH")
+        return self
+
 
 class WorkflowStatus(StrEnum):
     RUNNING = "RUNNING"
@@ -21,16 +113,18 @@ class WorkflowStatus(StrEnum):
 
 
 class EvidenceCandidate(SafeModel):
-    source_ref: str = Field(pattern=r"^review:[A-Za-z0-9_.:-]{1,128}$")
-    source_type: Literal["VOC_REVIEW"] = "VOC_REVIEW"
+    source_ref: str = Field(pattern=r"^(review|transaction|inventory):[A-Za-z0-9_.:-]{1,128}$")
+    source_type: Literal["VOC_REVIEW", "TRANSACTION", "INVENTORY"] = "VOC_REVIEW"
     rank: int = Field(ge=1, le=20)
     retrieved_at: datetime
     tenant_id: str | None = Field(default=None, min_length=1, max_length=128)
     store: str | None = Field(default=None, min_length=1, max_length=128)
-    provenance: tuple[Literal["lexical", "vector", "hybrid", "legacy_reference"], ...] = ("legacy_reference",)
+    provenance: tuple[Literal["lexical", "vector", "hybrid", "legacy_reference", "synthetic_operational"], ...] = ("legacy_reference",)
     source_at: datetime | None = None
     stance: Literal["SUPPORTING", "CONTRADICTING", "NEUTRAL"] = "NEUTRAL"
-    observation_code: Literal["RELATED_HISTORY_MATCH", "REFERENCE_ONLY"] = "REFERENCE_ONLY"
+    observation_code: Literal["RELATED_HISTORY_MATCH", "REFERENCE_ONLY", "REFUND_SIGNAL", "CANCEL_SIGNAL", "STOCK_SHORTAGE", "STOCK_ADJUSTMENT"] = "REFERENCE_ONLY"
+    observed_stances: tuple[Literal["SUPPORTING", "CONTRADICTING", "NEUTRAL"], ...] = ()
+    contributing_agents: tuple[InvestigationAgent, ...] = ()
 
     @field_validator("retrieved_at", "source_at")
     @classmethod
@@ -41,13 +135,63 @@ class EvidenceCandidate(SafeModel):
 
 
 class Finding(SafeModel):
-    code: Literal["RELATED_HISTORY_FOUND"] = "RELATED_HISTORY_FOUND"
+    code: Literal["RELATED_HISTORY_FOUND", "TRANSACTION_SIGNAL_FOUND", "INVENTORY_SIGNAL_FOUND"] = "RELATED_HISTORY_FOUND"
     evidence_refs: tuple[str, ...] = Field(min_length=1, max_length=20)
 
 
 class EvidenceGap(SafeModel):
     code: Literal["NO_AUTHORIZED_HISTORY", "LLM_POLICY_DENIED", "LLM_UNAVAILABLE",
-                  "INSUFFICIENT_SOURCE_COVERAGE", "CONFLICTING_EVIDENCE", "RCA_DISABLED", "RCA_BUDGET_EXHAUSTED"]
+                  "INSUFFICIENT_SOURCE_COVERAGE", "CONFLICTING_EVIDENCE", "RCA_DISABLED", "RCA_BUDGET_EXHAUSTED",
+                  "CAPABILITY_UNAVAILABLE", "SOURCE_UNAVAILABLE", "SOURCE_STALE", "BRANCH_FAILED", "NO_EVIDENCE_FOUND", "BRANCH_BUDGET_EXHAUSTED"]
+    agent_type: InvestigationAgent | None = None
+
+
+class OperationalObservation(SafeModel):
+    tenant_id: str = Field(min_length=1, max_length=128)
+    store: str = Field(min_length=1, max_length=128)
+    agent_type: Literal["TRANSACTION", "INVENTORY"]
+    source_ref: str = Field(pattern=r"^(transaction|inventory):[A-Za-z0-9_.:-]{1,128}$")
+    observed_at: datetime
+    signal: Literal["REFUND_SIGNAL", "CANCEL_SIGNAL", "STOCK_SHORTAGE", "STOCK_ADJUSTMENT"]
+    stance: Literal["SUPPORTING", "CONTRADICTING", "NEUTRAL"] = "NEUTRAL"
+    source: Literal["SYNTHETIC_OPERATIONAL_FIXTURE"] = "SYNTHETIC_OPERATIONAL_FIXTURE"
+
+    @model_validator(mode="after")
+    def integrity(self):
+        if (self.observed_at.utcoffset() is None or not self.source_ref.startswith(self.agent_type.lower()+":")
+                or (self.signal.startswith("STOCK") != (self.agent_type == "INVENTORY"))):
+            raise ValueError("OPERATIONAL_SOURCE_INVALID")
+        return self
+
+
+class InvestigationResult(SafeModel):
+    agent_type: InvestigationAgent
+    agent_version: Literal["1"] = "1"
+    branch_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    tenant_id: str
+    incident_id: str
+    store: str
+    status: Literal["SUCCESS", "FAILED", "UNAVAILABLE", "NO_EVIDENCE", "STALE"]
+    findings: tuple[Finding, ...] = ()
+    evidence_candidates: tuple[EvidenceCandidate, ...] = Field(default=(), max_length=20)
+    evidence_gaps: tuple[EvidenceGap, ...] = ()
+    retryable: bool = False
+    uncertainty: Literal["OBSERVATIONS_NOT_CAUSE", "MISSING_EVIDENCE"]
+    started_at: datetime
+    completed_at: datetime
+    context_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def integrity(self):
+        if (any(e.tenant_id != self.tenant_id or e.store != self.store for e in self.evidence_candidates)
+                or any(e.source_type != ("VOC_REVIEW" if self.agent_type == "HISTORY" else self.agent_type)
+                    for e in self.evidence_candidates)
+                or (self.status != "SUCCESS" and self.evidence_candidates)
+                or self.started_at.utcoffset() is None or self.completed_at.utcoffset() is None
+                or self.completed_at < self.started_at
+                or not {r for f in self.findings for r in f.evidence_refs} <= {e.source_ref for e in self.evidence_candidates}):
+            raise ValueError("BRANCH_RESULT_INVALID")
+        return self
 
 
 class NormalizedEvidence(EvidenceCandidate):
@@ -55,11 +199,12 @@ class NormalizedEvidence(EvidenceCandidate):
     store: str = Field(min_length=1, max_length=128)
     agent_run_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
     source_id: str = Field(pattern=r"^[A-Za-z0-9_.:-]{1,128}$")
-    step_name: Literal["history_investigation"] = "history_investigation"
+    step_name: Literal["history_investigation", "investigation_fan_in"] = "history_investigation"
 
     @model_validator(mode="after")
     def source_identity(self):
-        if self.source_ref != "review:"+self.source_id or not self.provenance:
+        prefix = {"VOC_REVIEW": "review:", "TRANSACTION": "transaction:", "INVENTORY": "inventory:"}[self.source_type]
+        if self.source_ref != prefix+self.source_id or not self.provenance:
             raise ValueError("근거의 원본 참조와 출처를 확인해 주세요.")
         return self
 
@@ -200,9 +345,23 @@ class WorkflowState(SafeModel):
     cost_spent: float = Field(default=0, ge=0)
     config_version: int = Field(ge=1)
     status: WorkflowStatus = WorkflowStatus.RUNNING
+    selection: AgentSelection | None = None
+    contexts: tuple[AgentContextPack, ...] = Field(default=(), max_length=3)
+    branches: tuple[InvestigationResult, ...] = Field(default=(), max_length=3)
 
     @model_validator(mode="after")
     def evidence_integrity(self):
+        selected = {a.agent_type for a in self.selection.selected} if self.selection else set()
+        if (len(selected) != len(self.selection.selected if self.selection else ())
+                or len({c.agent_type for c in self.contexts}) != len(self.contexts)
+                or len({b.agent_type for b in self.branches}) != len(self.branches)
+                or {c.agent_type for c in self.contexts} != selected
+                or not {b.agent_type for b in self.branches} <= selected
+                or any(c.tenant_id != self.tenant_id or c.incident_id != self.incident_id for c in self.contexts)
+                or any(b.tenant_id != self.tenant_id or b.incident_id != self.incident_id
+                    or b.context_digest != next(c.digest for c in self.contexts if c.agent_type == b.agent_type)
+                    or b.store != next(c.store for c in self.contexts if c.agent_type == b.agent_type) for b in self.branches)):
+            raise ValueError("INVESTIGATION_LINEAGE_INVALID")
         available = {e.source_ref: e for e in self.normalized_evidence}
         if len(available) != len(self.normalized_evidence) or any(
             e.tenant_id != self.tenant_id or e.agent_run_id != self.agent_run_id for e in available.values()):
@@ -260,7 +419,7 @@ class AgentRun(SafeModel):
     correlation_id: str
     config_version: int = Field(ge=1)
     jev_decision_id: str
-    workflow_version: Literal["history-v1", "history-evidence-v2", "history-capa-v3", "history-verification-v4"] = "history-v1"
+    workflow_version: Literal["history-v1", "history-evidence-v2", "history-capa-v3", "history-verification-v4", "multi-investigation-v5"] = "history-v1"
     requested_by: str | None = Field(default=None, max_length=128)
     delegated_roles: tuple[str, ...] = ()
     delegated_store_scope: tuple[str, ...] = ()

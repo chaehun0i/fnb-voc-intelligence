@@ -35,7 +35,7 @@ frontend/src/
 └─ app·lib·test/          # 앱 조립·표시 도우미·테스트 fixture
 ```
 
-Decision=Jev, Intelligence=LLM+향후 LangChain composition, Workflow=LangGraph+향후 Multi-Agent/Loop, Execution=Harness/MCP 책임 영역, AX=Agent Experience입니다. 문서의 9개 개념은 유지합니다. 이번 Execution은 **기존 내부 실행/Verification Command와 승인 재검증**이며 Harness/MCP transport·Connector write·외부 Action reconciliation은 미구현입니다. AX도 **기존 안전한 Trace 조회/투영**만 이동했으며 새 AI Brief·Next Best Action 정책은 추가하지 않았습니다.
+Decision=Jev, Intelligence=LLM+향후 LangChain composition, Workflow=LangGraph+최소 Multi-Agent+향후 Loop, Execution=Harness/MCP 책임 영역, AX=Agent Experience입니다. 문서의 9개 개념은 유지합니다. 현재 Execution은 **내부 실행/Verification Command와 승인 재검증**이며 Harness/MCP transport·Connector write·외부 Action reconciliation은 미구현입니다. AX는 **안전한 Trace 조회/투영과 조사 업무 진행·근거 범위**를 제공하며 새 AI Brief·Next Best Action 정책은 추가하지 않았습니다.
 
 ## 안전 경계
 
@@ -76,4 +76,6 @@ PostgreSQL은 고정 Compose 프로젝트 **serviq**의 `db`를 사용합니다.
 
 Public API, DB schema, Checkpoint payload, Runtime behavior는 동일합니다. 구조 테스트는 특정 파일 존재 대신 dependency direction·SDK 격리·repository 구현체 금지·순환 의존을 검사합니다. 기존 테스트를 삭제/skip/xfail/약화하지 않습니다. 이전 Day 문서의 검증 수는 당시 결과이며 최신 검증은 리팩토링 문서를 따릅니다.
 
-production OIDC/SSO·deployment, 전체 retention/migration engine, Multi-Agent/Registry/Context Engineering, Harness/MCP, 외부 Action reconciliation은 후속 범위입니다. 승인된 내부 실행을 실제 외부 변경과 구분하고 Jev Shadow를 자동 AI 실행으로 바꾸지 않습니다.
+Day 27의 정적 Registry·capability-aware 선택·최소 reference Context·3개 read-only branch와 fan-in/복구/업무 AX는 [Multi-Agent 문서](serviq_multi_agent.md)를 따릅니다. Workflow 영역을 다시 Agent별 package로 분할하지 않았고 read-only source adapter 하나만 추가했습니다. 적용 migration은 additive `019_multi_agent.sql`까지입니다. 기존 단일 History v1~v4와 내부 실행/Verification의 의미는 유지합니다.
+
+production OIDC/SSO·deployment, 전체 retention/migration engine, 고급 Context enrichment·동적 Registry·branch 자동 Loop, Harness/MCP, 외부 Action reconciliation은 후속 범위입니다. 승인된 내부 실행을 실제 외부 변경과 구분하고 Jev Shadow를 자동 AI 실행으로 바꾸지 않습니다. v0.6 MVP Next는 Day 28 최소 Loop/Harness, Day 29 LangChain/MCP/Tool AX, Day 30 AX/AI MVP RC입니다.

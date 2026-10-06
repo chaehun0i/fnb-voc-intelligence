@@ -1,21 +1,38 @@
 """ai/workflow/graph: 통합된 기능 책임, 기존 실행 계약 유지."""
 from time import perf_counter
-from typing import TypedDict
+from typing import Annotated, TypedDict
+from uuid import NAMESPACE_URL, uuid5
 
 from langgraph.graph import END, START, StateGraph
-from langgraph.types import Command, interrupt
+from langgraph.types import Command, Send, interrupt
 
-from src.ai.workflow.models import WorkflowState, WorkflowStatus
+from src.ai.workflow.models import (
+    AgentContextPack,
+    InvestigationResult,
+    WorkflowState,
+    WorkflowStatus,
+)
+
+
+def merge_branches(previous, incoming):
+    result = dict(previous)
+    for key, value in incoming.items():
+        if key in result and result[key] != value:
+            raise ValueError("BRANCH_RESULT_CONFLICT")
+        result[key] = value
+    return dict(sorted(result.items()))
 
 
 class GraphState(TypedDict):
     snapshot: dict
+    branches: Annotated[dict, merge_branches]
 
 
 def history_graph(checkpointer, investigate, persist, *, observe=None,
                   normalize=None, evaluate=None, rca=None, capa=None, apply_capa=None,
                   request_approval=None, approval_result=None, internal_execution=None,
-                  begin_verification=None, verification=None, apply_verification=None):
+                  begin_verification=None, verification=None, apply_verification=None,
+                  investigate_branch=None, fan_in=None):
     if any(action is not None for action in (normalize, evaluate, rca)) and not all(
             callable(action) for action in (normalize, evaluate, rca)):
         raise ValueError("Evidence 단계는 모두 명시적으로 연결해야 합니다.")
@@ -62,10 +79,40 @@ def history_graph(checkpointer, investigate, persist, *, observe=None,
 
     builder = StateGraph(GraphState)
     builder.add_node("validate_context", node("validate_context", lambda state: state))
-    builder.add_node("history_investigation", node("history_investigation", investigate))
+    if investigate_branch is None:
+        builder.add_node("history_investigation", node("history_investigation", investigate))
     builder.add_node("persist_result", node("persist_result", complete))
     builder.add_edge(START, "validate_context")
-    builder.add_edge("validate_context", "history_investigation")
+    if investigate_branch is not None:
+        if fan_in is None:
+            raise ValueError("INVESTIGATION_FAN_IN_REQUIRED")
+        def dispatch(value):
+            state = WorkflowState.model_validate(value["snapshot"])
+            return [Send("investigate_branch", {"context": c.model_dump(mode="json"),
+                "branch_id": str(uuid5(NAMESPACE_URL, state.agent_run_id+":"+c.agent_type))})
+                for c in state.contexts] or "history_investigation"
+
+        def branch(value):
+            context = AgentContextPack.model_validate(value["context"])
+            result = InvestigationResult.model_validate(investigate_branch(context, value["branch_id"]).model_dump(mode="json"))
+            if result.agent_type != context.agent_type or result.branch_id != value["branch_id"]:
+                raise ValueError("BRANCH_IDENTITY_INVALID")
+            return {"branches": {context.agent_type: result.model_dump(mode="json")}}
+
+        def collect(value):
+            state = WorkflowState.model_validate(value["snapshot"])
+            results = tuple(InvestigationResult.model_validate(v) for _, v in sorted(value.get("branches", {}).items()))
+            state = WorkflowState.model_validate(state.model_copy(update={"branches": results}).model_dump(mode="json"))
+            result = WorkflowState.model_validate(fan_in(state).model_dump(mode="json"))
+            return {"snapshot": result.model_dump(mode="json")}
+
+        # 동일 downstream topology를 사용하며 단일 History 경로는 변경하지 않습니다.
+        builder.add_node("investigate_branch", branch)
+        builder.add_node("history_investigation", collect)
+        builder.add_conditional_edges("validate_context", dispatch, ["investigate_branch", "history_investigation"])
+        builder.add_edge("investigate_branch", "history_investigation")
+    else:
+        builder.add_edge("validate_context", "history_investigation")
     if normalize is not None:
         builder.add_node("normalize_evidence", node("normalize_evidence", normalize))
         builder.add_node("evaluate_sufficiency", node("evaluate_sufficiency", evaluate))
@@ -108,9 +155,10 @@ def history_graph(checkpointer, investigate, persist, *, observe=None,
     return builder.compile(checkpointer=checkpointer)
 
 
-def invoke_or_resume(graph, state, *, approval_id=None):
+def invoke_or_resume(graph, state, *, approval_id=None, parallelism=3):
     # v4 단일 경로의 15개 노드 + START/END를 완료할 수 있는 bounded 상한입니다.
-    config = {"configurable": {"thread_id": state.workflow_id}, "recursion_limit": 20}
+    config = {"configurable": {"thread_id": state.workflow_id}, "recursion_limit": 20,
+        "max_concurrency": min(3, max(1, parallelism))}
     checkpoint = graph.get_state(config)
     restored = WorkflowState.model_validate(checkpoint.values["snapshot"]) if checkpoint.values else None
     if restored and not checkpoint.next and restored.status == WorkflowStatus.COMPLETED:

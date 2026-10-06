@@ -40,7 +40,7 @@ export function decodeClosedLoop(v: Record<string, unknown>): ClosedLoopTrace | 
   if (!Array.isArray(evidence) || evidence.length > 20 || !evidence.every((e) => object(e) && object(execution) && text(e.evidence_id) &&
     e.agent_run_id === v.agent_run_id && e.execution_id === execution.execution_id && e.action_id === execution.action_id &&
     e.source_type === "INTERNAL_REVIEW_RECORD" && e.observation_mode === "SIMULATED" && /^internal-review:[a-f0-9-]{36}$/.test(String(e.source_ref)) &&
-    date(e.observed_at) && [true, false, null].includes(e.review_record_present as null) && strings(e.additional_evidence_refs) && e.additional_evidence_refs.every((r) => /^review:[A-Za-z0-9_.:-]{1,128}$/.test(r)))) return null;
+    date(e.observed_at) && [true, false, null].includes(e.review_record_present as null) && strings(e.additional_evidence_refs) && e.additional_evidence_refs.every((r) => /^(review|transaction|inventory):[A-Za-z0-9_.:-]{1,128}$/.test(r)))) return null;
   if (verification !== null && (!object(verification) || !object(execution) || verification.observation_mode !== "SIMULATED" ||
     verification.incident_id !== v.incident_id || verification.execution_id !== execution.execution_id || verification.action_id !== execution.action_id || verification.config_version !== v.config_version ||
     !text(verification.verification_id) || !text(verification.criteria) || !text(verification.summary) || !result(verification.result) || !date(verification.verified_at) ||

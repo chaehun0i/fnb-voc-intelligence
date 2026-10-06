@@ -5,13 +5,14 @@ import { decodeClosedLoop, type ClosedLoopTrace } from "./verification";
 
 export type HistoryRun = {
   agent_run_id: string; incident_id: string; workflow_id: string; job_id: string;
-  correlation_id: string; config_version: number; jev_decision_id: string; workflow_version: "history-v1" | "history-evidence-v2" | "history-capa-v3" | "history-verification-v4";
+  correlation_id: string; config_version: number; jev_decision_id: string; workflow_version: "history-v1" | "history-evidence-v2" | "history-capa-v3" | "history-verification-v4" | "multi-investigation-v5";
   status: "RUNNING" | "WAITING_APPROVAL" | "COMPLETED" | "FAILED"; started_at: string; completed_at: string | null;
   error_code: "WORKFLOW_FAILED" | null; safe_error_summary: string | null; route: string;
   risk_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"; token_spent: number; cost_spent: number;
   iteration: number; tool_call_count: number;
-  findings: { code: "RELATED_HISTORY_FOUND"; evidence_refs: string[] }[];
-  evidence_candidates: { source_ref: string; source_type: "VOC_REVIEW"; rank: number; retrieved_at: string }[];
+  findings: { code: "RELATED_HISTORY_FOUND" | "TRANSACTION_SIGNAL_FOUND" | "INVENTORY_SIGNAL_FOUND"; evidence_refs: string[] }[];
+  evidence_candidates: { source_ref: string; source_type: "VOC_REVIEW" | "TRANSACTION" | "INVENTORY"; rank: number; retrieved_at: string }[];
+  investigation?: InvestigationProgress | null;
   evidence_gaps: EvidenceGap[];
   capa_proposals?: CAPAProposal[]; approval?: ApprovalTrace | null;
 } & Partial<EvidenceTrace> & ClosedLoopTrace;
@@ -19,6 +20,15 @@ export type HistoryStep = { agent_run_id: string; sequence: number; node_name: "
 export type HistoryRunDetail = HistoryRun & { steps: HistoryStep[] };
 export type HistoryRunPage = { runs: HistoryRun[]; limit: number; offset: number; has_more: boolean };
 export type AgentRunApi = { list(id: string): Promise<HistoryRunPage>; detail(id: string, runId: string): Promise<HistoryRunDetail> };
+
+export type InvestigationProgress = {
+  status: "RUNNING" | "PARTIAL" | "COMPLETED"; evidence_count: number;
+  uncertainty: "관측 근거이며 원인 확정은 아닙니다."; updated_at: string;
+  agents: { agent_type: "HISTORY" | "TRANSACTION" | "INVENTORY"; business_label: string;
+    status: "RUNNING" | "SUCCESS" | "FAILED" | "UNAVAILABLE" | "NO_EVIDENCE" | "STALE";
+    evidence_count: number; retryable: boolean; gap_codes: string[]; updated_at: string }[];
+  coverage: { dimension: "HISTORY" | "TRANSACTION" | "INVENTORY"; status: "CONFIRMED" | "MISSING" | "CONFLICTING" | "STALE" }[];
+};
 
 export class AgentRunApiError extends Error {
   constructor(public code: string, message: string, public requestId?: string) { super(message); this.name = "AgentRunApiError"; }
@@ -28,18 +38,18 @@ const text = (v: unknown) => typeof v === "string" && v.length > 0;
 const number = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= 0;
 const integer = (v: unknown) => number(v) && Number.isSafeInteger(v);
 const date = (v: unknown) => typeof v === "string" && /(Z|[+-]\d{2}:\d{2})$/.test(v) && Number.isFinite(Date.parse(v));
-const refs = (v: unknown) => Array.isArray(v) && v.length <= 20 && v.every((r) => typeof r === "string" && /^review:[A-Za-z0-9_.:-]{1,128}$/.test(r));
+const refs = (v: unknown) => Array.isArray(v) && v.length <= 20 && v.every((r) => typeof r === "string" && /^(review|transaction|inventory):[A-Za-z0-9_.:-]{1,128}$/.test(r));
 const status = (v: unknown) => ["RUNNING", "WAITING_APPROVAL", "COMPLETED", "FAILED"].includes(String(v));
 function invalid(): never { throw new AgentRunApiError("CONTRACT_ERROR", "실행 이력의 응답 형식이 올바르지 않습니다. API 버전을 확인해 주세요."); }
 export function decodeRun(v: unknown): HistoryRun {
   if (!object(v) || !["agent_run_id", "incident_id", "workflow_id", "job_id", "correlation_id", "jev_decision_id"].every((f) => text(v[f])) ||
-    !["history-v1", "history-evidence-v2", "history-capa-v3", "history-verification-v4"].includes(String(v.workflow_version)) || !status(v.status) || !integer(v.config_version) || Number(v.config_version) < 1 ||
+    !["history-v1", "history-evidence-v2", "history-capa-v3", "history-verification-v4", "multi-investigation-v5"].includes(String(v.workflow_version)) || !status(v.status) || !integer(v.config_version) || Number(v.config_version) < 1 ||
     !date(v.started_at) || (v.completed_at !== null && !date(v.completed_at)) ||
     ![null, "WORKFLOW_FAILED"].includes(v.error_code as null) || (v.safe_error_summary !== null && !text(v.safe_error_summary)) ||
     !["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(String(v.risk_level)) || !text(v.route) ||
     !["token_spent", "iteration", "tool_call_count"].every((f) => integer(v[f])) || !number(v.cost_spent) ||
-    !Array.isArray(v.findings) || !v.findings.every((f) => object(f) && f.code === "RELATED_HISTORY_FOUND" && refs(f.evidence_refs)) ||
-    !Array.isArray(v.evidence_candidates) || v.evidence_candidates.length > 20 || !v.evidence_candidates.every((e) => object(e) && refs([e.source_ref]) && e.source_type === "VOC_REVIEW" && integer(e.rank) && Number(e.rank) > 0 && date(e.retrieved_at)) ||
+    !Array.isArray(v.findings) || !v.findings.every((f) => object(f) && ["RELATED_HISTORY_FOUND", "TRANSACTION_SIGNAL_FOUND", "INVENTORY_SIGNAL_FOUND"].includes(String(f.code)) && refs(f.evidence_refs)) ||
+    !Array.isArray(v.evidence_candidates) || v.evidence_candidates.length > 20 || !v.evidence_candidates.every((e) => object(e) && refs([e.source_ref]) && ["VOC_REVIEW", "TRANSACTION", "INVENTORY"].includes(String(e.source_type)) && integer(e.rank) && Number(e.rank) > 0 && date(e.retrieved_at)) ||
     !Array.isArray(v.evidence_gaps) || !v.evidence_gaps.every((g) => object(g) && gapCodes.includes(g.code as EvidenceGap["code"]))) invalid();
   const trace = decodeEvidenceTrace(v);
   if (!trace) invalid();
@@ -47,6 +57,15 @@ export function decodeRun(v: unknown): HistoryRun {
   if (!capa) invalid();
   const closedLoop = decodeClosedLoop(v);
   if (!closedLoop) invalid();
+  if (v.investigation !== undefined && v.investigation !== null) {
+    const p = v.investigation;
+    const agents = ["HISTORY", "TRANSACTION", "INVENTORY"];
+    if (!object(p) || !["RUNNING", "PARTIAL", "COMPLETED"].includes(String(p.status)) || !integer(p.evidence_count) || Number(p.evidence_count) > 60 || !date(p.updated_at) || p.uncertainty !== "관측 근거이며 원인 확정은 아닙니다." ||
+      !Array.isArray(p.agents) || p.agents.length > 3 || !p.agents.every((a) => object(a) && agents.includes(String(a.agent_type)) && ["과거 사례 조사", "거래 내역 조사", "재고 조사"].includes(String(a.business_label)) &&
+        ["RUNNING", "SUCCESS", "FAILED", "UNAVAILABLE", "NO_EVIDENCE", "STALE"].includes(String(a.status)) && integer(a.evidence_count) && Number(a.evidence_count) <= 20 && typeof a.retryable === "boolean" && date(a.updated_at) && Array.isArray(a.gap_codes) && a.gap_codes.every((g) => gapCodes.includes(g as EvidenceGap["code"]))) ||
+      new Set(p.agents.map((a) => (a as Record<string, unknown>).agent_type)).size !== p.agents.length ||
+      !Array.isArray(p.coverage) || p.coverage.length > 3 || !p.coverage.every((c) => object(c) && agents.includes(String(c.dimension)) && ["CONFIRMED", "MISSING", "CONFLICTING", "STALE"].includes(String(c.status)))) invalid();
+  }
   return { ...(v as unknown as HistoryRun), ...trace, ...capa, ...closedLoop };
 }
 export function decodeDetail(v: unknown): HistoryRunDetail {

@@ -1,7 +1,12 @@
 """실행 식별자는 재사용하고 단계 이력은 추가 전용으로 보존합니다."""
 from psycopg.types.json import Jsonb
 
-from src.ai.workflow.models import AgentRun, AgentStep, WorkflowStatus
+from src.ai.workflow.models import (
+    AgentRun,
+    AgentStep,
+    InvestigationResult,
+    WorkflowStatus,
+)
 from src.application.security.principal import AccessError
 
 
@@ -17,6 +22,8 @@ def validate(run, previous, tenant):
             raise ValueError("실행의 원본 참조와 설정 버전은 바꿀 수 없습니다.")
         if previous.status == WorkflowStatus.COMPLETED and previous != run:
             raise ValueError("완료된 실행은 변경할 수 없습니다.")
+        if previous.state.selection is not None and (run.state.selection != previous.state.selection or run.state.contexts != previous.state.contexts):
+            raise ValueError("INVESTIGATION_SNAPSHOT_IMMUTABLE")
     if run.state.config_version != run.config_version or run.state.tenant_id != tenant:
         raise ValueError("실행 상태의 조직과 설정 버전을 확인해 주세요.")
 
@@ -57,6 +64,19 @@ class MemoryAgentRunRepository:
     def steps(self, run_id):
         return sorted((s for (tenant, rid, *_), s in self.state.data.get("agent_steps", {}).items()
                        if tenant == self.tenant_id and rid == run_id), key=lambda s: (s.sequence, s.attempt))
+
+    def branch(self, run_id, agent_type):
+        if self.get(run_id) is None:
+            return None
+        return self.state.data.get("investigation_branches", {}).get((self.tenant_id, run_id, agent_type))
+
+    def append_branch(self, run_id, result):
+        validate_branch(result, self.get(run_id))
+        key = (self.tenant_id, run_id, result.agent_type)
+        stored = self.state.data.setdefault("investigation_branches", {}).setdefault(key, result)
+        if stored != result:
+            raise ValueError("BRANCH_RESULT_CONFLICT")
+        return stored
 
 
 class PostgresAgentRunRepository:
@@ -108,6 +128,32 @@ class PostgresAgentRunRepository:
         rows = self.connection.execute("SELECT document FROM serviq_agent_steps WHERE tenant_id=%s AND agent_run_id::text=%s ORDER BY sequence,attempt",
                                       (self.tenant_id, run_id)).fetchall()
         return [AgentStep.model_validate(r[0]) for r in rows]
+
+    def branch(self, run_id, agent_type):
+        row = self.connection.execute("SELECT document FROM serviq_investigation_branches WHERE tenant_id=%s AND agent_run_id::text=%s AND agent_type=%s",
+            (self.tenant_id, run_id, agent_type)).fetchone()
+        return InvestigationResult.model_validate(row[0]) if row else None
+
+    def append_branch(self, run_id, result):
+        validate_branch(result, self.get(run_id))
+        self.connection.execute("INSERT INTO serviq_investigation_branches(tenant_id,agent_run_id,agent_type,document) VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+            (self.tenant_id, run_id, result.agent_type, Jsonb(result.model_dump(mode="json"))))
+        stored = self.branch(run_id, result.agent_type)
+        if stored != result:
+            raise ValueError("BRANCH_RESULT_CONFLICT")
+        return stored
+
+
+def validate_branch(result, run):
+    from uuid import NAMESPACE_URL, uuid5
+    if run is None:
+        raise AccessError()
+    result = InvestigationResult.model_validate(result.model_dump(mode="json"))
+    pack = next((c for c in run.state.contexts if c.agent_type == result.agent_type), None)
+    if (pack is None or result.tenant_id != run.tenant_id or result.incident_id != run.incident_id
+            or result.store != pack.store or result.context_digest != pack.digest
+            or result.branch_id != str(uuid5(NAMESPACE_URL, run.agent_run_id+":"+result.agent_type))):
+        raise AccessError()
 
 
 def validate_step(step, run):

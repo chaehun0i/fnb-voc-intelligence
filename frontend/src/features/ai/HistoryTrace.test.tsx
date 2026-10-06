@@ -2,7 +2,19 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import type { AgentRunApi } from "./api";
 import { historyFixture } from "../../test/agentRunFixture";
-import { HistoryTracePanel } from "./HistoryTrace";
+import { HistoryTracePanel, InvestigationProgressPanel } from "./HistoryTrace";
+
+it("부분 실패에서도 확보한 근거와 업무별 범위를 서버 결과로 표시한다", () => {
+  render(<InvestigationProgressPanel progress={{ status: "PARTIAL", evidence_count: 3,
+    uncertainty: "관측 근거이며 원인 확정은 아닙니다.", updated_at: "2026-10-07T00:00:00Z",
+    agents: [{ agent_type: "HISTORY", business_label: "과거 사례 조사", status: "SUCCESS", evidence_count: 2, retryable: false, gap_codes: [], updated_at: "2026-10-07T00:00:00Z" },
+      { agent_type: "INVENTORY", business_label: "재고 조사", status: "UNAVAILABLE", evidence_count: 0, retryable: false, gap_codes: ["CAPABILITY_UNAVAILABLE"], updated_at: "2026-10-07T00:00:00Z" }],
+    coverage: [{ dimension: "HISTORY", status: "CONFIRMED" }, { dimension: "INVENTORY", status: "MISSING" }] }} />);
+  expect(screen.getByText("과거 사례 조사 · 조사 완료")).toBeInTheDocument();
+  expect(screen.getByText("재고 조사 · 데이터 사용 불가")).toBeInTheDocument();
+  expect(screen.getByText(/근거 3개 확보/)).toBeInTheDocument();
+  expect(screen.queryByText(/checkpoint|fan-out|LangGraph/)).not.toBeInTheDocument();
+});
 
 it("실제 조사 근거·공백·사용량·Config와 상세 새로고침을 표시한다", async () => {
   const detail = vi.fn().mockResolvedValue(historyFixture);
