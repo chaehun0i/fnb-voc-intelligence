@@ -29,4 +29,3 @@ def validate_approval(uow, approval, now, *, decided=False):
     elif approval.status != "PENDING" or item.status != "PENDING_APPROVAL" or item.approved:
         raise IncidentConflict()
     return run, item
-

@@ -16,6 +16,19 @@ ROLES = {
 }
 
 
+def imported_symbols(path, node):
+    if isinstance(node, ast.Import):
+        return [alias.name for alias in node.names]
+    if not isinstance(node, ast.ImportFrom):
+        return []
+    module = node.module or ""
+    if node.level:
+        package = ("src", *path.relative_to(SOURCE).parent.parts)
+        anchor = package[:len(package) - node.level + 1]
+        module = ".".join((*anchor, *module.split("."))) if module else ".".join(anchor)
+    return [module + "." + alias.name for alias in node.names]
+
+
 def modules():
     for path in SOURCE.rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -23,10 +36,7 @@ def modules():
             (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))}
         imports = []
         for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                imports.extend(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom):
-                imports.extend((node.module or "") + "." + alias.name for alias in node.names)
+            imports.extend(imported_symbols(path, node))
         yield path, tree, definitions, imports
 
 
@@ -105,3 +115,14 @@ def test_ai_modules_have_no_dependency_cycle():
             visit(target, (*chain, module))
     for module in graph:
         visit(module, ())
+
+
+@pytest.mark.parametrize("statement, expected", [
+    ("from ..intelligence.providers import gemini", "src.ai.intelligence.providers.gemini"),
+    ("from ...infrastructure import repositories", "src.infrastructure.repositories"),
+    ("from . import models", "src.ai.workflow.models"),
+    ("import google.genai as sdk", "google.genai"),
+])
+def test_dependency_rules_cannot_be_bypassed_with_relative_imports_or_aliases(statement, expected):
+    path = SOURCE / "ai" / "workflow" / "example.py"
+    assert imported_symbols(path, ast.parse(statement).body[0]) == [expected]

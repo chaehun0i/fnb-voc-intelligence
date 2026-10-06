@@ -567,4 +567,3 @@ class HistoryProcessor:
                 if isinstance(error, (psycopg.Error, RetryableJobError)):
                     raise RetryableJobError("WORKFLOW_PERSISTENCE_UNAVAILABLE") from None
                 raise
-
