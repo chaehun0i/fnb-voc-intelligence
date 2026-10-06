@@ -7,6 +7,8 @@ from uuid import NAMESPACE_URL, uuid5
 
 from src.ai.execution.models import CriterionResult, VerificationCandidate
 from src.ai.workflow.models import (
+    AgentDefinition,
+    AgentSelection,
     CAPAProposal,
     EvidenceGap,
     SufficiencyPolicy,
@@ -15,6 +17,29 @@ from src.ai.workflow.models import (
 )
 
 RISK_ORDER = ("LOW", "MEDIUM", "HIGH", "CRITICAL")
+
+AGENT_REGISTRY = tuple(AgentDefinition(agent_type=agent, business_label=label, purpose=purpose,
+    required_capabilities=(capability,)) for agent, label, purpose, capability in (
+    ("HISTORY", "과거 사례 조사", "RELATED_HISTORY", "HISTORY_DATA"),
+    ("TRANSACTION", "거래 내역 조사", "TRANSACTION_SIGNALS", "TRANSACTION_DATA"),
+    ("INVENTORY", "재고 조사", "INVENTORY_SIGNALS", "INVENTORY_DATA")))
+
+
+def select_agents(candidates, capabilities, *, tenant_id, store, category,
+                  allowed_agents, now, max_age=timedelta(minutes=5), registry=AGENT_REGISTRY):
+    # Capability는 조직뿐 아니라 실제 조회 가능한 매장 범위에 묶습니다.
+    if any(c.tenant_id != tenant_id or c.store != store for c in capabilities):
+        raise ValueError("CAPABILITY_SCOPE_MISMATCH")
+    if len({c.capability for c in capabilities}) != len(capabilities):
+        raise ValueError("CAPABILITY_DUPLICATE")
+    available = {c.capability for c in capabilities if c.available and c.health == "HEALTHY"
+        and c.freshness == "FRESH" and timedelta(0) <= now-c.checked_at <= max_age}
+    eligible = tuple(a for a in registry if a.agent_type in candidates)
+    selected = tuple(a for a in eligible if a.enabled and a.parallel_safe
+        and a.agent_type in allowed_agents and category in a.supported_categories
+        and set(a.required_capabilities) <= available)
+    return AgentSelection(selected=selected,
+        excluded=tuple(a.agent_type for a in eligible if a not in selected), capabilities=tuple(capabilities))
 
 
 def server_risk(*values):

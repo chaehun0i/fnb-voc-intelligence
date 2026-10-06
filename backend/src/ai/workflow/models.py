@@ -12,6 +12,48 @@ from src.ai.execution.models import (
 )
 from src.ai.models import SafeModel
 
+InvestigationAgent = Literal["HISTORY", "TRANSACTION", "INVENTORY"]
+DataCapability = Literal["HISTORY_DATA", "TRANSACTION_DATA", "INVENTORY_DATA"]
+
+
+class AgentDefinition(SafeModel):
+    agent_type: InvestigationAgent
+    agent_version: Literal["1"] = "1"
+    business_label: Literal["과거 사례 조사", "거래 내역 조사", "재고 조사"]
+    purpose: Literal["RELATED_HISTORY", "TRANSACTION_SIGNALS", "INVENTORY_SIGNALS"]
+    supported_categories: tuple[str, ...] = ("GENERAL", "UNKNOWN", "TRANSACTION", "COLD_CHAIN", "FOOD_SAFETY", "SUPPLIER_LOT")
+    required_capabilities: tuple[DataCapability, ...] = Field(min_length=1)
+    optional_capabilities: tuple[DataCapability, ...] = ()
+    output_schema_version: Literal["investigation-1"] = "investigation-1"
+    parallel_safe: bool = True
+    default_budget_profile: Literal["READ_ONLY_BOUNDED"] = "READ_ONLY_BOUNDED"
+    enabled: bool = True
+
+
+class TenantCapability(SafeModel):
+    tenant_id: str = Field(min_length=1, max_length=128)
+    store: str = Field(min_length=1, max_length=128)
+    capability: DataCapability
+    available: bool
+    source: Literal["AUTHORIZED_HISTORY_SEARCH", "SYNTHETIC_OPERATIONAL_FIXTURE"]
+    health: Literal["HEALTHY", "UNAVAILABLE"]
+    freshness: Literal["FRESH", "STALE", "UNKNOWN"]
+    checked_at: datetime
+
+    @field_validator("checked_at")
+    @classmethod
+    def aware(cls, value):
+        if value.utcoffset() is None:
+            raise ValueError("Capability 확인 시각에 시간대가 필요합니다.")
+        return value
+
+
+class AgentSelection(SafeModel):
+    registry_version: Literal["investigation-1"] = "investigation-1"
+    selected: tuple[AgentDefinition, ...] = Field(default=(), max_length=3)
+    excluded: tuple[InvestigationAgent, ...] = ()
+    capabilities: tuple[TenantCapability, ...] = Field(default=(), max_length=3)
+
 
 class WorkflowStatus(StrEnum):
     RUNNING = "RUNNING"
