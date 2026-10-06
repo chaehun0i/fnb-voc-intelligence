@@ -15,6 +15,26 @@ from src.ai.models import SafeModel
 InvestigationAgent = Literal["HISTORY", "TRANSACTION", "INVENTORY"]
 DataCapability = Literal["HISTORY_DATA", "TRANSACTION_DATA", "INVENTORY_DATA"]
 
+TerminationReason = Literal["COMPLETED", "NO_NEW_EVIDENCE", "BUDGET_EXHAUSTED",
+    "ITERATION_LIMIT", "POLICY_DENIED", "PAUSED", "STOPPED", "MANUAL_TAKEOVER", "INCOMPLETE"]
+
+
+class LoopPolicy(SafeModel):
+    version: Literal["bounded-investigation-1"] = "bounded-investigation-1"
+    max_iterations: int = Field(strict=True, ge=1, le=3)
+    max_operations: int = Field(strict=True, ge=1, le=50)
+    token_budget: int = Field(strict=True, ge=100, le=100000)
+    cost_budget: float = Field(ge=0.01, le=20, allow_inf_nan=False)
+    timeout_seconds: int = Field(strict=True, ge=5, le=600)
+
+
+class LoopTrace(SafeModel):
+    policy: LoopPolicy
+    termination: TerminationReason | None = None
+    # counters remain exclusively on WorkflowState; no duplicate budget consumption.
+    evidence_digest: str = Field(default="", pattern=r"^([a-f0-9]{64})?$")
+    new_evidence: bool = False
+
 
 class AgentDefinition(SafeModel):
     agent_type: InvestigationAgent
@@ -317,6 +337,7 @@ class ApprovalTrace(SafeModel):
 
 
 class WorkflowState(SafeModel):
+    loop: LoopTrace | None = None
     tenant_id: str = Field(min_length=1, max_length=128)
     incident_id: str = Field(min_length=1, max_length=128)
     workflow_id: str = Field(pattern=r"^[a-f0-9-]{36}$")

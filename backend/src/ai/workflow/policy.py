@@ -77,6 +77,32 @@ def build_context(agent, *, tenant_id, incident_id, store, category, severity,
         excluded += 1
 
 
+def loop_policy(config):
+    from src.ai.workflow.models import LoopPolicy
+    from src.domain.config.resolution import ConfigResolver
+    current = ConfigResolver().resolve(config).effective
+    return LoopPolicy(max_iterations=min(3, current.max_agent_iterations),
+        max_operations=current.max_tool_calls, token_budget=current.token_budget,
+        cost_budget=current.cost_budget_usd, timeout_seconds=current.timeout_seconds)
+
+
+def loop_termination(policy, state, *, now, started_at, before_refs=None):
+    """Each operation is an actual read lookup; no synthetic MCP ToolCall is counted."""
+    if (state.tool_call_count >= policy.max_operations or state.token_spent >= policy.token_budget
+            or state.cost_spent >= policy.cost_budget
+            or now-started_at >= timedelta(seconds=policy.timeout_seconds)):
+        return "BUDGET_EXHAUSTED"
+    if before_refs is not None and set(state.evidence_refs) <= set(before_refs):
+        return "NO_NEW_EVIDENCE"
+    if state.iteration >= policy.max_iterations:
+        return "ITERATION_LIMIT"
+    return None
+
+
+def evidence_digest(refs):
+    return hashlib.sha256(json.dumps(sorted(set(refs)), separators=(",", ":")).encode()).hexdigest()
+
+
 def server_risk(*values):
     return max(("MEDIUM", *values), key=RISK_ORDER.index)
 
