@@ -4,7 +4,7 @@ from dataclasses import replace
 
 from psycopg.types.json import Jsonb
 
-from src.application.ports.job_repository import JobConflict
+from src.application.ports.repositories import JobConflict
 from src.infrastructure.job_codec import job_document, job_from_document
 
 

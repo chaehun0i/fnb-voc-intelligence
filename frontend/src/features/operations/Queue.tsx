@@ -1,9 +1,9 @@
 import { Fragment, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { ChevronDown, ChevronUp, RefreshCw, RotateCcw, X } from "lucide-react";
-import { mockApi } from "../../api/mockApi";
-import { jobApi, JobApiError } from "../../api/jobs";
-import { apiMode, commandKey } from "../../api/client";
+import { mockApi } from "../../shared/mockApi";
+import { jobApi, JobApiError } from "./api";
+import { apiMode, commandKey } from "../../shared/api";
 import { SelectField } from "../../components/SelectField";
 import { Button, PageHeading, PreviewNotice, StateMessage, StatCard } from "../../components/ui";
 import type { QueueJob } from "../../contracts/types";

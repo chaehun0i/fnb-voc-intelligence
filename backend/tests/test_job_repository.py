@@ -2,7 +2,7 @@ from dataclasses import replace
 
 import pytest
 
-from src.application.ports.job_repository import JobConflict
+from src.application.ports.repositories import JobConflict
 from src.infrastructure.job_codec import job_document, job_from_document
 from src.infrastructure.repositories.approval_repository import MemoryAccessState
 from src.infrastructure.repositories.job_repository import MemoryJobRepository

@@ -4,6 +4,8 @@ from unittest.mock import Mock
 
 import psycopg
 
+from src.ai.decision.models import DecisionReasonCode
+from src.ai.decision.service import ShadowDecisions
 from src.domain.config.models import ConfigVersion, RuntimeConfig
 from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.models import Incident
@@ -13,8 +15,6 @@ from src.infrastructure.jobs.runtime import snapshot_processor
 from src.infrastructure.repositories.in_memory_incident_repository import (
     InMemoryIncidentRepository,
 )
-from src.routing.models import DecisionReasonCode
-from src.routing.shadow import ShadowDecisions
 
 
 def setup_shadow(engine=None):

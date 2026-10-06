@@ -10,19 +10,20 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import ValidationError
 
-from src.agents.checkpoint import memory_checkpoint
-from src.agents.history import WorkflowNotAllowed, validate_start
-from src.agents.history_node import HistoryInvestigation
-from src.agents.models import Finding, WorkflowState
-from src.agents.processor import (
+from src.ai.intelligence.models import LLMError, LLMErrorCode
+from src.ai.workflow.agents import HistoryInvestigation
+from src.ai.workflow.models import Finding, WorkflowState
+from src.ai.workflow.runtime import (
     HistoryProcessor,
     UncertainHistoryCall,
+    WorkflowNotAllowed,
+    memory_checkpoint,
+    validate_start,
 )
 from src.application.incidents.service import IncidentNotFound
 from src.application.security.principal import AccessError, Role
 from src.domain.config.models import RuntimeConfig
 from src.domain.config.resolution import ConfigResolver
-from src.llm.errors import LLMError, LLMErrorCode
 from src.rag.lexical_search import search_reviews_lexically
 from src.rag.search_models import SearchFilters
 from src.rag.vector_search import search_similar_reviews
@@ -135,9 +136,11 @@ def test_search_scope_is_in_both_sql_modes():
 def test_domain_jev_and_history_never_import_provider_sdk():
     source = Path(__file__).parents[1]/"src"
     files = list((source/"domain").rglob("*.py"))
-    files += list((source/"agents").rglob("*.py"))
+    for area in ("decision", "workflow", "execution"):
+        files += list((source/"ai"/area).rglob("*.py"))
+    assert any("workflow" in path.parts for path in files)
     for path in files:
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             modules = [item.name for item in node.names] if isinstance(node, ast.Import) else [node.module or ""] if isinstance(node, ast.ImportFrom) else []
-            assert not any(name.startswith(("google", "ollama", "src.llm.providers")) for name in modules), path
+            assert not any(name.startswith(("google", "ollama", "src.ai.intelligence.providers")) for name in modules), path

@@ -1,4 +1,4 @@
-import type { HistoryRunDetail } from "../api/agentRuns";
+import type { HistoryRunDetail } from "../features/ai/api";
 import { historyFixture } from "./agentRunFixture";
 
 export const evidenceFixture: HistoryRunDetail = {

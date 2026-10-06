@@ -9,11 +9,9 @@ import psycopg
 from fastapi.testclient import TestClient
 from scripts.serviq_langgraph_smoke import seed_capa_http
 
-from src.agents.checkpoint import postgres_checkpoint
-from src.agents.processor import HistoryProcessor
-from src.agents.resume import RESUME_JOB
-from src.agents.verification_commands import VerificationCommands
-from src.agents.verification_contracts import InternalReviewSimulation
+from src.ai.execution.models import InternalReviewSimulation
+from src.ai.execution.service import VerificationCommands
+from src.ai.workflow.runtime import RESUME_JOB, HistoryProcessor, postgres_checkpoint
 from src.api.app import create_app
 from src.application.security.principal import Principal, RequestContext, Role
 from src.infrastructure.access_unit_of_work import AccessPersistence

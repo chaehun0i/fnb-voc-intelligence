@@ -1,4 +1,4 @@
-import type { HistoryRunDetail } from "../api/agentRuns";
+import type { HistoryRunDetail } from "../features/ai/api";
 
 // 외부 모델이나 실제 개인정보가 없는 결정적 HTTP 계약 예시입니다.
 export const historyFixture: HistoryRunDetail = {

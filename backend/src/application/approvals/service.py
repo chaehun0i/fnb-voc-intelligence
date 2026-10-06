@@ -4,7 +4,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 from uuid import uuid4
 
-from src.application.ports.incident_repository import IncidentConflict
+from src.application.ports.repositories import IncidentConflict
 from src.application.security.authorization import require
 from src.application.security.principal import AccessError
 from src.domain.approvals.models import Approval, action_digest

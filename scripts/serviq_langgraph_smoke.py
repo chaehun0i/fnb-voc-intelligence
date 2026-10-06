@@ -11,9 +11,14 @@ import psycopg
 from fastapi.testclient import TestClient
 from langgraph.checkpoint.postgres import PostgresSaver
 
-from src.agents.checkpoint import postgres_checkpoint
-from src.agents.history import HistoryWorkflows
-from src.agents.processor import HistoryProcessor
+from src.ai.decision.service import ShadowDecisions
+from src.ai.intelligence.providers.fake import FakeProvider
+from src.ai.intelligence.service import ProviderRouter, RoutedLLMExecutor
+from src.ai.workflow.runtime import (
+    HistoryProcessor,
+    HistoryWorkflows,
+    postgres_checkpoint,
+)
 from src.api.app import create_app
 from src.application.security.principal import Principal, RequestContext, Role
 from src.data.database import initialize_schema
@@ -33,12 +38,8 @@ from src.infrastructure.repositories.job_repository import PostgresJobRepository
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )
-from src.llm.execution import RoutedLLMExecutor
-from src.llm.providers.fake import FakeProvider
-from src.llm.router import ProviderRouter
 from src.rag.embeddings import FakeEmbeddingProvider
 from src.rag.indexing import index_reviews
-from src.routing.shadow import ShadowDecisions
 
 
 class FakeGemini(FakeProvider):
@@ -244,7 +245,7 @@ def verify_evidence_rca(dsn, persistence, repo, incident, principal, config, rev
 
 def verify_approval_workflow(dsn, persistence, repo, original, principal, config):
     """기존 History 검색 fixture로 실제 승인 대기/재시작/승인·반려를 검증합니다."""
-    from src.agents.resume import RESUME_JOB
+    from src.ai.workflow.runtime import RESUME_JOB
     tenant, now = principal.tenant_id, datetime.now(UTC)
     active = replace(config, auto_capa_draft=True, hosted_ai_allowed=False,
                      llm_enabled_providers=(), llm_models=())

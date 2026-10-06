@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { mockApi } from "../../api/mockApi";
+import { mockApi } from "../../shared/mockApi";
 import type { AgentRun, Integration, QueueJob } from "../../contracts/types";
 import { Integrations } from "./Integrations";
 import { Queue } from "./Queue";
-import { AgentTrace } from "../trace/AgentTrace";
+import { AgentTrace } from "../ai/AgentTrace";
 
 afterEach(() => vi.restoreAllMocks());
 

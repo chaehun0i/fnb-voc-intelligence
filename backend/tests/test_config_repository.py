@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from src.application.ports.config_repository import ConfigVersionConflict
+from src.application.ports.repositories import ConfigVersionConflict
 from src.domain.config.models import ConfigVersion, RuntimeConfig
 from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.repositories.in_memory_incident_repository import (

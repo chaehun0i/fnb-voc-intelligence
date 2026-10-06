@@ -1,8 +1,8 @@
 """근거 부족과 상충은 RCA 실행을 허용하지 않습니다."""
 import pytest
 
-from src.agents.models import EvidenceGap, SufficiencyPolicy
-from src.agents.sufficiency import evaluate_sufficiency
+from src.ai.workflow.models import EvidenceGap, SufficiencyPolicy
+from src.ai.workflow.policy import evaluate_sufficiency
 from tests.test_evidence_contracts import evidence
 
 

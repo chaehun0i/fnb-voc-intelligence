@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import replace
 from threading import RLock
 
-from src.application.ports.incident_repository import (
+from src.application.ports.repositories import (
     IncidentConflict,
     IncidentRepository,
 )

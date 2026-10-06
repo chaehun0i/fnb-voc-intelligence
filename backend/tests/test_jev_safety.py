@@ -2,14 +2,14 @@ from dataclasses import replace
 
 import pytest
 
-from src.domain.config.resolution import ConfigResolver
-from src.domain.incidents.enums import Severity
-from src.routing.models import (
+from src.ai.decision.engine import safety_and_risk
+from src.ai.decision.models import (
     Category,
     DecisionReasonCode,
     DecisionValidationError,
 )
-from src.routing.rules import safety_and_risk
+from src.domain.config.resolution import ConfigResolver
+from src.domain.incidents.enums import Severity
 from tests.test_jev_contract import context
 
 

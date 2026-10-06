@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { reviewApi, ReviewApiError } from "../../api/reviews";
-import { mockApi, resetMockState } from "../../api/mockApi";
+import { reviewApi, ReviewApiError } from "./api";
+import { mockApi, resetMockState } from "../../shared/mockApi";
 import { ReviewQueue } from "./ReviewQueue";
 
 beforeEach(() => resetMockState());

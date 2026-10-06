@@ -9,15 +9,22 @@ from unittest.mock import AsyncMock, Mock
 import httpx
 import pytest
 
+from src.ai.intelligence.models import (
+    LLMError,
+    LLMErrorCode,
+    LLMUsage,
+    ProviderCapability,
+    ProviderResponse,
+)
+from src.ai.intelligence.providers.fake import FakeProvider
+from src.ai.intelligence.providers.ollama import OllamaProvider
+from src.ai.intelligence.service import (
+    LLMGateway,
+    ProviderRouter,
+    RoutedLLMExecutor,
+    evaluate_policy,
+)
 from src.domain.config.resolution import ConfigResolver
-from src.llm.contracts import LLMUsage, ProviderCapability, ProviderResponse
-from src.llm.data_policy import evaluate_policy
-from src.llm.errors import LLMError, LLMErrorCode
-from src.llm.execution import RoutedLLMExecutor
-from src.llm.gateway import LLMGateway
-from src.llm.providers.fake import FakeProvider
-from src.llm.providers.ollama import OllamaProvider
-from src.llm.router import ProviderRouter
 from tests.test_llm_contracts import intent
 from tests.test_llm_gemini import request
 from tests.test_llm_router import configured
@@ -116,8 +123,10 @@ def test_ollama_unavailable_without_network():
 
 def test_sdk_does_not_leak_into_domain_application_or_jev():
     root = Path(__file__).parents[1] / "src"
-    for directory in ("domain", "application", "agents", "routing"):
+    for directory in ("domain", "application", "ai"):
         for path in (root / directory).rglob("*.py"):
+            if path.parent == root / "ai" / "intelligence" / "providers":
+                continue
             for node in ast.walk(ast.parse(path.read_text(encoding="utf-8-sig"))):
                 if isinstance(node, ast.Import):
                     assert all(not item.name.startswith(("google", "ollama")) for item in node.names), path

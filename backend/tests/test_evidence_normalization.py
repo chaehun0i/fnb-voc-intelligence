@@ -3,8 +3,8 @@ from uuid import uuid4
 
 import pytest
 
-from src.agents.evidence import normalize_evidence
-from src.agents.models import EvidenceCandidate
+from src.ai.workflow.agents import normalize_evidence
+from src.ai.workflow.models import EvidenceCandidate
 from src.application.security.principal import AccessError
 from tests.test_evidence_contracts import evidence as normalized_example
 

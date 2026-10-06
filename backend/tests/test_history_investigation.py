@@ -3,8 +3,8 @@ from datetime import UTC, datetime
 from unittest.mock import Mock
 from uuid import uuid4
 
-from src.agents.history_node import HistoryInvestigation
-from src.agents.models import WorkflowState
+from src.ai.workflow.agents import HistoryInvestigation
+from src.ai.workflow.models import WorkflowState
 from src.domain.config.models import RuntimeConfig
 from src.domain.config.resolution import ConfigResolver
 

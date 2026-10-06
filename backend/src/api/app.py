@@ -21,7 +21,7 @@ from src.api.routes.settings import router as settings_router
 from src.application.dashboard.queries import DashboardQueries
 from src.application.incidents.service import IncidentService
 from src.application.ports.identity_provider import IdentityProvider
-from src.application.ports.incident_repository import IncidentRepository
+from src.application.ports.repositories import IncidentRepository
 from src.domain.config.resolution import ConfigResolver
 from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.models import Incident, StateTransition

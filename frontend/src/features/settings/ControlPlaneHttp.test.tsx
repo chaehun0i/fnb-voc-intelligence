@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { createHttpSettingsApi, mockSettingsApi, SettingsApiError, settingsApi } from "../../api/settings";
-import { mockApi, resetMockState } from "../../api/mockApi";
-import type { RuntimeHistory, RuntimeWorkspace } from "../../api/settings/types";
+import { createHttpSettingsApi, mockSettingsApi, SettingsApiError, settingsApi } from "./api";
+import { mockApi, resetMockState } from "../../shared/mockApi";
+import type { RuntimeHistory, RuntimeWorkspace } from "./types";
 import { ControlPlaneSettings } from "./ControlPlaneSettings";
 
-vi.mock("../../api/client", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../../api/client")>(),
+vi.mock("../../shared/api", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../shared/api")>(),
   apiMode: "http", apiBaseUrl: "http://test/api/v1",
 }));
 let workspace: RuntimeWorkspace;

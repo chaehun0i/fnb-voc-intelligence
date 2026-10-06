@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { CheckCircle2, History, RotateCcw, Save, Settings2, ShieldCheck } from "lucide-react";
-import { settingsApi, SettingsApiError } from "../../api/settings";
-import { apiMode, commandKey } from "../../api/client";
-import type { RuntimeConfig, RuntimeHistory, RuntimeWorkspace } from "../../api/settings/types";
+import { settingsApi, SettingsApiError } from "./api";
+import { apiMode, commandKey } from "../../shared/api";
+import type { RuntimeConfig, RuntimeHistory, RuntimeWorkspace } from "./types";
 import type { Severity } from "../../contracts/types";
 import { SelectField } from "../../components/SelectField";
 import { Button, PageHeading, PreviewNotice, StateMessage } from "../../components/ui";

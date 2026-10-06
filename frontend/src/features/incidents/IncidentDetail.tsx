@@ -2,16 +2,16 @@ import { useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Tabs from "@radix-ui/react-tabs";
 import { X } from "lucide-react";
-import { incidentApi } from "../../api/incidents";
-import { apiMode } from "../../api/client";
-import { mockApi } from "../../api/mockApi";
+import { incidentApi } from "./api";
+import { apiMode } from "../../shared/api";
+import { mockApi } from "../../shared/mockApi";
 import { StateMessage } from "../../components/ui";
 import { dateTime, percent, statusLabels } from "../../lib/display";
 import { useQuery } from "../../lib/useQuery";
 import { IncidentCommandPanel } from "./IncidentCommandPanel";
 import { Badge } from "../../components/IncidentBadge";
 import { ShadowDecisionPanel } from "./ShadowDecisionPanel";
-import { HistoryTracePanel } from "../trace/HistoryTrace";
+import { HistoryTracePanel } from "../ai/HistoryTrace";
 
 const tabLabels = { timeline: "진행 이력", evidence: "증거", rca: "원인 분석", capa: "시정·예방 조치", tasks: "담당 작업", verification: "검증", trace: "실행 추적" };
 export function IncidentDetail({ id, onBack }: { id: string; onBack: () => void }) {

@@ -16,13 +16,14 @@ Drive 일부 구현현황은 Day 16 스냅샷입니다. 실제 main의 Day 17~22
 
 | 위치 | 역할 |
 | --- | --- |
-| `backend/src/agents/models.py`, `policy.py` | SDK 독립 AgentRun·WorkflowState·Finding·EvidenceCandidate·EvidenceGap·Step 계약과 실행 허용 정책 |
-| `backend/src/agents/history.py`, `queries.py`, `*_node.py`, `*_commands.py` | Jev/Config 원본 고정·Tenant/store Query·조사 Node·승인/검증 Application 경계 |
-| `backend/src/agents/graph.py`, `checkpoint.py`, `processor.py` | 단일 Graph·JSON Checkpoint·Worker 실행 복구 (순수 계약과 import 경계 분리) |
+| `backend/src/ai/workflow/models.py`, `policy.py` | SDK 독립 AgentRun·WorkflowState·Finding·EvidenceCandidate·EvidenceGap·Step 계약과 실행 허용 정책 |
+| `backend/src/ai/workflow/agents.py`, `runtime.py` | 조사 Node·Jev/Config 원본 고정·승인 Application 경계 |
+| `backend/src/ai/execution/service.py`, `backend/src/ai/ax/service.py` | 내부 실행/검증 Command·Tenant/store 실행 Trace Query |
+| `backend/src/ai/workflow/graph.py`, `runtime.py` | 단일 Graph·JSON Checkpoint·Worker 실행 복구 (순수 계약과 import 경계 분리) |
 | `backend/src/infrastructure/history_search.py` | 기존 SearchService와 조직/매장 출처 연결 |
 | `backend/src/infrastructure/repositories/agent_run_repository.py` | 운영 실행 원본과 단계 이력 저장 |
 | `backend/src/api/routes/agent_runs.py` | 인증된 조회 전용 API |
-| `frontend/src/api/agentRuns/`, `features/trace/HistoryTrace.tsx` | 실제 HTTP 계약과 한글 실행 추적 |
+| `frontend/src/features/ai/`, `features/ai/HistoryTrace.tsx` | 실제 HTTP 계약과 한글 실행 추적 |
 
 AgentRun은 운영 조회 원본이며 LangGraph Checkpoint는 실행 복구 상태입니다. 두 entity를 합치지 않습니다. Run에는 Tenant/Incident/Job/workflow/correlation/Config/Jev 원본과 실행 상태가 남습니다. WorkflowState에는 참조, 고정된 Finding 코드, 증거 후보, 근거 공백, 반복/호출/토큰/비용만 저장합니다. 상태는 `RUNNING / COMPLETED / FAILED`이며 완료된 실행은 임의로 다시 변경하지 않습니다.
 

@@ -3,6 +3,8 @@ from datetime import UTC, datetime
 
 import pytest
 
+from src.ai.decision.engine import JevEngine
+from src.ai.decision.models import DecisionRecord
 from src.application.security.principal import AccessError
 from src.infrastructure.repositories.approval_repository import MemoryAccessState
 from src.infrastructure.repositories.decision_repository import (
@@ -10,8 +12,6 @@ from src.infrastructure.repositories.decision_repository import (
     decision_document,
     decision_from_document,
 )
-from src.routing.engine import JevEngine
-from src.routing.models import DecisionRecord
 from tests.test_jev_safety import active
 
 

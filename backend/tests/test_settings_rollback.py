@@ -4,7 +4,7 @@ from dataclasses import replace
 import pytest
 
 from src.application.config.commands import SettingsCommands
-from src.application.ports.config_repository import (
+from src.application.ports.repositories import (
     ConfigNotFound,
     ConfigVersionConflict,
 )

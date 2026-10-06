@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { mockApi, resetMockState } from "../../api/mockApi";
+import { mockApi, resetMockState } from "../../shared/mockApi";
 import { ReviewQueue } from "./ReviewQueue";
 import { ControlPlaneSettings } from "../settings/ControlPlaneSettings";
 

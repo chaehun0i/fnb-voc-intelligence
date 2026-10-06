@@ -3,7 +3,7 @@ from copy import deepcopy
 
 from psycopg.types.json import Jsonb
 
-from src.application.ports.config_repository import ConfigVersionConflict
+from src.application.ports.repositories import ConfigVersionConflict
 from src.application.security.principal import AccessError
 from src.domain.config.models import (
     ConfigVersion,

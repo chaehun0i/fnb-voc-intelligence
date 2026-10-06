@@ -2,17 +2,18 @@
 
 ## 목적
 
-ServIQ의 운영 콘솔입니다. Day 13 v0.4.1 기반을 유지하며 현재 운영 안전 설계 기준은 v0.5입니다. Frontend-first → Contract-first → Domain/API 순서로 개발하며 기존 Streamlit 분석 대시보드를 대체하지 않습니다.
+ServIQ의 운영 콘솔입니다. Day 13 v0.4.1 기반을 유지하며 현재 운영 안전 설계 기준은 v0.6입니다. Frontend-first → Contract-first → Domain/API 순서로 개발하며 기존 Streamlit 분석 대시보드를 대체하지 않습니다.
 
 ## 구성
 
-- `src/api/fixtures.ts`, `mockApi.ts`: 화면 검토용 데이터와 세션 내 Mock Action을 제공합니다.
-- `src/api/incidents/`: 같은 Incident Contract를 사용하는 Mock/HTTP 경계입니다.
-- `src/api/reviews/`: 실제 Approval 원본의 조회·승인·반려와 기존 Mock 경로를 분리합니다.
-- `src/api/jobs/`: PostgreSQL Job 조회·재시도·취소의 HTTP 계약과 기존 Mock 경로를 분리합니다.
-- `src/api/dashboard/`: 단일 서버 Snapshot의 운영 지표·UTC 추세·기준 시각과 Mock 경로를 분리합니다.
-- `src/api/settings/`: 서버 Config Version·해석값·이력·변경·복원을 기존 Mock 경로와 분리합니다.
-- `src/api/decisions/`: Incident의 실제 Jev Shadow 판단 이력과 명시적 빈 Mock 경로를 분리합니다.
+- `src/shared/api.ts`: 공통 HTTP 연결·인증·명령 키 설정입니다.
+- `src/shared/fixtures.ts`, `mockApi.ts`: 화면 검토용 데이터와 세션 내 Mock Action을 제공합니다.
+- `src/features/incidents/api.ts`: 같은 Incident Contract를 사용하는 Mock/HTTP 경계입니다.
+- `src/features/reviews/api.ts`: 실제 Approval 조회·승인·반려와 기존 Mock 경로입니다.
+- `src/features/operations/api.ts`: 실제 Job 조회·재시도·취소와 Mock 경로입니다.
+- `src/features/dashboard/api.ts`: 서버 Snapshot의 KPI·UTC 추세와 Mock 경로입니다.
+- `src/features/settings/api.ts`: 서버 Config Version·해석값·이력·변경·복원입니다.
+- `src/features/ai/`: Jev Shadow API·AgentRun 응답 decoder·실제 Evidence/RCA/CAPA/Verification Trace입니다.
 - `src/features/`: 대시보드, 인시던트, 검토, 실행 추적, 연동, 대기열, 운영 설정입니다.
 - Tailwind CSS, Radix Select/Dialog/Tabs, Framer Motion, lucide-react로 화면·키보드 조작·상태를 구성합니다.
 - 인시던트 팝업은 진행 이력·증거·RCA·CAPA·담당 작업·검증·추적의 7개 탭과 서버 Permission에 따른 운영 명령을 제공합니다.

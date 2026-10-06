@@ -4,12 +4,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.agents.checkpoint import memory_checkpoint
-from src.agents.processor import HistoryProcessor
-from src.agents.resume import RESUME_JOB
+from src.ai.workflow.runtime import RESUME_JOB, HistoryProcessor, memory_checkpoint
 from src.application.incidents.commands import IncidentCommands
 from src.application.incidents.service import IncidentService
-from src.application.ports.incident_repository import IncidentConflict
+from src.application.ports.repositories import IncidentConflict
 from src.application.security.principal import (
     AccessError,
     Principal,

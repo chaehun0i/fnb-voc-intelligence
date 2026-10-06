@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { dashboardApi } from "../../api/dashboard";
-import { dashboardFixture } from "../../api/fixtures";
+import { dashboardApi } from "./api";
+import { dashboardFixture } from "../../shared/fixtures";
 import { Dashboard } from "./Dashboard";
 
 afterEach(() => vi.restoreAllMocks());

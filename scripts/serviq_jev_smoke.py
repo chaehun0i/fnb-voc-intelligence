@@ -10,6 +10,7 @@ import psycopg
 from fastapi.testclient import TestClient
 from psycopg import sql
 
+from src.ai.decision.service import ShadowDecisions
 from src.api.app import create_app
 from src.application.security.principal import Principal, Role
 from src.domain.config.models import ConfigVersion, RuntimeConfig
@@ -25,7 +26,6 @@ from src.infrastructure.repositories.job_repository import PostgresJobRepository
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )
-from src.routing.shadow import ShadowDecisions
 
 
 def verify(dsn):

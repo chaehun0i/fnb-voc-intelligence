@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 const network = vi.hoisted(() => { vi.stubEnv("VITE_API_MODE", "http"); const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher); return fetcher; });
 import { Dashboard } from "./Dashboard";
-import { mockApi } from "../../api/mockApi";
+import { mockApi } from "../../shared/mockApi";
 
 const snapshot = {
   as_of: "2026-10-03T12:00:00Z", window: "7d", timezone: "UTC",

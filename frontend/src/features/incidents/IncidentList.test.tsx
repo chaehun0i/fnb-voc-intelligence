@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { incidentApi } from "../../api/incidents";
-import { mockApi, resetMockState } from "../../api/mockApi";
+import { incidentApi } from "./api";
+import { mockApi, resetMockState } from "../../shared/mockApi";
 import { ageLabel } from "../../lib/display";
 import { IncidentList } from "./IncidentList";
 
 const mode = vi.hoisted(() => ({ value: "mock" }));
-vi.mock("../../api/client", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../api/client")>();
+vi.mock("../../shared/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../shared/api")>();
   return { ...actual, get apiMode() { return mode.value; } };
 });
 

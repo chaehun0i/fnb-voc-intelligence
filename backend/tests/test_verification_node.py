@@ -3,9 +3,9 @@ from uuid import uuid4
 
 import pytest
 
-from src.agents.verification_commands import VerificationCommands
-from src.agents.verification_contracts import VerificationEvidence
-from src.agents.verification_rules import evaluate_verification
+from src.ai.execution.models import VerificationEvidence
+from src.ai.execution.service import VerificationCommands
+from src.ai.workflow.policy import evaluate_verification
 from tests.test_internal_execution import approved_run
 
 

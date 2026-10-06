@@ -22,8 +22,10 @@ def build_embedding_provider() -> EmbeddingProvider:
 
 def build_generator() -> TextGenerator:
     if settings.generator_provider == "gateway":
-        from src.llm.config import local_llm_config
-        from src.llm.runtime import configured_llm_executor
+        from src.ai.intelligence.service import (
+            configured_llm_executor,
+            local_llm_config,
+        )
 
         from .gateway_generator import GatewayTextGenerator
 

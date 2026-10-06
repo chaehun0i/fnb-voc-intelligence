@@ -4,9 +4,8 @@ import json
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+from src.ai.intelligence.models import LLMError, LLMErrorCode, LLMIntent
 from src.domain.config.resolution import ConfigResolver
-from src.llm.contracts import LLMIntent
-from src.llm.errors import LLMError, LLMErrorCode
 
 
 class GatewayTextGenerator:

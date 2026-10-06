@@ -2,7 +2,7 @@
 from dataclasses import asdict
 from datetime import datetime
 
-from src.agents.approval_policy import approval_policy_digest
+from src.ai.workflow.policy import approval_policy_digest
 from src.application.incidents.service import IncidentNotFound
 from src.application.security.authorization import allowed, require
 from src.domain.approvals.models import action_digest

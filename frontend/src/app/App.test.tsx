@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { App } from "./App";
-import { resetMockState } from "../api/mockApi";
+import { resetMockState } from "../shared/mockApi";
 
 beforeEach(() => { resetMockState(); window.history.replaceState(null, "", "/"); });
 describe("ServIQ 운영 콘솔", () => {

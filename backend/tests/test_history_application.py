@@ -4,7 +4,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from src.agents.history import HistoryWorkflows, WorkflowNotAllowed
+from src.ai.decision.service import ShadowDecisions
+from src.ai.workflow.runtime import HistoryWorkflows, WorkflowNotAllowed
 from src.application.security.principal import Principal, RequestContext, Role
 from src.domain.config.models import ConfigVersion, RuntimeConfig
 from src.domain.incidents.enums import IncidentStatus, Severity
@@ -14,7 +15,6 @@ from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.repositories.in_memory_incident_repository import (
     InMemoryIncidentRepository,
 )
-from src.routing.shadow import ShadowDecisions
 
 
 def setup_history():

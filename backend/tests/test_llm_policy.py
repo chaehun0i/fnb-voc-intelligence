@@ -4,11 +4,9 @@ import json
 
 import pytest
 
-from src.llm.contracts import ProviderCapability
-from src.llm.data_policy import evaluate_policy
-from src.llm.errors import LLMError, LLMErrorCode
-from src.llm.gateway import LLMGateway
-from src.llm.providers.fake import FakeProvider
+from src.ai.intelligence.models import LLMError, LLMErrorCode, ProviderCapability
+from src.ai.intelligence.providers.fake import FakeProvider
+from src.ai.intelligence.service import LLMGateway, evaluate_policy
 from tests.test_llm_contracts import intent
 
 

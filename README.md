@@ -33,6 +33,8 @@ pytest
 
 현재 책임별 폴더와 코드를 찾는 기준은 [프로젝트 구조](docs/serviq_structure.md)를 참고하세요.
 
+AI Runtime은 **Decision / Intelligence / Workflow / Execution / AX**로 찾습니다. 기존 업무·보안·Checkpoint 경계를 유지한 구조 통합과 검증 결과는 [Architecture Simplification](docs/serviq_architecture_simplification.md)에 기록합니다.
+
 ```bash
 python -m src.data.validate_data --products backend/tests/fixtures/sample_products.csv --reviews backend/tests/fixtures/sample_reviews.csv
 ```

@@ -3,9 +3,9 @@ import asyncio
 
 import pytest
 
-from src.llm.errors import LLMError, LLMErrorCode
-from src.llm.gateway import LLMGateway
-from src.llm.providers.fake import FakeProvider
+from src.ai.intelligence.models import LLMError, LLMErrorCode
+from src.ai.intelligence.providers.fake import FakeProvider
+from src.ai.intelligence.service import LLMGateway
 from tests.test_llm_contracts import intent
 
 

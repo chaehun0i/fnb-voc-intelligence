@@ -7,7 +7,7 @@ from uuid import uuid4
 import psycopg
 from psycopg.types.json import Jsonb
 
-from src.application.ports.incident_repository import IncidentConflict
+from src.application.ports.repositories import IncidentConflict
 from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.models import Incident
 from src.infrastructure.incident_codec import incident_document, incident_from_document

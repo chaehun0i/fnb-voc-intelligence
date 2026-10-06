@@ -1,12 +1,12 @@
 """UoW의 같은 연결에서 실행/검증 출처를 immutable insert합니다."""
 from psycopg.types.json import Jsonb
 
-from src.agents.verification_contracts import (
+from src.ai.execution.models import (
     ActionExecutionRecord,
     InternalReviewSimulation,
     VerificationEvidence,
 )
-from src.application.ports.incident_repository import IncidentConflict
+from src.application.ports.repositories import IncidentConflict
 
 
 class ExecutionRepository:

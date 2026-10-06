@@ -7,7 +7,7 @@ from itertools import count
 import pytest
 
 from src.application.incidents.service import IncidentNotFound, IncidentService
-from src.application.ports.incident_repository import IncidentConflict
+from src.application.ports.repositories import IncidentConflict
 from src.domain.incidents.enums import IncidentStatus, Severity, VerificationResult
 from src.domain.incidents.models import CorrectiveAction, Evidence, RootCauseCandidate
 from src.domain.incidents.transitions import DomainRuleViolation

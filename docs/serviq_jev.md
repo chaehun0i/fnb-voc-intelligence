@@ -24,13 +24,13 @@ Drive 일부 구현현황은 Day 16 스냅샷입니다. 실제 기준 main에는
 
 | 위치 | 책임 |
 | --- | --- |
-| `backend/src/routing/models.py`, `rules.py`, `profiles.py`, `engine.py` | 불변 계약, 입력 검증, 안전 gate, 위험도, 정렬된 프로필, I/O 없는 순수 Engine |
-| `backend/src/routing/context.py`, `shadow.py`, `queries.py` | Context/Config snapshot 전달, Shadow 실패 경계, 읽기 Query (순수 판단이 import하지 않음) |
-| `backend/src/application/ports/decision_repository.py` | 조직별 append/history/by-job 계약 |
+| `backend/src/ai/decision/models.py`, `engine.py` | 불변 계약, 순수 Context 변환, 입력 검증, 안전 gate, 위험도, 정렬된 프로필과 Jev Engine |
+| `backend/src/ai/decision/service.py` | Config snapshot 전달, Shadow 실패 경계, 영속 감사와 읽기 Query (순수 판단이 import하지 않음) |
+| `backend/src/application/ports/repositories.py` | 조직별 append/history/by-job 계약 |
 | `backend/src/infrastructure/repositories/decision_repository.py` | Memory 테스트 어댑터와 PostgreSQL 감사 원본 |
 | `backend/src/infrastructure/jobs/runtime.py` | 기존 snapshot processor에 Shadow만 추가 |
 | `backend/src/api/routes/decisions.py`, `schemas/decisions.py` | Principal/Tenant/store HTTP 조회 DTO |
-| `frontend/src/api/decisions/`, `features/incidents/ShadowDecisionPanel.tsx` | 명시적 Mock/HTTP와 실제 판단 이력 |
+| `frontend/src/features/ai/`, `features/incidents/ShadowDecisionPanel.tsx` | 명시적 Mock/HTTP와 실제 판단 이력 |
 
 Jev 안에는 DB/HTTP/Provider SDK/시간 생성/무작위 ID 생성이 없습니다. ID·Clock·처리 시간·저장은 Application 경계의 책임입니다. 같은 입력·Config·ruleset은 같은 의미 결과를 만듭니다. Incident 상태 변경, Approval 결정, Tool/LLM 호출, Provider/model 선택, Config 재조회, Agent 실행, LangGraph enqueue는 하지 않습니다.
 

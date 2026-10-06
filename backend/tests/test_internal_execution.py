@@ -2,9 +2,9 @@ from dataclasses import replace
 
 import pytest
 
-from src.agents.capa_commands import CAPACommands
-from src.agents.verification_commands import VerificationCommands
-from src.application.ports.incident_repository import IncidentConflict
+from src.ai.execution.service import VerificationCommands
+from src.ai.workflow.runtime import CAPACommands
+from src.application.ports.repositories import IncidentConflict
 from src.application.security.principal import AccessError
 from tests.test_approval_resume import commands
 from tests.test_capa_application import prepared

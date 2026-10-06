@@ -16,13 +16,13 @@ Frontend-first → Contract-first → Vertical Slice 순서를 유지하며 Inci
 | 경계 | 책임 |
 | --- | --- |
 | `domain/jobs` | 상태·우선순위·시도 횟수·lease·시간대·재시도 원본과 결정적 전이 |
-| `application/ports/job_repository.py` | 조직별 조회와 버전 보호 저장 계약 |
+| `application/ports/repositories.py` | 조직별 조회와 버전 보호 저장 계약 |
 | `application/jobs` | 조회 투영·서버 permission·권한 검사·Retry/Cancel 트랜잭션 |
 | `infrastructure/repositories/job_repository.py` | PostgreSQL 원본 및 테스트용 메모리 구현 |
 | `infrastructure/jobs/job_dispatch.py` | 대표 이벤트를 중복 없이 독립 Job으로 전달 |
 | `infrastructure/jobs` | claim·lease·fencing·bounded retry·DLQ·실행 진입점 |
 | `api/routes/jobs.py`, `api/schemas/jobs.py` | HTTP DTO와 오류 변환; 업무 규칙은 Application/Domain에 위임 |
-| `frontend/src/api/jobs`, `features/operations/Queue.tsx` | Mock/HTTP 교체·상세 팝업·서버 권한 표시 |
+| `frontend/src/features/operations/api.ts`, `features/operations/Queue.tsx` | Mock/HTTP 교체·상세 팝업·서버 권한 표시 |
 
 IMPLEMENTED는 위 코드와 실제 테스트로 확인한 범위입니다. 실제 OIDC와 Agent Runtime은 완료 항목이 아닙니다.
 

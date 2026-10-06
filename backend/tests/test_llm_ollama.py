@@ -5,8 +5,8 @@ import json
 import httpx
 import pytest
 
-from src.llm.errors import LLMError, LLMErrorCode
-from src.llm.providers.ollama import OllamaProvider
+from src.ai.intelligence.models import LLMError, LLMErrorCode
+from src.ai.intelligence.providers.ollama import OllamaProvider
 from tests.test_llm_gemini import request
 
 
