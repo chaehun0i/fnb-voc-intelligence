@@ -148,7 +148,7 @@ def main():
         for action in ("resume", "stop", "takeover"):
             p, source, principal, job, incident = seed(dsn, loop=True, tenant="legacy-local")
             run = HistoryWorkflows(p, source=source).prepare(job)[0]
-            AgentControls(p).execute(RequestContext(principal, "http-loop-seed", "http-loop-seed", "pause-seed"),
+            AgentControls(p).execute(RequestContext(principal, "http-loop-seed", "http-loop-seed", "pause-seed-"+run.agent_run_id),
                 incident.id, run.agent_run_id, "pause", 0)
             cases.append({"incident_id": incident.id, "agent_run_id": run.agent_run_id, "action": action})
         print(json.dumps(cases))
