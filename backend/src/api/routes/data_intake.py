@@ -43,7 +43,24 @@ class StoreInput(BaseModel):
 
 @router.post("/stores")
 def add_store(body: StoreInput, request: Request):
-    return service(request).add_store(body.store)
+    try:
+        return service(request).add_store(body.store)
+    except psycopg.Error:
+        return error_response(request, 503, "DATA_UNAVAILABLE", "입력 저장소를 사용할 수 없습니다.")
+
+
+class SampleInput(StoreInput):
+    confirmed: bool = Field(strict=True)
+
+
+@router.post("/sample")
+def sample(body: SampleInput, request: Request):
+    if not body.confirmed:
+        return error_response(request, 422, "CONFIRMATION_REQUIRED", "Demo 데이터 추가 내용을 확인해 주세요.")
+    try:
+        return service(request).sample(body.store)
+    except psycopg.Error:
+        return error_response(request, 503, "DATA_UNAVAILABLE", "입력 저장소를 사용할 수 없습니다.")
 
 
 @router.get("/schema")

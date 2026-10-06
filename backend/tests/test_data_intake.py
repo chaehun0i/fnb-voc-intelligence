@@ -143,3 +143,17 @@ def test_formula_workbook_rejected_without_execution():
     book.save(output)
     assert upload(registered(), output.getvalue(), filename="formula.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").status_code == 422
+
+
+def test_sample_is_tenant_scoped_marked_and_version_idempotent():
+    c = registered()
+    body = {"store": "허용 매장", "confirmed": True}
+    first = c.post("/api/v1/data/sample", json=body, headers=headers(key="demo-1"))
+    assert first.status_code == 200 and first.json()["sample"] and first.json()["row_count"] == 4
+    assert c.post("/api/v1/data/sample", json=body, headers=headers(key="demo-2")).json() == first.json()
+    assert c.post("/api/v1/data/sample", json=body, headers=headers("other")).status_code == 404
+    assert c.post("/api/v1/data/sample", json=body, headers=headers("reader")).status_code == 403
+    assert c.post("/api/v1/data/sample", json={**body, "confirmed": False}, headers=headers()).status_code == 422
+    with c.app.state.access_persistence.transaction("a") as uow:
+        rows = uow.intake.list("SOURCE")
+        assert len(rows) == 4 and all(r["sample"] for r in rows)

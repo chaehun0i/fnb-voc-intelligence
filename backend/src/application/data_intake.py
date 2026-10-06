@@ -122,3 +122,36 @@ class DataIntake:
         uow.intake.put("IMPORT", digest, store, receipt)
         self.audit(uow, "sample_import" if sample else "file_import", digest)
         return receipt
+
+    def sample(self, store):
+        """같은 조직/매장의 Demo 버전은 시각이 달라져도 한 번만 생성합니다."""
+        p = self.context.principal
+        require(p, "operate", store)
+        if not self.context.idempotency_key:
+            raise AccessError("IDEMPOTENCY_KEY_REQUIRED", 422)
+        if store not in self.status()["stores"]:
+            raise IncidentNotFound()
+        version = "demo-intake-1"
+        identity = hashlib.sha256(json.dumps([store, version]).encode()).hexdigest()
+        with self.persistence.transaction(p.tenant_id) as uow:
+            cached = uow.idempotency.claim(p.principal_id, "intake_sample", self.context.idempotency_key, identity)
+            if cached:
+                return uow.intake.get("IMPORT", cached.identifier)
+            uow.intake.lock_store(store)
+            bundle = uow.intake.get("SAMPLE", identity)
+            if bundle:
+                receipt = uow.intake.get("IMPORT", bundle["import_id"])
+            else:
+                now = self.clock().isoformat()
+                records = [{"kind": "VOC", "store": store, "source_id": f"demo-v1-voc-{n}",
+                    "observed_at": now, "text": "품질 문제가 반복되어 메뉴 제공 상태 확인이 필요합니다.",
+                    "rating": 1, "product": "체험 메뉴"} for n in (1, 2)]
+                records.extend({"kind": kind, "store": store, "source_id": source,
+                    "observed_at": now, "signal": signal} for kind, source, signal in (
+                    ("판매_거래", "demo-v1-refund", "REFUND_SIGNAL"),
+                    ("재고", "demo-v1-stock", "STOCK_SHORTAGE")))
+                receipt = self._import(uow, records, store, sample=True)
+                uow.intake.put("SAMPLE", identity, store, {"version": version, "import_id": receipt["import_id"]})
+            uow.idempotency.complete(p.principal_id, "intake_sample", self.context.idempotency_key,
+                IntakeCommandResult(kind="IMPORT", identifier=receipt["import_id"], store=store))
+            return receipt
