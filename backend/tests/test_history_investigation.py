@@ -3,10 +3,10 @@ from datetime import UTC, datetime
 from unittest.mock import Mock
 from uuid import uuid4
 
+from src.application.workflows.history_node import HistoryInvestigation
 from src.domain.config.models import RuntimeConfig
 from src.domain.config.resolution import ConfigResolver
 from src.domain.workflows.models import WorkflowState
-from src.runtime.workflows.history import HistoryInvestigation
 
 
 def state():

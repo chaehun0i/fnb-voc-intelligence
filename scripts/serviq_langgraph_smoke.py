@@ -32,13 +32,13 @@ from src.infrastructure.repositories.job_repository import PostgresJobRepository
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )
+from src.infrastructure.workflows.checkpoint import postgres_checkpoint
+from src.infrastructure.workflows.processor import HistoryProcessor
 from src.llm.execution import RoutedLLMExecutor
 from src.llm.providers.fake import FakeProvider
 from src.llm.router import ProviderRouter
 from src.rag.embeddings import FakeEmbeddingProvider
 from src.rag.indexing import index_reviews
-from src.runtime.workflows.checkpoint import postgres_checkpoint
-from src.runtime.workflows.processor import HistoryProcessor
 
 
 class FakeGemini(FakeProvider):

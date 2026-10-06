@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 from unittest.mock import Mock
 
 from src.domain.workflows.models import WorkflowStatus
-from src.runtime.workflows.checkpoint import memory_checkpoint
-from src.runtime.workflows.processor import HistoryProcessor
+from src.infrastructure.workflows.checkpoint import memory_checkpoint
+from src.infrastructure.workflows.processor import HistoryProcessor
 
 
 def test_processor_duplicate_delivery_and_failure_boundary(history_setup):

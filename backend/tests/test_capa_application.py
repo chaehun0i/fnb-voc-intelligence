@@ -4,7 +4,7 @@ import pytest
 
 from src.application.ports.incident_repository import IncidentConflict
 from src.application.workflows.capa import CAPACommands
-from src.runtime.workflows.capa import CAPAInvestigation
+from src.application.workflows.capa_node import CAPAInvestigation
 from tests.test_history_application import setup_history
 from tests.test_rca_investigation import ready
 
@@ -31,7 +31,7 @@ def prepared(*, internal_execution=False):
     candidates = tuple(EvidenceCandidate.model_validate(e.model_dump(exclude={"agent_run_id", "source_id", "step_name"})) for e in items)
     state = run.state.model_copy(update={"normalized_evidence": items, "sufficiency": base.sufficiency,
         "evidence_candidates": candidates, "evidence_refs": tuple(e.source_ref for e in items)})
-    from src.runtime.workflows.rca import RCAInvestigation
+    from src.application.workflows.rca_node import RCAInvestigation
     state = RCAInvestigation(resolved, decision.decision_id, requires_llm=False, clock=lambda: now)(state)
     state = CAPAInvestigation(resolved, decision.decision_id, store="store", incident_severity="MEDIUM")(state)
     with persistence.transaction("t") as uow:

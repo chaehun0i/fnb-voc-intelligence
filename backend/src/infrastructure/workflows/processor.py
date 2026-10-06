@@ -7,18 +7,18 @@ from datetime import UTC, datetime, timedelta
 import psycopg
 
 from src.application.workflows.capa import CAPACommands
+from src.application.workflows.capa_node import CAPAInvestigation
 from src.application.workflows.evidence import normalize_evidence
 from src.application.workflows.history import HistoryWorkflows
+from src.application.workflows.history_node import HistoryInvestigation
+from src.application.workflows.rca_node import RCAInvestigation
 from src.application.workflows.resume import RESUME_JOB
 from src.application.workflows.verification import VerificationCommands
 from src.domain.workflows.models import AgentStep, WorkflowStatus, finish_run
 from src.domain.workflows.sufficiency import evaluate_sufficiency
 from src.infrastructure.llm_runtime import configured_llm_executor
 from src.infrastructure.queue.worker import RetryableJobError
-from src.runtime.workflows.capa import CAPAInvestigation
-from src.runtime.workflows.graph import history_graph, invoke_or_resume
-from src.runtime.workflows.history import HistoryInvestigation
-from src.runtime.workflows.rca import RCAInvestigation
+from src.infrastructure.workflows.graph import history_graph, invoke_or_resume
 
 logger = logging.getLogger(__name__)
 

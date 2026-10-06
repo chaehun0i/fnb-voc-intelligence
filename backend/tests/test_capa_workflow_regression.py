@@ -13,8 +13,8 @@ from src.application.workflows.capa import CAPACommands
 from src.application.workflows.resume import RESUME_JOB
 from src.domain.workflows.models import WorkflowStatus
 from src.infrastructure.queue.worker import RetryableJobError
-from src.runtime.workflows.checkpoint import SafeJsonSerializer
-from src.runtime.workflows.processor import HistoryProcessor
+from src.infrastructure.workflows.checkpoint import SafeJsonSerializer
+from src.infrastructure.workflows.processor import HistoryProcessor
 from tests.test_approval_resume import commands, waiting_run
 from tests.test_capa_application import prepared
 

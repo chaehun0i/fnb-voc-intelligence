@@ -2,8 +2,8 @@
 from unittest.mock import Mock
 
 from src.domain.workflows.sufficiency import evaluate_sufficiency
-from src.runtime.workflows.checkpoint import memory_checkpoint
-from src.runtime.workflows.graph import history_graph, invoke_or_resume
+from src.infrastructure.workflows.checkpoint import memory_checkpoint
+from src.infrastructure.workflows.graph import history_graph, invoke_or_resume
 from tests.test_rca_investigation import node, ready
 
 

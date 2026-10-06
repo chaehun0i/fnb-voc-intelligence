@@ -18,8 +18,8 @@ from src.infrastructure.queue.worker import JobWorker
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )
-from src.runtime.workflows.checkpoint import postgres_checkpoint
-from src.runtime.workflows.processor import HistoryProcessor
+from src.infrastructure.workflows.checkpoint import postgres_checkpoint
+from src.infrastructure.workflows.processor import HistoryProcessor
 
 logger = logging.getLogger(__name__)
 

@@ -7,8 +7,8 @@ from fastapi.testclient import TestClient
 
 from src.api.app import create_app
 from src.infrastructure.auth.local_identity_provider import LocalIdentityProvider
-from src.runtime.workflows.checkpoint import memory_checkpoint
-from src.runtime.workflows.processor import HistoryProcessor
+from src.infrastructure.workflows.checkpoint import memory_checkpoint
+from src.infrastructure.workflows.processor import HistoryProcessor
 
 
 def test_read_api_tenant_scope_and_no_arbitrary_post(history_setup):

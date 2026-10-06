@@ -22,9 +22,9 @@ from src.infrastructure.queue.worker import JobWorker
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )
+from src.infrastructure.workflows.checkpoint import postgres_checkpoint
+from src.infrastructure.workflows.processor import HistoryProcessor
 from src.rag.embeddings import FakeEmbeddingProvider
-from src.runtime.workflows.checkpoint import postgres_checkpoint
-from src.runtime.workflows.processor import HistoryProcessor
 
 CASES = ((True, "PASS", "RESOLVED"), (False, "FAIL", "REOPENED"), (None, "INCONCLUSIVE", "VERIFYING"))
 

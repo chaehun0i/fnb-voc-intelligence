@@ -14,8 +14,8 @@ from src.application.security.principal import (
     Role,
 )
 from src.application.workflows.resume import RESUME_JOB
-from src.runtime.workflows.checkpoint import memory_checkpoint
-from src.runtime.workflows.processor import HistoryProcessor
+from src.infrastructure.workflows.checkpoint import memory_checkpoint
+from src.infrastructure.workflows.processor import HistoryProcessor
 from tests.test_capa_application import prepared
 
 

@@ -20,8 +20,8 @@ from src.application.workflows.verification import VerificationCommands
 from src.domain.workflows.models import WorkflowState
 from src.domain.workflows.verification import InternalReviewSimulation
 from src.infrastructure.queue.worker import RetryableJobError
-from src.runtime.workflows.checkpoint import SafeJsonSerializer
-from src.runtime.workflows.processor import HistoryProcessor
+from src.infrastructure.workflows.checkpoint import SafeJsonSerializer
+from src.infrastructure.workflows.processor import HistoryProcessor
 from tests.test_approval_resume import commands
 from tests.test_capa_application import prepared
 from tests.test_internal_execution import approved_run

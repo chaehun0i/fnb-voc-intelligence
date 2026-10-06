@@ -17,7 +17,7 @@ API, 데이터베이스, 화면의 실행 위치를 `backend/`, `db/`, `frontend
 | `backend/src/domain/`, `backend/src/application/` | Incident 상태 규칙과 Query/Command 서비스 | HTTP 및 저장 기술과 분리된 계층 |
 | `backend/src/infrastructure/` | Repository, SQL 초기화 로더, Outbox Worker | 공통 Python 패키지 |
 | `backend/src/llm/`, `backend/src/application/llm/` | Day 22 Provider 중립 AI 계약·정책·Gateway와 명시적 Application 경계 | SDK는 Provider 어댑터에만 격리, Shadow 자동 호출 없음 |
-| `backend/src/domain/workflows/`, `backend/src/application/workflows/`, `backend/src/runtime/workflows/` | Day 23 AgentRun·실행 허용·단일 History Graph와 복구 | 기존 Job으로 명시적 실행, Config 고정, 참조만 Checkpoint 저장 |
+| `backend/src/domain/workflows/`, `backend/src/application/workflows/`, `backend/src/infrastructure/workflows/` | Day 23 AgentRun·실행 허용·단일 History Graph와 복구 | 기존 Job으로 명시적 실행, Config 고정, 참조만 Checkpoint 저장 |
 | `backend/src/data/`, `backend/src/rag/`, `backend/src/ingestion/`, `backend/src/dashboard/` | Day 1~12 Data Intelligence 구현 | 기존 CLI와 Streamlit 실행 유지 |
 
 `backend/`는 저장소 루트 Python 프로젝트를 로컬 editable dependency로 사용합니다. 루트 패키지 설정은 실제 `backend/src/` 코드를 `src` 패키지로 등록하므로 Domain/API 코드를 복사하지 않습니다. `backend/uv.lock`은 백엔드 실행 환경의 재현 가능한 의존성을 기록합니다. 루트의 기존 `src/`, `tests/`를 중복으로 남기지 않습니다.

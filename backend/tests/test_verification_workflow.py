@@ -8,8 +8,8 @@ from src.application.security.principal import Principal, RequestContext, Role
 from src.application.workflows.resume import RESUME_JOB
 from src.application.workflows.verification import VerificationCommands
 from src.domain.workflows.verification import InternalReviewSimulation
-from src.runtime.workflows.checkpoint import memory_checkpoint
-from src.runtime.workflows.processor import HistoryProcessor
+from src.infrastructure.workflows.checkpoint import memory_checkpoint
+from src.infrastructure.workflows.processor import HistoryProcessor
 from tests.test_approval_resume import commands
 from tests.test_capa_application import prepared
 

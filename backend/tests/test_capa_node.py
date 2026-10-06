@@ -1,8 +1,8 @@
 from dataclasses import replace
 
+from src.application.workflows.capa_node import CAPAInvestigation
 from src.domain.config.models import RuntimeConfig
 from src.domain.config.resolution import ConfigResolver
-from src.runtime.workflows.capa import CAPAInvestigation
 from tests.test_rca_investigation import node, ready
 
 
