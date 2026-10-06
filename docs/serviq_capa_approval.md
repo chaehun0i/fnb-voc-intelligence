@@ -73,7 +73,7 @@ raw VOC/prompt/Provider response/credential/secret/불필요 PII를 새 Trace/Ch
 
 | 실제 로컬 검증 | 결과 |
 | --- | --- |
-| root ruff / 전체 pytest | 통과 / 599 passed, skip·xfail 우회 없음 |
+| root ruff / 전체 pytest | 통과 / 604 passed, skip·xfail 우회 없음 |
 | backend uv sync --locked / FastAPI run --help | 통과, Windows 출력은 PYTHONUTF8=1로 검증 |
 | frontend npm ci / lint | 통과, Node 24.19.0, audit 0 vulnerabilities |
 | frontend 전체 test / build | 26 files / 163 passed, 빌드 통과 |
@@ -83,6 +83,16 @@ raw VOC/prompt/Provider response/credential/secret/불필요 PII를 새 Trace/Ch
 | HTTP/nginx smoke | 기존 API 전체 회귀 및 CAPA→Review 승인→persistent resume Job→Worker checkpoint 재개 통과 |
 
 개발 DB와 분리한 검증 DB를 사용했습니다. 초기 호스트 smoke는 남은 검증 데이터와 Compose DB 재시작으로 중단되어 성공으로 기록하지 않았으며, 별도 DB를 이용한 API 이미지의 전체 smoke로 다시 검증했습니다. 실제 Gemini/Ollama 호출은 0회입니다. CI에 동일 CAPA PostgreSQL/nginx 경로를 추가했고 원격 상태는 PR에서 로컬 결과와 구분합니다.
+
+### PR #49 마감 재검증
+
+최초 CI run `37365587318`의 Compose Job은 runner_id=0, steps=[]였고 annotation은 hosted runner 배정 실패였습니다. 코드가 실행되기 전 취소를 성공으로 취급하지 않고 `gh run rerun --failed`로 정상 재실행했습니다.
+
+재실행에서 CAPA fixture를 먼저 등록한 뒤 전체 HTTP smoke를 다시 실행하는 경쟁이 발견됐습니다. Worker가 CAPA용 RCA를 추가하는 동안 기존 Dashboard의 정확한 +1 assertion이 실패했습니다. 기존 CI 선행 전체 HTTP smoke와 모든 assertion은 유지하고, fixture가 지정된 후속 실행은 frontend health와 실제 CAPA/Review/resume만 검증하도록 경로를 분리했습니다. 두 실행 경로가 각각 유지되는 단위 회귀를 추가했습니다.
+
+로컬 전체 회귀에서 고정 날짜 Approval fixture와 현재 시각 API clock의 불일치도 확인했습니다. API 테스트에 fixture clock을 주입하고 만료 직전/정확한 만료/만료 후 permissions를 검증합니다. 운영 만료 정책이나 assertion을 약화하지 않았습니다. 기본 10개 이후 이 두 회귀 수정과 마감 문서를 의미 있는 추가 커밋으로 기록하며 history를 rewrite하지 않습니다.
+
+최종 원격 CI 상태는 PR #49 Validation에 갱신합니다. 문서 commit/push 자체를 CI 통과로 간주하지 않으며 Day 26은 시작하지 않습니다.
 
 ## Known Limitations / Not Implemented / Next
 
