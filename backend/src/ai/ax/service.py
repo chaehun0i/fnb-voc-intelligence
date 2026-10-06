@@ -88,8 +88,12 @@ def runtime_projection(uow, run, principal, store):
 
 
 def projected_run(uow, run, principal=None, store=None):
-    branches = tuple(b for a in (run.state.selection.selected if run.state.selection else ())
-        if (b := uow.agent_runs.branch(run.agent_run_id, a.agent_type)) is not None)
+    stored = {b.agent_type: b for b in run.state.branches}
+    for a in (run.state.selection.selected if run.state.selection else ()):
+        result = uow.agent_runs.branch(run.agent_run_id, a.agent_type)
+        if result is not None:
+            stored[a.agent_type] = result
+    branches = tuple(stored[k] for k in sorted(stored))
     return projection(run) | {"investigation": investigation_projection(run, branches),
         "runtime": runtime_projection(uow, run, principal, store) if principal else None}
 
