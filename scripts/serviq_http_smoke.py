@@ -366,6 +366,10 @@ def main() -> None:
         raise SystemExit("로컬 테스트 스택의 SERVIQ_TEST_API_BASE_URL을 명시해 주세요.")
     client = SmokeClient(base_url)
     verify_frontend(client)
+    loop_fixture = os.getenv("SERVIQ_LOOP_HARNESS_HTTP_FIXTURE")
+    if loop_fixture:
+        verify_loop_harness_http(client, json.loads(loop_fixture))
+        return
     multi_fixture = os.getenv("SERVIQ_MULTI_AGENT_HTTP_FIXTURE")
     if multi_fixture:
         verify_multi_agent_http(client, json.loads(multi_fixture))
@@ -383,6 +387,34 @@ def main() -> None:
     verify_incident_flow(client)
     verify_settings_flow(client)
     verify_jev_flow(client)
+
+
+def verify_loop_harness_http(client, fixtures):
+    for fixture in fixtures:
+        path = "/incidents/"+fixture["incident_id"]+"/agent-runs/"+fixture["agent_run_id"]
+        before = client.api("GET", path)
+        check(before["runtime"]["control_status"] == "PAUSED", "검증 fixture는 실제 영속 Pause 상태여야 합니다.")
+        action = fixture["action"]
+        body = {"expected_version": before["runtime"]["control_version"]}
+        key = "loop-http-"+fixture["agent_run_id"]
+        first = client.api("POST", path+"/controls/"+action, body, idempotency_key=key)
+        check(client.api("POST", path+"/controls/"+action, body, idempotency_key=key) == first, "제어 명령은 멱등해야 합니다.")
+        detail = client.api("GET", path)
+        if action == "resume":
+            for _ in range(30):
+                detail = client.api("GET", path)
+                if detail["status"] in {"COMPLETED", "FAILED"}:
+                    break
+                time.sleep(.5)
+            check(detail["status"] == "COMPLETED" and detail["runtime"]["termination_reason"] == "COMPLETED",
+                "실제 Resume Job/Worker/checkpoint가 동일 run을 완료해야 합니다.")
+            check(detail["normalized_evidence"], "재개된 실행은 원본 근거를 보존해야 합니다.")
+        else:
+            target = "STOPPED" if action == "stop" else "MANUAL_TAKEOVER"
+            check(detail["runtime"]["control_status"] == target, "중단/인계 상태를 숨기면 안 됩니다.")
+            check(not any(detail["runtime"]["permissions"].values()), "중단/인계 후 자동 재개는 금지됩니다.")
+        check(not any(v in json.dumps(detail) for v in ("source_digest", "delegated_roles", "raw_prompt", "raw_response", "MULTI-RAW-SENTINEL")), "제어 Trace에 민감 원문을 노출하면 안 됩니다.")
+        print("[통과] nginx Loop/Harness control·Worker·safe AX "+action)
 
 
 def verify_multi_agent_http(client, fixture):
