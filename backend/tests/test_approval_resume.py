@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.application.commands.incidents import IncidentCommands
+from src.application.incidents.commands import IncidentCommands
 from src.application.incidents.service import IncidentService
 from src.application.ports.incident_repository import IncidentConflict
 from src.application.security.principal import (

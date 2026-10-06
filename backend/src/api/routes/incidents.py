@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 
 from src.api.dependencies.auth import request_context
-from src.application.commands.incidents import IncidentCommands
+from src.application.incidents.commands import IncidentCommands
 from src.application.incidents.service import IncidentService
 from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.models import CorrectiveAction, Evidence, RootCauseCandidate
