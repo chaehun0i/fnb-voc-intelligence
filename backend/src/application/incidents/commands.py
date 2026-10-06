@@ -30,27 +30,73 @@ class IncidentCommands:
         return IncidentService(repository, self.original.clock,
                                self.original.id_generator, self.context.principal)
 
-    def __getattr__(self, operation):
-        if operation not in COMMANDS | {"list", "get", "workspace"}:
-            raise AttributeError(operation)
+    def _command(self, operation, *args, **kwargs):
+        try:
+            return self._invoke(operation, args, kwargs)
+        except AccessError as exc:
+            if operation in COMMANDS:
+                with self.persistence.transaction(self.context.principal.tenant_id) as uow:
+                    resource = str(args[0]) if operation != "create" and args else ""
+                    # 권한 거부만 감사하며 재시도 충돌은 업무 감사로 중복 기록하지 않습니다.
+                    if exc.code == "AUTHORIZATION_DENIED":
+                        self._audit(uow, operation, resource, "DENIED")
+            raise
+        except psycopg.errors.LockNotAvailable as exc:
+            raise AccessError("PROCESSING", 409) from exc
 
-        def invoke(*args, **kwargs):
-            try:
-                return self._invoke(operation, args, kwargs)
-            except AccessError as exc:
-                if operation in COMMANDS:
-                    with self.persistence.transaction(self.context.principal.tenant_id) as uow:
-                        if operation not in {"create"} and args:
-                            resource = str(args[0])
-                        else:
-                            resource = ""
-                        # 권한 거부만 감사하며 재시도 충돌은 업무 감사로 중복 기록하지 않습니다.
-                        if exc.code == "AUTHORIZATION_DENIED":
-                            self._audit(uow, operation, resource, "DENIED")
-                raise
-            except psycopg.errors.LockNotAvailable as exc:
-                raise AccessError("PROCESSING", 409) from exc
-        return invoke
+    def create(self, *args, **kwargs):
+        return self._command("create", *args, **kwargs)
+
+    def triage(self, *args, **kwargs):
+        return self._command("triage", *args, **kwargs)
+
+    def investigate(self, *args, **kwargs):
+        return self._command("investigate", *args, **kwargs)
+
+    def add_evidence(self, *args, **kwargs):
+        return self._command("add_evidence", *args, **kwargs)
+
+    def prepare_rca(self, *args, **kwargs):
+        return self._command("prepare_rca", *args, **kwargs)
+
+    def propose_action(self, *args, **kwargs):
+        return self._command("propose_action", *args, **kwargs)
+
+    def request_approval(self, *args, **kwargs):
+        return self._command("request_approval", *args, **kwargs)
+
+    def approve(self, *args, **kwargs):
+        return self._command("approve", *args, **kwargs)
+
+    def reject(self, *args, **kwargs):
+        return self._command("reject", *args, **kwargs)
+
+    def execute(self, *args, **kwargs):
+        return self._command("execute", *args, **kwargs)
+
+    def verify(self, *args, **kwargs):
+        return self._command("verify", *args, **kwargs)
+
+    def close(self, *args, **kwargs):
+        return self._command("close", *args, **kwargs)
+
+    def reopen(self, *args, **kwargs):
+        return self._command("reopen", *args, **kwargs)
+
+    def review_approve(self, *args, **kwargs):
+        return self._command("review_approve", *args, **kwargs)
+
+    def review_reject(self, *args, **kwargs):
+        return self._command("review_reject", *args, **kwargs)
+
+    def list(self, *args, **kwargs):
+        return self._command("list", *args, **kwargs)
+
+    def get(self, *args, **kwargs):
+        return self._command("get", *args, **kwargs)
+
+    def workspace(self, *args, **kwargs):
+        return self._command("workspace", *args, **kwargs)
 
     def _audit(self, uow, operation, resource_id, result, version=None):
         principal = self.context.principal

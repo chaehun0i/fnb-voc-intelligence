@@ -49,7 +49,7 @@ from src.infrastructure.repositories.scoped_incident_repository import (
 )
 
 
-@dataclass
+@dataclass(kw_only=True)
 class AccessUnitOfWork:
     incidents: object
     approvals: object
@@ -76,16 +76,19 @@ class AccessPersistence:
             with psycopg.connect(self.incidents.dsn) as connection:
                 connection.execute("SET LOCAL lock_timeout='2s'")
                 repo = PostgresIncidentRepository(self.incidents.dsn, connection)
-                work = AccessUnitOfWork(ScopedIncidentRepository(repo, tenant_id),
-                                       PostgresApprovalRepository(connection, tenant_id),
-                                       PostgresAuditRepository(connection, tenant_id),
-                                       PostgresIdempotencyRepository(connection, tenant_id), connection,
-                                       PostgresJobRepository(connection, tenant_id),
-                                       PostgresConfigRepository(connection, tenant_id),
-                                       ConfigEvents(tenant_id, connection=connection),
-                                       PostgresDecisionRepository(connection, tenant_id),
-                                       PostgresLLMCallRepository(connection, tenant_id),
-                                       PostgresAgentRunRepository(connection, tenant_id))
+                work = AccessUnitOfWork(
+                    incidents=ScopedIncidentRepository(repo, tenant_id),
+                    approvals=PostgresApprovalRepository(connection, tenant_id),
+                    audit=PostgresAuditRepository(connection, tenant_id),
+                    idempotency=PostgresIdempotencyRepository(connection, tenant_id),
+                    connection=connection,
+                    jobs=PostgresJobRepository(connection, tenant_id),
+                    configs=PostgresConfigRepository(connection, tenant_id),
+                    config_events=ConfigEvents(tenant_id, connection=connection),
+                    decisions=PostgresDecisionRepository(connection, tenant_id),
+                    llm_calls=PostgresLLMCallRepository(connection, tenant_id),
+                    agent_runs=PostgresAgentRunRepository(connection, tenant_id),
+                )
                 work.executions = ExecutionRepository(work, self.memory, tenant_id)
                 yield work
         else:
@@ -94,10 +97,10 @@ class AccessPersistence:
                 records = deepcopy(self.memory.data)
                 try:
                     work = AccessUnitOfWork(
-                        ScopedIncidentRepository(self.incidents, tenant_id),
-                        MemoryApprovalRepository(self.memory, tenant_id),
-                        MemoryAuditRepository(self.memory, tenant_id),
-                        MemoryIdempotencyRepository(self.memory, tenant_id),
+                        incidents=ScopedIncidentRepository(self.incidents, tenant_id),
+                        approvals=MemoryApprovalRepository(self.memory, tenant_id),
+                        audit=MemoryAuditRepository(self.memory, tenant_id),
+                        idempotency=MemoryIdempotencyRepository(self.memory, tenant_id),
                         jobs=MemoryJobRepository(self.memory, tenant_id),
                         configs=MemoryConfigRepository(self.memory, tenant_id),
                         config_events=ConfigEvents(tenant_id, state=self.memory),
