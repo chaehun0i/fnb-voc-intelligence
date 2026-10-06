@@ -25,7 +25,7 @@ from src.ai.intelligence.models import (
 from src.ai.intelligence.providers.gemini import GeminiProvider
 from src.ai.intelligence.providers.ollama import OllamaProvider
 from src.application.incidents.service import IncidentNotFound
-from src.application.ports.llm_call_repository import LLMCallsUnavailable
+from src.application.ports.repositories import LLMCallsUnavailable
 from src.application.security.authorization import require
 from src.application.security.principal import AccessError
 from src.domain.config.models import LLMModelBinding, RuntimeConfig

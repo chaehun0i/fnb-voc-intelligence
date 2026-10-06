@@ -10,7 +10,7 @@ from psycopg import sql
 from psycopg.errors import CheckViolation
 from psycopg.types.json import Jsonb
 
-from src.application.ports.incident_repository import IncidentConflict
+from src.application.ports.repositories import IncidentConflict
 from src.domain.incidents.enums import IncidentStatus, Priority, Severity
 from src.domain.incidents.models import Evidence, Incident, StateTransition
 from src.domain.incidents.transitions import transition

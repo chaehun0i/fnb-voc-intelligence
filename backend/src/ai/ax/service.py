@@ -2,7 +2,7 @@
 import psycopg
 
 from src.application.incidents.service import IncidentNotFound
-from src.application.ports.agent_run_repository import AgentRunsUnavailable
+from src.application.ports.repositories import AgentRunsUnavailable
 from src.application.security.authorization import require
 
 

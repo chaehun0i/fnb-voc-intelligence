@@ -6,7 +6,7 @@ from src.ai.execution.models import (
     InternalReviewSimulation,
     VerificationEvidence,
 )
-from src.application.ports.incident_repository import IncidentConflict
+from src.application.ports.repositories import IncidentConflict
 
 
 class ExecutionRepository:

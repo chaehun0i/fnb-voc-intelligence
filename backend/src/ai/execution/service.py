@@ -10,7 +10,7 @@ from src.ai.execution.policy import validate_approval
 from src.ai.workflow.models import WorkflowState
 from src.ai.workflow.policy import approval_policy_digest, evaluate_verification
 from src.application.incidents.service import IncidentNotFound, IncidentService
-from src.application.ports.incident_repository import IncidentConflict
+from src.application.ports.repositories import IncidentConflict
 from src.application.security.authorization import require
 from src.application.security.principal import AccessError, Principal
 from src.domain.approvals.audit import AuditRecord

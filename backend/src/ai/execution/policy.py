@@ -2,7 +2,7 @@
 from datetime import datetime
 
 from src.ai.workflow.policy import approval_policy_digest
-from src.application.ports.incident_repository import IncidentConflict
+from src.application.ports.repositories import IncidentConflict
 from src.domain.approvals.models import action_digest
 
 

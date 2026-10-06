@@ -14,7 +14,7 @@ from src.ai.workflow.runtime import (
     HistoryProcessor,
     SafeJsonSerializer,
 )
-from src.application.ports.incident_repository import IncidentConflict
+from src.application.ports.repositories import IncidentConflict
 from src.application.security.principal import AccessError, Role
 from src.infrastructure.jobs.job_worker import RetryableJobError
 from tests.test_approval_resume import commands, waiting_run

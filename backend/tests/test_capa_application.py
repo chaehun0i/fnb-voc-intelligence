@@ -4,7 +4,7 @@ import pytest
 
 from src.ai.workflow.agents import CAPAInvestigation
 from src.ai.workflow.runtime import CAPACommands
-from src.application.ports.incident_repository import IncidentConflict
+from src.application.ports.repositories import IncidentConflict
 from tests.test_history_application import setup_history
 from tests.test_rca_investigation import ready
 

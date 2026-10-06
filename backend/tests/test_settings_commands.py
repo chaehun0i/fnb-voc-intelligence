@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 import pytest
 
 from src.application.config.commands import SettingsCommands
-from src.application.ports.config_repository import ConfigVersionConflict
+from src.application.ports.repositories import ConfigVersionConflict
 from src.application.security.principal import (
     AccessError,
     Principal,

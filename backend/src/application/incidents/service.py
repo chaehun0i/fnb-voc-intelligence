@@ -7,7 +7,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from src.application.ports.incident_repository import (
+from src.application.ports.repositories import (
     IncidentConflict,
     IncidentRepository,
 )

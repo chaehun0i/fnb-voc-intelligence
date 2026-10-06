@@ -7,7 +7,7 @@ from uuid import uuid4
 import psycopg
 
 from src.application.jobs.queries import JobQueries
-from src.application.ports.job_repository import JobConflict
+from src.application.ports.repositories import JobConflict
 from src.application.security.authorization import require
 from src.application.security.principal import AccessError
 from src.domain.approvals.audit import AuditRecord

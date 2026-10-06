@@ -11,7 +11,7 @@ from src.ai.execution.policy import validate_approval
 from src.ai.workflow.runtime import enqueue_resume
 from src.application.approvals.service import ApprovalService
 from src.application.incidents.service import IncidentNotFound, IncidentService
-from src.application.ports.incident_repository import IncidentConflict
+from src.application.ports.repositories import IncidentConflict
 from src.application.security.authorization import require
 from src.application.security.principal import AccessError
 from src.domain.approvals.audit import AuditRecord

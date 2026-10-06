@@ -3,7 +3,7 @@ import json
 
 import psycopg
 
-from src.application.ports.config_repository import SettingsUnavailable
+from src.application.ports.repositories import SettingsUnavailable
 from src.application.security.authorization import allowed, require
 from src.domain.config.models import RuntimeConfig, config_document
 from src.domain.config.resolution import ConfigResolver, ConfigValidationFailed

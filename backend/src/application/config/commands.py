@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import psycopg
 
-from src.application.ports.config_repository import ConfigNotFound, SettingsUnavailable
+from src.application.ports.repositories import ConfigNotFound, SettingsUnavailable
 from src.application.security.authorization import require
 from src.application.security.principal import AccessError
 from src.domain.approvals.audit import AuditRecord

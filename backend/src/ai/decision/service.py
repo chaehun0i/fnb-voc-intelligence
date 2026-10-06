@@ -18,7 +18,7 @@ from src.ai.decision.models import (
     DecisionValidationError,
 )
 from src.application.incidents.service import IncidentNotFound
-from src.application.ports.decision_repository import DecisionsUnavailable
+from src.application.ports.repositories import DecisionsUnavailable
 from src.application.security.authorization import require
 from src.domain.approvals.audit import AuditRecord
 from src.domain.config.models import RuntimeConfig

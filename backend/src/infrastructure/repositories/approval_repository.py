@@ -6,7 +6,7 @@ from threading import RLock
 
 from psycopg.types.json import Jsonb
 
-from src.application.ports.incident_repository import IncidentConflict
+from src.application.ports.repositories import IncidentConflict
 from src.domain.approvals.models import Approval
 
 

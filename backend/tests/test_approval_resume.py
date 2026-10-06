@@ -7,7 +7,7 @@ import pytest
 from src.ai.workflow.runtime import RESUME_JOB, HistoryProcessor, memory_checkpoint
 from src.application.incidents.commands import IncidentCommands
 from src.application.incidents.service import IncidentService
-from src.application.ports.incident_repository import IncidentConflict
+from src.application.ports.repositories import IncidentConflict
 from src.application.security.principal import (
     AccessError,
     Principal,
