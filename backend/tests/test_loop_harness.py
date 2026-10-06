@@ -315,6 +315,7 @@ def test_capability_is_checked_before_harness_evaluation_with_advancing_clock():
     def action(context, identity):
         return InvestigationResult(agent_type=context.agent_type, branch_id=identity,
             tenant_id=context.tenant_id, incident_id=context.incident_id, store=context.store,
-            status="SUCCESS", context_digest=context.digest, started_at=clock(), completed_at=clock())
+            status="SUCCESS", uncertainty="OBSERVATIONS_NOT_CAUSE", context_digest=context.digest,
+            started_at=clock(), completed_at=clock())
     result = InvestigationLoop(p, run.agent_run_id, "t", source, clock).execute(pack, bid, action)
     assert result.status == "SUCCESS"
