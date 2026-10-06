@@ -9,7 +9,7 @@ from uuid import NAMESPACE_URL, uuid5
 import psycopg
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.postgres import PostgresSaver
-from langgraph.types import Interrupt
+from langgraph.types import Interrupt, Send
 
 from src.ai.decision.models import AgentType, DecisionRoute
 from src.ai.execution.policy import validate_approval
@@ -23,6 +23,7 @@ from src.ai.workflow.agents import (
 )
 from src.ai.workflow.graph import history_graph, invoke_or_resume
 from src.ai.workflow.models import (
+    AgentContextPack,
     AgentRun,
     AgentStep,
     ApprovalTrace,
@@ -317,6 +318,11 @@ class SafeJsonSerializer:
             # SDK의 고정 Interrupt 한 타입만 허용합니다. pickle/동적 클래스 import는 금지합니다.
             if isinstance(item, Interrupt) and item.response_schema is None:
                 return {"__serviq_interrupt__": {"id": item.id, "value": item.value}}
+            if isinstance(item, Send) and item.node == "investigate_branch":
+                if set(item.arg) != {"context", "branch_id"}:
+                    raise ValueError("INVALID_BRANCH_CHECKPOINT")
+                AgentContextPack.model_validate(item.arg["context"])
+                return {"__serviq_branch__": item.arg}
             raise TypeError("지원하지 않는 Checkpoint 값입니다.")
         return "json", json.dumps(value, ensure_ascii=False, allow_nan=False, default=encode).encode()
 
@@ -325,6 +331,12 @@ class SafeJsonSerializer:
         if kind != "json":
             raise ValueError("알 수 없는 Checkpoint 직렬화 형식입니다.")
         def decode(item):
+            if set(item) == {"__serviq_branch__"}:
+                arg = item["__serviq_branch__"]
+                if not isinstance(arg, dict) or set(arg) != {"context", "branch_id"}:
+                    raise ValueError("INVALID_BRANCH_CHECKPOINT")
+                AgentContextPack.model_validate(arg["context"])
+                return Send("investigate_branch", arg)
             if set(item) == {"__serviq_interrupt__"}:
                 safe = item["__serviq_interrupt__"]
                 if not isinstance(safe, dict) or set(safe) != {"id", "value"} or not isinstance(safe["id"], str):

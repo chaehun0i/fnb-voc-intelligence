@@ -340,9 +340,23 @@ class WorkflowState(SafeModel):
     cost_spent: float = Field(default=0, ge=0)
     config_version: int = Field(ge=1)
     status: WorkflowStatus = WorkflowStatus.RUNNING
+    selection: AgentSelection | None = None
+    contexts: tuple[AgentContextPack, ...] = Field(default=(), max_length=3)
+    branches: tuple[InvestigationResult, ...] = Field(default=(), max_length=3)
 
     @model_validator(mode="after")
     def evidence_integrity(self):
+        selected = {a.agent_type for a in self.selection.selected} if self.selection else set()
+        if (len(selected) != len(self.selection.selected if self.selection else ())
+                or len({c.agent_type for c in self.contexts}) != len(self.contexts)
+                or len({b.agent_type for b in self.branches}) != len(self.branches)
+                or {c.agent_type for c in self.contexts} != selected
+                or not {b.agent_type for b in self.branches} <= selected
+                or any(c.tenant_id != self.tenant_id or c.incident_id != self.incident_id for c in self.contexts)
+                or any(b.tenant_id != self.tenant_id or b.incident_id != self.incident_id
+                    or b.context_digest != next(c.digest for c in self.contexts if c.agent_type == b.agent_type)
+                    or b.store != next(c.store for c in self.contexts if c.agent_type == b.agent_type) for b in self.branches)):
+            raise ValueError("INVESTIGATION_LINEAGE_INVALID")
         available = {e.source_ref: e for e in self.normalized_evidence}
         if len(available) != len(self.normalized_evidence) or any(
             e.tenant_id != self.tenant_id or e.agent_run_id != self.agent_run_id for e in available.values()):

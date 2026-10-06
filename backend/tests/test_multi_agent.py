@@ -96,3 +96,41 @@ def test_read_only_operational_agent(agent, signal):
     assert len(result.evidence_candidates) == 1
     assert result.evidence_candidates[0].provenance == ("synthetic_operational",)
     assert not source.observations(context(agent, store="other"))
+
+
+def workflow(contexts=()):
+    from uuid import uuid4
+
+    from src.ai.workflow.models import WorkflowState
+    selected = selection([capability(a+"_DATA") for a in ("HISTORY", "TRANSACTION", "INVENTORY")])
+    if not contexts:
+        contexts = tuple(context(a.agent_type) for a in selected.selected)
+    return WorkflowState(tenant_id="tenant-a", incident_id="incident-a", workflow_id=str(uuid4()),
+        agent_run_id=str(uuid4()), risk_level="MEDIUM", route="GENERAL_INVESTIGATION", config_version=1,
+        selection=selected, contexts=contexts)
+
+
+def test_langgraph_fanout_fanin_is_parallel_and_deterministic():
+    import threading
+
+    from src.ai.workflow.graph import history_graph, invoke_or_resume
+    from src.ai.workflow.models import InvestigationResult
+    from src.ai.workflow.runtime import memory_checkpoint
+    barrier = threading.Barrier(3)
+    calls = []
+
+    def branch(pack, branch_id):
+        calls.append(pack.agent_type)
+        barrier.wait(timeout=5)
+        return InvestigationResult(agent_type=pack.agent_type, branch_id=branch_id,
+            tenant_id=pack.tenant_id, incident_id=pack.incident_id, store=pack.store, status="NO_EVIDENCE",
+            uncertainty="MISSING_EVIDENCE", started_at=NOW, completed_at=NOW, context_digest=pack.digest)
+
+    saver = memory_checkpoint()
+    graph = history_graph(saver, None, lambda s: None, investigate_branch=branch, fan_in=lambda s: s)
+    state = workflow()
+    result = invoke_or_resume(graph, state)
+    assert {b.agent_type for b in result.branches} == {"HISTORY", "TRANSACTION", "INVENTORY"}
+    assert tuple(b.agent_type for b in result.branches) == tuple(sorted(calls))
+    assert invoke_or_resume(graph, state) == result
+    assert len(calls) == 3
