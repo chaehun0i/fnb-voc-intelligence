@@ -9,15 +9,22 @@ from unittest.mock import AsyncMock, Mock
 import httpx
 import pytest
 
+from src.ai.intelligence.models import (
+    LLMError,
+    LLMErrorCode,
+    LLMUsage,
+    ProviderCapability,
+    ProviderResponse,
+)
+from src.ai.intelligence.providers.fake import FakeProvider
+from src.ai.intelligence.providers.ollama import OllamaProvider
+from src.ai.intelligence.service import (
+    LLMGateway,
+    ProviderRouter,
+    RoutedLLMExecutor,
+    evaluate_policy,
+)
 from src.domain.config.resolution import ConfigResolver
-from src.llm.contracts import LLMUsage, ProviderCapability, ProviderResponse
-from src.llm.data_policy import evaluate_policy
-from src.llm.errors import LLMError, LLMErrorCode
-from src.llm.execution import RoutedLLMExecutor
-from src.llm.gateway import LLMGateway
-from src.llm.providers.fake import FakeProvider
-from src.llm.providers.ollama import OllamaProvider
-from src.llm.router import ProviderRouter
 from tests.test_llm_contracts import intent
 from tests.test_llm_gemini import request
 from tests.test_llm_router import configured

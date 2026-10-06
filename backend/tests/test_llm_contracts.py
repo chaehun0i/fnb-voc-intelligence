@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from src.llm.contracts import LLMIntent
+from src.ai.intelligence.models import LLMIntent
 
 
 def intent(**changes):

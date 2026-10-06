@@ -9,10 +9,9 @@ from pydantic import ValidationError
 from src.agents.models import RCACandidate
 from src.agents.rca_node import RCAInvestigation, validate_candidate
 from src.agents.sufficiency import evaluate_sufficiency
+from src.ai.intelligence.models import LLMError, LLMErrorCode, LLMResult, LLMUsage
 from src.domain.config.models import RuntimeConfig
 from src.domain.config.resolution import ConfigResolver
-from src.llm.contracts import LLMResult, LLMUsage
-from src.llm.errors import LLMError, LLMErrorCode
 from tests.test_evidence_sufficiency import support
 from tests.test_history_investigation import state
 

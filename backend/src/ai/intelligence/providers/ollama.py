@@ -1,11 +1,16 @@
-"""Ollama 공식 chat HTTP 계약을 사용하며 로컬 실행 여부는 startup과 분리합니다."""
+"""ai/intelligence/providers/ollama: 통합된 기능 책임, 기존 실행 계약 유지."""
 import json
 from urllib.parse import urlsplit
 
 import httpx
 
-from src.llm.contracts import LLMUsage, ProviderCapability, ProviderResponse
-from src.llm.errors import LLMError, LLMErrorCode
+from src.ai.intelligence.models import (
+    LLMError,
+    LLMErrorCode,
+    LLMUsage,
+    ProviderCapability,
+    ProviderResponse,
+)
 
 
 class OllamaProvider:

@@ -6,14 +6,14 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from src.ai.intelligence.models import LLMError, LLMErrorCode
+from src.ai.intelligence.service import LLMApplication
 from src.application.security.principal import AccessError, Principal, Role
 from src.domain.config.models import ConfigVersion, RuntimeConfig
 from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.repositories.in_memory_incident_repository import (
     InMemoryIncidentRepository,
 )
-from src.llm.errors import LLMError, LLMErrorCode
-from src.llm.service import LLMApplication
 from tests.test_llm_contracts import intent
 
 

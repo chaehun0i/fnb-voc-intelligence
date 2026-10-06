@@ -5,9 +5,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from src.llm.contracts import ProviderRequest
-from src.llm.errors import LLMError, LLMErrorCode
-from src.llm.providers.gemini import GeminiProvider
+from src.ai.intelligence.models import LLMError, LLMErrorCode, ProviderRequest
+from src.ai.intelligence.providers.gemini import GeminiProvider
 
 
 def request():

@@ -10,6 +10,15 @@ from uuid import uuid4
 import psycopg
 from fastapi.testclient import TestClient
 
+from src.ai.intelligence.models import LLMIntent
+from src.ai.intelligence.providers.fake import FakeProvider
+from src.ai.intelligence.providers.gemini import GeminiProvider
+from src.ai.intelligence.service import (
+    LLMApplication,
+    LLMGateway,
+    ProviderRouter,
+    RoutedLLMExecutor,
+)
 from src.api.app import create_app
 from src.application.security.principal import Principal, Role
 from src.domain.config.models import ConfigVersion, LLMModelBinding, RuntimeConfig
@@ -21,13 +30,6 @@ from src.infrastructure.migrations import migrate
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )
-from src.llm.contracts import LLMIntent
-from src.llm.execution import RoutedLLMExecutor
-from src.llm.gateway import LLMGateway
-from src.llm.providers.fake import FakeProvider
-from src.llm.providers.gemini import GeminiProvider
-from src.llm.router import ProviderRouter
-from src.llm.service import LLMApplication
 
 
 def verify(dsn):

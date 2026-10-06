@@ -5,8 +5,8 @@ from datetime import datetime
 
 from psycopg.types.json import Jsonb
 
+from src.ai.intelligence.models import LLMCallRecord
 from src.application.security.principal import AccessError
-from src.llm.usage import LLMCallRecord
 
 
 def validate(record, tenant):

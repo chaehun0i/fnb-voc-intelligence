@@ -18,11 +18,11 @@ from src.agents.processor import (
     HistoryProcessor,
     UncertainHistoryCall,
 )
+from src.ai.intelligence.models import LLMError, LLMErrorCode
 from src.application.incidents.service import IncidentNotFound
 from src.application.security.principal import AccessError, Role
 from src.domain.config.models import RuntimeConfig
 from src.domain.config.resolution import ConfigResolver
-from src.llm.errors import LLMError, LLMErrorCode
 from src.rag.lexical_search import search_reviews_lexically
 from src.rag.search_models import SearchFilters
 from src.rag.vector_search import search_similar_reviews

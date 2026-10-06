@@ -5,9 +5,14 @@ from datetime import timedelta
 from uuid import NAMESPACE_URL, uuid5
 
 from src.agents.models import EvidenceGap, RCACandidate
-from src.llm.contracts import LLMIntent, LLMTaskType, ModelClass
-from src.llm.errors import LLMError, LLMErrorCode
-from src.llm.structured import schema_validator, validate_output
+from src.ai.intelligence.models import (
+    LLMError,
+    LLMErrorCode,
+    LLMIntent,
+    LLMTaskType,
+    ModelClass,
+)
+from src.ai.intelligence.service import schema_validator, validate_output
 
 
 def validate_candidate(candidate, evidence):

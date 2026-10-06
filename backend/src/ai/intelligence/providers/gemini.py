@@ -1,4 +1,4 @@
-"""공식 SDK를 이 어댑터 내부에만 격리합니다. credential은 저장하지 않습니다."""
+"""ai/intelligence/providers/gemini: 통합된 기능 책임, 기존 실행 계약 유지."""
 import json
 import os
 
@@ -6,8 +6,13 @@ import httpx
 from google import genai
 from google.genai import errors, types
 
-from src.llm.contracts import LLMUsage, ProviderCapability, ProviderResponse
-from src.llm.errors import LLMError, LLMErrorCode
+from src.ai.intelligence.models import (
+    LLMError,
+    LLMErrorCode,
+    LLMUsage,
+    ProviderCapability,
+    ProviderResponse,
+)
 
 
 class GeminiProvider:

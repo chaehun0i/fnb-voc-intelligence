@@ -4,6 +4,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from src.ai.intelligence.models import LLMError, LLMErrorCode, ProviderCapability
+from src.ai.intelligence.service import ProviderRouter
 from src.domain.config.models import (
     LLMModelBinding,
     RuntimeConfig,
@@ -11,9 +13,6 @@ from src.domain.config.models import (
     config_from_document,
 )
 from src.domain.config.resolution import ConfigResolver, ConfigValidationFailed
-from src.llm.contracts import ProviderCapability
-from src.llm.errors import LLMError, LLMErrorCode
-from src.llm.router import ProviderRouter
 from tests.test_llm_contracts import intent
 
 

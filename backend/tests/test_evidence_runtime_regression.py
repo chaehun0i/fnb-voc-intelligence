@@ -19,10 +19,9 @@ from src.agents.processor import (
     UncertainHistoryCall,
 )
 from src.ai.decision.service import ShadowDecisions
+from src.ai.intelligence.models import LLMError, LLMErrorCode, LLMResult, LLMUsage
 from src.domain.jobs.models import Job
 from src.infrastructure.jobs.job_worker import RetryableJobError
-from src.llm.contracts import LLMResult, LLMUsage
-from src.llm.errors import LLMError, LLMErrorCode
 
 
 class ScopedSearch:

@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
+from src.ai.intelligence.providers.fake import FakeProvider
+from src.ai.intelligence.service import LLMGateway
 from src.api.app import create_app
 from src.application.security.principal import Principal, Role
 from src.domain.incidents.enums import IncidentStatus, Severity
@@ -13,8 +15,6 @@ from src.infrastructure.auth.local_identity_provider import LocalIdentityProvide
 from src.infrastructure.repositories.in_memory_incident_repository import (
     InMemoryIncidentRepository,
 )
-from src.llm.gateway import LLMGateway
-from src.llm.providers.fake import FakeProvider
 from tests.test_llm_contracts import intent
 
 

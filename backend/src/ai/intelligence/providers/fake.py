@@ -1,8 +1,12 @@
-"""네트워크 없이 명시적 응답 시퀀스로 장애와 repair를 재현합니다."""
+"""ai/intelligence/providers/fake: 통합된 기능 책임, 기존 실행 계약 유지."""
 from collections import deque
 
-from src.llm.contracts import LLMUsage, ProviderCapability, ProviderResponse
-from src.llm.errors import LLMError
+from src.ai.intelligence.models import (
+    LLMError,
+    LLMUsage,
+    ProviderCapability,
+    ProviderResponse,
+)
 
 
 class FakeProvider:

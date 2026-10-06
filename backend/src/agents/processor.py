@@ -17,8 +17,8 @@ from src.agents.rca_node import RCAInvestigation
 from src.agents.resume import RESUME_JOB
 from src.agents.sufficiency import evaluate_sufficiency
 from src.agents.verification_commands import VerificationCommands
+from src.ai.intelligence.service import configured_llm_executor
 from src.infrastructure.jobs.job_worker import RetryableJobError
-from src.llm.runtime import configured_llm_executor
 
 logger = logging.getLogger(__name__)
 

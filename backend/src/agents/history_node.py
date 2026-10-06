@@ -4,8 +4,13 @@ import json
 from datetime import timedelta
 
 from src.agents.models import EvidenceCandidate, EvidenceGap, Finding
-from src.llm.contracts import LLMIntent, LLMTaskType, ModelClass
-from src.llm.errors import LLMError, LLMErrorCode
+from src.ai.intelligence.models import (
+    LLMError,
+    LLMErrorCode,
+    LLMIntent,
+    LLMTaskType,
+    ModelClass,
+)
 
 
 class HistoryInvestigation:

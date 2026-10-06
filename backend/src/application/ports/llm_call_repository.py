@@ -1,7 +1,7 @@
 """원문 없는 호출 기록의 Tenant 범위 저장·조회 계약입니다."""
 from typing import Protocol
 
-from src.llm.usage import LLMCallRecord
+from src.ai.intelligence.models import LLMCallRecord
 
 
 class LLMCallRepository(Protocol):
