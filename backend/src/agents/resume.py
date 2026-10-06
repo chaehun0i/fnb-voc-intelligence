@@ -2,8 +2,8 @@
 from datetime import datetime
 from uuid import NAMESPACE_URL, uuid5
 
+from src.agents.approval_policy import approval_policy_digest
 from src.application.ports.incident_repository import IncidentConflict
-from src.application.workflows.approval_policy import approval_policy_digest
 from src.domain.approvals.models import action_digest
 from src.domain.jobs.models import Job
 

@@ -3,9 +3,9 @@ from uuid import uuid4
 
 import pytest
 
+from src.agents.evidence import normalize_evidence
+from src.agents.models import EvidenceCandidate
 from src.application.security.principal import AccessError
-from src.application.workflows.evidence import normalize_evidence
-from src.domain.workflows.models import EvidenceCandidate
 from tests.test_evidence_contracts import evidence as normalized_example
 
 

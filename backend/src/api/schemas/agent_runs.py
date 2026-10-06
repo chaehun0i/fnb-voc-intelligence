@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from src.domain.workflows.verification import VerificationCandidate
+from src.agents.verification_contracts import VerificationCandidate
 
 
 class FindingResponse(BaseModel):

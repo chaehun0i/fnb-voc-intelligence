@@ -2,6 +2,8 @@
 from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, uuid5
 
+from src.agents.models import ApprovalTrace, WorkflowState, WorkflowStatus
+from src.agents.policy import server_risk
 from src.application.approvals.service import ApprovalService
 from src.application.incidents.service import IncidentNotFound, IncidentService
 from src.application.ports.incident_repository import IncidentConflict
@@ -10,8 +12,6 @@ from src.application.security.principal import AccessError, Principal, RequestCo
 from src.domain.approvals.audit import AuditRecord
 from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.models import CorrectiveAction, Evidence, RootCauseCandidate
-from src.domain.workflows.models import ApprovalTrace, WorkflowState, WorkflowStatus
-from src.domain.workflows.policy import server_risk
 
 
 class CAPACommands:
@@ -68,7 +68,7 @@ class CAPACommands:
             return result
 
     def request_approval(self, state):
-        from src.application.workflows.approval_policy import approval_policy_digest
+        from src.agents.approval_policy import approval_policy_digest
         with self.persistence.transaction(self.tenant_id) as uow:
             run = uow.agent_runs.get(self.run_id)
             if run is None or not run.requested_by:
@@ -113,7 +113,7 @@ class CAPACommands:
             return result
 
     def approval_result(self, state):
-        from src.application.workflows.resume import validate_approval
+        from src.agents.resume import validate_approval
         with self.persistence.transaction(self.tenant_id) as uow:
             existing = uow.agent_runs.get(self.run_id)
             if existing and existing.state.execution and state.approval and existing.state.approval.approval_id == state.approval.approval_id:

@@ -8,6 +8,12 @@ import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import ValidationError
 
+from src.agents.checkpoint import SafeJsonSerializer
+from src.agents.models import WorkflowState
+from src.agents.processor import HistoryProcessor
+from src.agents.resume import RESUME_JOB
+from src.agents.verification_commands import VerificationCommands
+from src.agents.verification_contracts import InternalReviewSimulation
 from src.application.ports.incident_repository import IncidentConflict
 from src.application.security.principal import (
     AccessError,
@@ -15,13 +21,7 @@ from src.application.security.principal import (
     RequestContext,
     Role,
 )
-from src.application.workflows.resume import RESUME_JOB
-from src.application.workflows.verification import VerificationCommands
-from src.domain.workflows.models import WorkflowState
-from src.domain.workflows.verification import InternalReviewSimulation
 from src.infrastructure.jobs.job_worker import RetryableJobError
-from src.infrastructure.workflows.checkpoint import SafeJsonSerializer
-from src.infrastructure.workflows.processor import HistoryProcessor
 from tests.test_approval_resume import commands
 from tests.test_capa_application import prepared
 from tests.test_internal_execution import approved_run

@@ -7,12 +7,12 @@ from uuid import uuid4
 
 import psycopg
 
+from src.agents.resume import enqueue_resume, validate_approval
 from src.application.approvals.service import ApprovalService
 from src.application.incidents.service import IncidentNotFound, IncidentService
 from src.application.ports.incident_repository import IncidentConflict
 from src.application.security.authorization import require
 from src.application.security.principal import AccessError
-from src.application.workflows.resume import enqueue_resume, validate_approval
 from src.domain.approvals.audit import AuditRecord
 from src.domain.incidents.transitions import DomainRuleViolation
 

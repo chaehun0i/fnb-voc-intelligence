@@ -2,20 +2,20 @@
 from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, uuid5
 
+from src.agents.approval_policy import approval_policy_digest
+from src.agents.models import WorkflowState
+from src.agents.resume import validate_approval
+from src.agents.verification_contracts import (
+    ActionExecutionRecord,
+    VerificationEvidence,
+)
+from src.agents.verification_rules import evaluate_verification
 from src.application.incidents.service import IncidentNotFound, IncidentService
 from src.application.ports.incident_repository import IncidentConflict
 from src.application.security.authorization import require
 from src.application.security.principal import AccessError, Principal
-from src.application.workflows.approval_policy import approval_policy_digest
-from src.application.workflows.resume import validate_approval
 from src.domain.approvals.audit import AuditRecord
 from src.domain.approvals.models import action_digest
-from src.domain.workflows.models import WorkflowState
-from src.domain.workflows.verification import (
-    ActionExecutionRecord,
-    VerificationEvidence,
-)
-from src.domain.workflows.verification_rules import evaluate_verification
 
 
 class VerificationCommands:

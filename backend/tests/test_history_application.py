@@ -4,9 +4,9 @@ from datetime import UTC, datetime
 
 import pytest
 
+from src.agents.history import HistoryWorkflows, WorkflowNotAllowed
 from src.application.decisions.shadow import ShadowDecisions
 from src.application.security.principal import Principal, RequestContext, Role
-from src.application.workflows.history import HistoryWorkflows, WorkflowNotAllowed
 from src.domain.config.models import ConfigVersion, RuntimeConfig
 from src.domain.incidents.enums import IncidentStatus, Severity
 from src.domain.incidents.models import Evidence, Incident

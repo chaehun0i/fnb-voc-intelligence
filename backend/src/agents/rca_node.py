@@ -4,7 +4,7 @@ import json
 from datetime import timedelta
 from uuid import NAMESPACE_URL, uuid5
 
-from src.domain.workflows.models import EvidenceGap, RCACandidate
+from src.agents.models import EvidenceGap, RCACandidate
 from src.llm.contracts import LLMIntent, LLMTaskType, ModelClass
 from src.llm.errors import LLMError, LLMErrorCode
 from src.llm.structured import schema_validator, validate_output

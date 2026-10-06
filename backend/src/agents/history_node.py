@@ -3,7 +3,7 @@ import asyncio
 import json
 from datetime import timedelta
 
-from src.domain.workflows.models import EvidenceCandidate, EvidenceGap, Finding
+from src.agents.models import EvidenceCandidate, EvidenceGap, Finding
 from src.llm.contracts import LLMIntent, LLMTaskType, ModelClass
 from src.llm.errors import LLMError, LLMErrorCode
 

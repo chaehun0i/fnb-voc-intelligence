@@ -7,9 +7,11 @@ import threading
 
 import psycopg
 
+from src.agents.checkpoint import postgres_checkpoint
+from src.agents.history import HISTORY_JOB
+from src.agents.processor import HistoryProcessor
+from src.agents.resume import RESUME_JOB
 from src.application.decisions.shadow import ShadowDecisions
-from src.application.workflows.history import HISTORY_JOB
-from src.application.workflows.resume import RESUME_JOB
 from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.history_search import PostgresHistorySearch
 from src.infrastructure.jobs.job_dispatch import PostgresJobDispatcher
@@ -18,8 +20,6 @@ from src.infrastructure.jobs.outbox_worker import OutboxWorker, _positive_second
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )
-from src.infrastructure.workflows.checkpoint import postgres_checkpoint
-from src.infrastructure.workflows.processor import HistoryProcessor
 
 logger = logging.getLogger(__name__)
 

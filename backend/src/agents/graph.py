@@ -5,7 +5,7 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
-from src.domain.workflows.models import WorkflowState, WorkflowStatus
+from src.agents.models import WorkflowState, WorkflowStatus
 
 
 class GraphState(TypedDict):

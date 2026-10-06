@@ -2,8 +2,8 @@ from dataclasses import replace
 
 import pytest
 
+from src.agents.capa_commands import CAPACommands
 from src.application.security.principal import AccessError
-from src.application.workflows.capa import CAPACommands
 from src.domain.approvals.models import action_digest
 from tests.test_capa_application import prepared
 

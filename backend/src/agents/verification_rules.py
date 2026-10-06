@@ -2,8 +2,8 @@
 from datetime import timedelta
 from uuid import NAMESPACE_URL, uuid5
 
-from src.domain.workflows.models import CAPAProposal, WorkflowState
-from src.domain.workflows.verification import CriterionResult, VerificationCandidate
+from src.agents.models import CAPAProposal, WorkflowState
+from src.agents.verification_contracts import CriterionResult, VerificationCandidate
 
 
 def evaluate_verification(state: WorkflowState, now, *, window_hours=24):

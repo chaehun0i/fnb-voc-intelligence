@@ -1,7 +1,7 @@
 import pytest
 
+from src.agents.verification_commands import VerificationCommands
 from src.application.security.principal import Principal, RequestContext, Role
-from src.application.workflows.verification import VerificationCommands
 from tests.test_verification_node import post_evidence, verifying_state
 
 

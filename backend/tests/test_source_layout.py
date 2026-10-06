@@ -18,27 +18,32 @@ def imports(path):
 
 def test_obsolete_package_locations_have_no_source():
     for obsolete in ("decision", "runtime", "application/commands",
-                     "infrastructure/queue", "infrastructure/outbox"):
+                     "infrastructure/queue", "infrastructure/outbox",
+                     "domain/workflows", "application/workflows", "infrastructure/workflows"):
         assert not list((SOURCE / obsolete).rglob("*.py")), obsolete
 
 
 def test_domain_is_independent_of_application_and_execution_technology():
     files = list((SOURCE / "domain").rglob("*.py"))
+    files += [SOURCE / f"agents/{name}.py" for name in
+              ("models", "safe", "policy", "sufficiency", "verification_contracts", "verification_rules")]
     assert files and (SOURCE / "domain/decisions/engine.py").is_file()
     forbidden = ("src.api", "src.application", "src.infrastructure",
-                 "langgraph", "psycopg", "google", "ollama", "src.llm.providers")
+                 "langgraph", "psycopg", "google", "ollama", "src.llm.providers",
+                 "src.agents.graph", "src.agents.checkpoint", "src.agents.processor",
+                 "src.agents.capa_commands", "src.agents.verification_commands")
     for path in files:
         assert not any(module.startswith(forbidden) for module in imports(path)), path
 
 
 def test_workflow_nodes_do_not_import_graph_or_provider_adapters():
     for name in ("history_node", "rca_node", "capa_node"):
-        path = SOURCE / f"application/workflows/{name}.py"
+        path = SOURCE / f"agents/{name}.py"
         assert path.is_file()
         assert not any(module.startswith(("langgraph", "src.infrastructure",
             "src.llm.providers", "google", "ollama")) for module in imports(path)), path
     for name in ("graph", "checkpoint", "processor"):
-        assert (SOURCE / f"infrastructure/workflows/{name}.py").is_file()
+        assert (SOURCE / f"agents/{name}.py").is_file()
 
 
 def test_compose_worker_uses_real_consolidated_entrypoint():

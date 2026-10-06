@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.domain.workflows.models import AgentRun, WorkflowState
+from src.agents.models import AgentRun, WorkflowState
 from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.repositories.in_memory_incident_repository import (
     InMemoryIncidentRepository,

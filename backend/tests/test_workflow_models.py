@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from src.domain.workflows.models import EvidenceCandidate, EvidenceGap, Finding
+from src.agents.models import EvidenceCandidate, EvidenceGap, Finding
 
 
 def test_normalized_evidence_contract():

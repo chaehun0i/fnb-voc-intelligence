@@ -9,11 +9,13 @@ import psycopg
 from fastapi.testclient import TestClient
 from scripts.serviq_langgraph_smoke import seed_capa_http
 
+from src.agents.checkpoint import postgres_checkpoint
+from src.agents.processor import HistoryProcessor
+from src.agents.resume import RESUME_JOB
+from src.agents.verification_commands import VerificationCommands
+from src.agents.verification_contracts import InternalReviewSimulation
 from src.api.app import create_app
 from src.application.security.principal import Principal, RequestContext, Role
-from src.application.workflows.resume import RESUME_JOB
-from src.application.workflows.verification import VerificationCommands
-from src.domain.workflows.verification import InternalReviewSimulation
 from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.auth.local_identity_provider import LocalIdentityProvider
 from src.infrastructure.history_search import PostgresHistorySearch
@@ -22,8 +24,6 @@ from src.infrastructure.jobs.runtime import snapshot_processor
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )
-from src.infrastructure.workflows.checkpoint import postgres_checkpoint
-from src.infrastructure.workflows.processor import HistoryProcessor
 from src.rag.embeddings import FakeEmbeddingProvider
 
 CASES = ((True, "PASS", "RESOLVED"), (False, "FAIL", "REOPENED"), (None, "INCONCLUSIVE", "VERIFYING"))

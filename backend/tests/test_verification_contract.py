@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.domain.workflows.verification import (
+from src.agents.verification_contracts import (
     ActionExecutionRecord,
     VerificationEvidence,
 )

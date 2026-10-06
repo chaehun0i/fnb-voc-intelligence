@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.domain.workflows.models import CAPAProposal
+from src.agents.models import CAPAProposal
 
 
 def proposal(**changes):

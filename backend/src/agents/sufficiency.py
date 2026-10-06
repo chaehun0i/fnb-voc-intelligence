@@ -1,5 +1,5 @@
 """검색 관련성은 원인 확정이 아니라 제한된 History 가설의 근거입니다."""
-from src.domain.workflows.models import (
+from src.agents.models import (
     EvidenceGap,
     SufficiencyPolicy,
     SufficiencyResult,

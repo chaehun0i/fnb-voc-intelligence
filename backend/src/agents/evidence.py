@@ -1,6 +1,6 @@
 """생성 문장 대신 원본 참조와 실제 검색 출처를 정규화합니다."""
+from src.agents.models import EvidenceCandidate, NormalizedEvidence
 from src.application.security.principal import AccessError
-from src.domain.workflows.models import EvidenceCandidate, NormalizedEvidence
 
 
 def normalize_evidence(candidates, *, tenant_id, store, agent_run_id):

@@ -4,12 +4,12 @@ from uuid import uuid4
 
 import pytest
 
+from src.agents.checkpoint import memory_checkpoint
+from src.agents.processor import HistoryProcessor
+from src.agents.resume import RESUME_JOB
+from src.agents.verification_commands import VerificationCommands
+from src.agents.verification_contracts import InternalReviewSimulation
 from src.application.security.principal import Principal, RequestContext, Role
-from src.application.workflows.resume import RESUME_JOB
-from src.application.workflows.verification import VerificationCommands
-from src.domain.workflows.verification import InternalReviewSimulation
-from src.infrastructure.workflows.checkpoint import memory_checkpoint
-from src.infrastructure.workflows.processor import HistoryProcessor
 from tests.test_approval_resume import commands
 from tests.test_capa_application import prepared
 

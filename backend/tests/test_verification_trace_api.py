@@ -2,9 +2,9 @@ from dataclasses import replace
 
 from fastapi.testclient import TestClient
 
+from src.agents.verification_commands import VerificationCommands
 from src.api.app import create_app
 from src.application.security.principal import Principal, Role
-from src.application.workflows.verification import VerificationCommands
 from src.infrastructure.auth.local_identity_provider import LocalIdentityProvider
 from tests.test_verification_node import verifying_state
 

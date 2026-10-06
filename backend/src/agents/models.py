@@ -5,8 +5,8 @@ from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from src.domain.workflows.safe import SafeModel
-from src.domain.workflows.verification import (
+from src.agents.safe import SafeModel
+from src.agents.verification_contracts import (
     ActionExecutionRecord,
     VerificationCandidate,
     VerificationEvidence,

@@ -1,8 +1,8 @@
 """CAPA는 제한된 제안만 반환하며 업무 저장/승인을 수행하지 않습니다."""
 from uuid import NAMESPACE_URL, uuid5
 
-from src.domain.workflows.models import CAPAProposal, WorkflowState
-from src.domain.workflows.policy import server_risk
+from src.agents.models import CAPAProposal, WorkflowState
+from src.agents.policy import server_risk
 
 
 class CAPAInvestigation:
