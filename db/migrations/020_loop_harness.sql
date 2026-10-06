@@ -14,7 +14,7 @@ CREATE TRIGGER serviq_runtime_events_no_mutation BEFORE UPDATE OR DELETE ON serv
     FOR EACH ROW EXECUTE FUNCTION serviq_decision_immutable();
 CREATE FUNCTION serviq_manifest_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-    IF OLD.document->'manifest' IS DISTINCT FROM NEW.document->'manifest' THEN
+    IF COALESCE(OLD.document->'manifest','null'::jsonb) IS DISTINCT FROM COALESCE(NEW.document->'manifest','null'::jsonb) THEN
         RAISE EXCEPTION 'MANIFEST_IMMUTABLE';
     END IF;
     RETURN NEW;
