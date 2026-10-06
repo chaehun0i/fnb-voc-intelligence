@@ -1,9 +1,9 @@
 """공개 생성 대신 Job 원본의 Shadow 이력만 조회합니다."""
 from fastapi import APIRouter, Query, Request
 
+from src.ai.decision.service import DecisionQueries
 from src.api.dependencies.auth import request_context
 from src.api.schemas.decisions import DecisionHistoryResponse, DecisionResponse
-from src.routing.queries import DecisionQueries
 
 router = APIRouter(prefix="/api/v1/incidents", tags=["shadow-decisions"])
 

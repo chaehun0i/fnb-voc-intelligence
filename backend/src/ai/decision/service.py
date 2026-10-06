@@ -1,4 +1,4 @@
-"""Job의 업무 효과와 분리된 Shadow 판단 경계입니다."""
+"""ai/decision/service: 통합된 기능 책임, 기존 실행 계약 유지."""
 import hashlib
 import json
 import logging
@@ -9,19 +9,21 @@ from uuid import uuid4
 
 import psycopg
 
-from src.domain.approvals.audit import AuditRecord
-from src.domain.config.models import RuntimeConfig
-from src.domain.config.resolution import ConfigResolver, ConfigValidationFailed
-from src.domain.incidents.enums import Severity
-from src.routing.context import build_context
-from src.routing.engine import JevEngine
-from src.routing.models import (
+from src.ai.decision.engine import JevEngine, build_context
+from src.ai.decision.models import (
     DecisionReasonCode,
     DecisionRecord,
     DecisionResult,
     DecisionRoute,
     DecisionValidationError,
 )
+from src.application.incidents.service import IncidentNotFound
+from src.application.ports.decision_repository import DecisionsUnavailable
+from src.application.security.authorization import require
+from src.domain.approvals.audit import AuditRecord
+from src.domain.config.models import RuntimeConfig
+from src.domain.config.resolution import ConfigResolver, ConfigValidationFailed
+from src.domain.incidents.enums import Severity
 
 logger = logging.getLogger(__name__)
 
@@ -86,3 +88,34 @@ class ShadowDecisions:
         return DecisionResult(DecisionRoute.MANUAL_REVIEW, Severity.CRITICAL, incident.priority, (),
             False, True, "manual-safe-v1", "small", "판단 실패로 수동 검토가 필요합니다.",
             (DecisionReasonCode.ENGINE_FAILURE,), config_version)
+
+
+def projection(record):
+    document = asdict(record)
+    document["decided_at"] = record.decided_at.isoformat()
+    return {**document["result"], **{key: document[key] for key in (
+        "decision_id", "incident_id", "source_job_id", "decided_at", "duration_ms", "incident_version", "error_code")}}
+
+
+class DecisionQueries:
+    def __init__(self, persistence, principal):
+        self.persistence, self.principal = persistence, principal
+
+    def history(self, incident_id, limit=20, offset=0):
+        require(self.principal, "read")
+        if type(limit) is not int or not 1 <= limit <= 100 or type(offset) is not int or not 0 <= offset <= 10000:
+            raise ValueError("판단 이력 조회 범위를 확인해 주세요.")
+        try:
+            with self.persistence.transaction(self.principal.tenant_id) as uow:
+                incident = uow.incidents.get(incident_id)
+                if incident is None:
+                    raise IncidentNotFound()
+                require(self.principal, "read", incident.store)
+                records = uow.decisions.history(incident_id, limit+1, offset)
+                return {"decisions": [projection(r) for r in records[:limit]], "limit": limit,
+                        "offset": offset, "has_more": len(records) > limit}
+        except psycopg.Error as error:
+            raise DecisionsUnavailable() from error
+
+    def latest(self, incident_id):
+        return next(iter(self.history(incident_id, 1)["decisions"]), None)

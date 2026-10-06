@@ -1,4 +1,4 @@
-"""Jev는 정규화된 사실과 불변 정책만 받으며 외부 실행을 하지 않습니다."""
+"""ai/decision/models: 통합된 기능 책임, 기존 실행 계약 유지."""
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
