@@ -53,6 +53,7 @@ class RuntimeConfig:
     auto_execute: bool = False
     internal_execution_enabled: bool = False
     multi_agent_enabled: bool = False
+    loop_enabled: bool = False
     approval_policy_by_risk: RiskApproval = field(default_factory=RiskApproval)
     required_roles: tuple[str, ...] = ("REVIEWER", "HQ_ADMIN")
     separation_of_duties: bool = True

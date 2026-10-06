@@ -5,6 +5,7 @@ from src.ai.workflow.models import (
     AgentRun,
     AgentStep,
     InvestigationResult,
+    RuntimeEvent,
     WorkflowStatus,
 )
 from src.application.security.principal import AccessError
@@ -38,6 +39,24 @@ class MemoryAgentRunRepository:
         run = self.state.data.get("agent_runs", {}).get(run_id)
         return run if run and run.tenant_id == self.tenant_id else None
 
+    def lock(self, run_id):
+        # AccessPersistence holds its memory transaction lock.
+        return self.get(run_id)
+
+    def events(self, run_id):
+        if self.get(run_id) is None:
+            return []
+        return list(self.state.data.get("runtime_events", {}).get((self.tenant_id, run_id), {}).values())
+
+    def append_event(self, run_id, event):
+        run = self.lock(run_id)
+        validate_event(event, run)
+        items = self.state.data.setdefault("runtime_events", {}).setdefault((self.tenant_id, run_id), {})
+        stored = items.setdefault(event.event_id, event)
+        if stored != event:
+            raise ValueError("RUNTIME_EVENT_CONFLICT")
+        return stored
+
     def by_job(self, job_id):
         return next((r for r in self.state.data.get("agent_runs", {}).values()
                      if r.tenant_id == self.tenant_id and r.job_id == job_id), None)
@@ -70,7 +89,8 @@ class MemoryAgentRunRepository:
     def branch(self, run_id, agent_type):
         if self.get(run_id) is None:
             return None
-        return self.state.data.get("investigation_branches", {}).get((self.tenant_id, run_id, agent_type))
+        results = [e.result for e in self.events(run_id) if e.kind == "RESULT" and e.agent_type == agent_type]
+        return results[-1] if results else self.state.data.get("investigation_branches", {}).get((self.tenant_id, run_id, agent_type))
 
     def append_branch(self, run_id, result):
         validate_branch(result, self.get(run_id))
@@ -89,6 +109,30 @@ class PostgresAgentRunRepository:
         row = self.connection.execute("SELECT document FROM serviq_agent_runs WHERE tenant_id=%s AND agent_run_id::text=%s",
                                       (self.tenant_id, run_id)).fetchone()
         return AgentRun.model_validate(row[0]) if row else None
+
+    def lock(self, run_id):
+        row = self.connection.execute("SELECT document FROM serviq_agent_runs WHERE tenant_id=%s AND agent_run_id::text=%s FOR UPDATE",
+            (self.tenant_id, run_id)).fetchone()
+        return AgentRun.model_validate(row[0]) if row else None
+
+    def events(self, run_id):
+        rows = self.connection.execute("SELECT document FROM serviq_runtime_events WHERE tenant_id=%s AND agent_run_id::text=%s ORDER BY sequence",
+            (self.tenant_id, run_id)).fetchall()
+        return [RuntimeEvent.model_validate(r[0]) for r in rows]
+
+    def append_event(self, run_id, event):
+        run = self.lock(run_id)
+        validate_event(event, run)
+        previous = next((e for e in self.events(run_id) if e.event_id == event.event_id), None)
+        if previous is not None:
+            if previous != event:
+                raise ValueError("RUNTIME_EVENT_CONFLICT")
+            return previous
+        self.connection.execute("""INSERT INTO serviq_runtime_events(tenant_id,agent_run_id,sequence,event_id,document)
+            SELECT %s,%s,COALESCE(MAX(sequence),0)+1,%s,%s FROM serviq_runtime_events
+            WHERE tenant_id=%s AND agent_run_id::text=%s""", (self.tenant_id, run_id, event.event_id,
+            Jsonb(event.model_dump(mode="json")), self.tenant_id, run_id))
+        return event
 
     def by_job(self, job_id):
         row = self.connection.execute("SELECT document FROM serviq_agent_runs WHERE tenant_id=%s AND job_id=%s",
@@ -132,6 +176,9 @@ class PostgresAgentRunRepository:
         return [AgentStep.model_validate(r[0]) for r in rows]
 
     def branch(self, run_id, agent_type):
+        results = [e.result for e in self.events(run_id) if e.kind == "RESULT" and e.agent_type == agent_type]
+        if results:
+            return results[-1]
         row = self.connection.execute("SELECT document FROM serviq_investigation_branches WHERE tenant_id=%s AND agent_run_id::text=%s AND agent_type=%s",
             (self.tenant_id, run_id, agent_type)).fetchone()
         return InvestigationResult.model_validate(row[0]) if row else None
@@ -156,6 +203,14 @@ def validate_branch(result, run):
             or result.store != pack.store or result.context_digest != pack.digest
             or result.branch_id != str(uuid5(NAMESPACE_URL, run.agent_run_id+":"+result.agent_type))):
         raise AccessError()
+
+
+def validate_event(event, run):
+    RuntimeEvent.model_validate(event.model_dump(mode="json"))
+    if run is None:
+        raise AccessError()
+    if event.result is not None:
+        validate_branch(event.result, run)
 
 
 def validate_step(step, run):

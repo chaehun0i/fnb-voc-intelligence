@@ -31,6 +31,7 @@ def harness_gate(intent, *, run, incident, principal, config, now, capabilities=
         agent, tool, capability = read
         pack = next((c for c in run.state.contexts if c.agent_type == agent), None)
         if (agent not in config.allowed_agent_types or tool not in config.allowed_tools
+                or (run.state.selection is not None and pack is None)
                 or (pack and (pack.store != incident.store or pack.category in config.blocked_categories
                     or pack.digest != intent.context_digest))):
             reason = "POLICY_DENIED"

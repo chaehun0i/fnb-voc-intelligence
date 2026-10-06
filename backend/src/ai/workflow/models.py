@@ -36,6 +36,28 @@ class LoopTrace(SafeModel):
     new_evidence: bool = False
 
 
+class RuntimeEvent(SafeModel):
+    event_id: str = Field(min_length=1, max_length=128)
+    kind: Literal["CLAIM", "RESULT", "CONTROL", "HARNESS"]
+    created_at: datetime
+    agent_type: InvestigationAgent | None = None
+    attempt: int = Field(default=1, strict=True, ge=1, le=3)
+    result: "InvestigationResult | None" = None
+    control: Literal["RUNNING", "PAUSED", "STOPPED", "MANUAL_TAKEOVER"] | None = None
+    actor_id: str | None = Field(default=None, max_length=128)
+    reason: TerminationReason | None = None
+
+    @model_validator(mode="after")
+    def integrity(self):
+        if self.created_at.utcoffset() is None:
+            raise ValueError("RUNTIME_EVENT_TIME_INVALID")
+        if (self.kind in {"CLAIM", "RESULT"} and self.agent_type is None
+                or self.kind == "RESULT" and (self.result is None or self.result.agent_type != self.agent_type)
+                or self.kind == "CONTROL" and (self.control is None or self.actor_id is None)):
+            raise ValueError("RUNTIME_EVENT_INVALID")
+        return self
+
+
 class AgentRunManifest(SafeModel):
     workflow_id: str
     workflow_version: str = Field(pattern=r"^(history-(v1|evidence-v2|capa-v3|verification-v4)|multi-investigation-v5)$")

@@ -25,6 +25,7 @@ from src.ai.workflow.agents import (
     isolated_branch,
     normalize_evidence,
 )
+from src.ai.workflow.controller import InvestigationLoop
 from src.ai.workflow.graph import history_graph, invoke_or_resume
 from src.ai.workflow.models import (
     AgentContextPack,
@@ -32,6 +33,7 @@ from src.ai.workflow.models import (
     AgentStep,
     ApprovalTrace,
     InvestigationResult,
+    LoopTrace,
     WorkflowState,
     WorkflowStatus,
     finish_run,
@@ -40,6 +42,7 @@ from src.ai.workflow.policy import (
     approval_policy_digest,
     build_context,
     evaluate_sufficiency,
+    loop_policy,
     run_manifest,
     select_agents,
     server_risk,
@@ -199,7 +202,7 @@ class HistoryWorkflows:
                 selection = select_agents(decision.result.investigation_agents,
                     self.source.capabilities(job.tenant_id, job.store, now), tenant_id=job.tenant_id,
                     store=job.store, category=category, allowed_agents=tool_agents, now=now)
-                if len(selection.selected) > resolved.effective.max_tool_calls:
+                if len(selection.selected) > resolved.effective.max_tool_calls and not resolved.effective.loop_enabled:
                     raise WorkflowNotAllowed()
                 contexts = tuple(build_context(a.agent_type, tenant_id=job.tenant_id,
                     incident_id=job.incident_id, store=job.store, category=category,
@@ -208,6 +211,8 @@ class HistoryWorkflows:
                     for a in selection.selected)
                 state = WorkflowState.model_validate(state.model_copy(update={"selection": selection,
                     "contexts": contexts}).model_dump(mode="json"))
+                if resolved.effective.loop_enabled:
+                    state = state.model_copy(update={"loop": LoopTrace(policy=loop_policy(resolved.effective))})
             run = AgentRun(agent_run_id=rid, tenant_id=job.tenant_id, incident_id=incident.id,
                 workflow_id=wid, job_id=job.job_id, correlation_id=job.correlation_id,
                 config_version=version.config_version, jev_decision_id=decision.decision_id,
@@ -610,7 +615,7 @@ class HistoryProcessor:
                                 raise AccessError()
                             with self.persistence.transaction(job.tenant_id) as uow:
                                 previous = uow.agent_runs.branch(run.agent_run_id, pack.agent_type)
-                                if previous:
+                                if previous and run.state.loop is None:
                                     return previous
                             def action(context, bid):
                                 if context.agent_type != "HISTORY":
@@ -628,14 +633,25 @@ class HistoryProcessor:
                                     findings=found.findings, evidence_candidates=found.evidence_candidates,
                                     evidence_gaps=found.evidence_gaps, started_at=started, completed_at=self.clock(),
                                     uncertainty="OBSERVATIONS_NOT_CAUSE", context_digest=pack.digest)
-                            result = isolated_branch(action, pack, branch_id, clock=self.clock,
-                                deadline=run.started_at+timedelta(seconds=resolved.effective.timeout_seconds))
+                            def bounded_action(context, bid):
+                                return isolated_branch(action, context, bid, clock=self.clock,
+                                    deadline=run.started_at+timedelta(seconds=resolved.effective.timeout_seconds))
+                            if run.state.loop:
+                                return InvestigationLoop(self.persistence, run.agent_run_id, job.tenant_id,
+                                    self.source, self.clock).execute(pack, branch_id, bounded_action)
+                            result = bounded_action(pack, branch_id)
                             check()
                             with self.persistence.transaction(job.tenant_id) as uow:
                                 return uow.agent_runs.append_branch(run.agent_run_id, result)
 
                         def collect(state):
                             result = investigation_fan_in(state)
+                            if run.state.loop:
+                                with self.persistence.transaction(job.tenant_id) as uow:
+                                    stored = uow.agent_runs.get(run.agent_run_id).state
+                                loop = stored.loop.model_copy(update={"termination": stored.loop.termination or "COMPLETED"})
+                                result = result.model_copy(update={"iteration": stored.iteration,
+                                    "tool_call_count": stored.tool_call_count, "loop": loop})
                             persist(result)
                             observe("history_investigation", state, result, 0)
                             return result

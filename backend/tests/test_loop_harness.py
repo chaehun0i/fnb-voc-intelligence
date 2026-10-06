@@ -88,3 +88,73 @@ def test_harness_uses_canonical_scope_policy_capability_and_approval():
     assert harness_gate(execution, **args).reason == "APPROVAL_REQUIRED"
     with pytest.raises(ValidationError):
         HarnessIntent.model_validate(intent.model_dump() | {"risk_hint": "LOW", "tenant_id": "other"})
+
+
+def loop_setup(max_operations=20):
+    from dataclasses import replace
+
+    from src.ai.workflow.models import LoopTrace
+    from tests.test_multi_agent import NOW, multi_setup
+    p, service, source, job = multi_setup(all_agents=True)
+    with p.transaction("t") as uow:
+        old = uow.configs.current()
+        uow.configs.append(replace(old, config_version=old.config_version+1, parent_version=old.config_version,
+            config=replace(old.config, loop_enabled=True, max_tool_calls=max_operations)), old.config_version)
+    # Prepare the existing explicitly authorized v5 job; pin the loop snapshot independently.
+    run = service.prepare(job)[0]
+    loop = LoopTrace(policy=loop_policy(replace(old.config, loop_enabled=True, max_tool_calls=max_operations)))
+    with p.transaction("t") as uow:
+        run = uow.agent_runs.save(run.model_copy(update={"state": run.state.model_copy(update={"loop": loop})}))
+    return p, source, run, NOW
+
+
+def test_bounded_retry_and_no_new_evidence_preserves_append_only_results():
+    from uuid import NAMESPACE_URL, uuid5
+
+    from src.ai.workflow.agents import branch_gap
+    from src.ai.workflow.controller import InvestigationLoop
+    p, source, run, now = loop_setup()
+    pack = run.state.contexts[0]
+    bid = str(uuid5(NAMESPACE_URL, run.agent_run_id+":"+pack.agent_type))
+    calls = []
+    def unavailable(context, branch_id):
+        calls.append(branch_id)
+        return branch_gap(context, branch_id, lambda: now, code="SOURCE_UNAVAILABLE", status="UNAVAILABLE", retryable=True)
+    controller = InvestigationLoop(p, run.agent_run_id, "t", source, lambda: now)
+    first = controller.execute(pack, bid, unavailable)
+    assert len(calls) == 2 and first.status == "UNAVAILABLE"
+    assert controller.execute(pack, bid, unavailable) == first and len(calls) == 2
+    with p.transaction("t") as uow:
+        saved = uow.agent_runs.get(run.agent_run_id)
+        assert saved.state.loop.termination == "NO_NEW_EVIDENCE"
+        assert saved.state.iteration == 2 and saved.state.tool_call_count == 2
+        assert len(uow.agent_runs.events(run.agent_run_id)) == 4
+
+
+def test_operation_budget_and_uncertain_claim_are_fail_closed():
+    from uuid import NAMESPACE_URL, uuid5
+
+    from src.ai.workflow.agents import branch_gap
+    from src.ai.workflow.controller import ControlInterrupted, InvestigationLoop
+    from src.ai.workflow.models import RuntimeEvent
+    p, source, run, now = loop_setup(1)
+    controller = InvestigationLoop(p, run.agent_run_id, "t", source, lambda: now)
+    first, second = run.state.contexts[:2]
+    calls = []
+    def action(pack, bid):
+        calls.append(bid)
+        return branch_gap(pack, bid, lambda: now, code="NO_EVIDENCE_FOUND", status="NO_EVIDENCE")
+    for pack in (first, second):
+        controller.execute(pack, str(uuid5(NAMESPACE_URL, run.agent_run_id+":"+pack.agent_type)), action)
+    assert len(calls) == 1
+    with p.transaction("t") as uow:
+        assert uow.agent_runs.get(run.agent_run_id).state.loop.termination == "BUDGET_EXHAUSTED"
+    p, source, run, now = loop_setup()
+    pack = run.state.contexts[0]
+    with p.transaction("t") as uow:
+        uow.agent_runs.append_event(run.agent_run_id, RuntimeEvent(event_id="uncertain", kind="CLAIM",
+            agent_type=pack.agent_type, created_at=now))
+    with pytest.raises(ControlInterrupted, match="INCOMPLETE"):
+        InvestigationLoop(p, run.agent_run_id, "t", source, lambda: now).execute(pack,
+            str(uuid5(NAMESPACE_URL, run.agent_run_id+":"+pack.agent_type)), action)
+    assert len(calls) == 1
