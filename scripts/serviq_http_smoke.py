@@ -366,6 +366,10 @@ def main() -> None:
         raise SystemExit("로컬 테스트 스택의 SERVIQ_TEST_API_BASE_URL을 명시해 주세요.")
     client = SmokeClient(base_url)
     verify_frontend(client)
+    verification_fixture = os.getenv("SERVIQ_VERIFICATION_HTTP_FIXTURE")
+    if verification_fixture:
+        verify_verification_http(client, json.loads(verification_fixture))
+        return
     fixture = os.getenv("SERVIQ_CAPA_HTTP_FIXTURE")
     if fixture:
         # 기존 전체 smoke는 CI의 선행 단계에서 실행합니다. CAPA Worker가
@@ -375,6 +379,37 @@ def main() -> None:
     verify_incident_flow(client)
     verify_settings_flow(client)
     verify_jev_flow(client)
+
+
+def verify_verification_http(client, fixture):
+    identifier = str(UUID(fixture["incident_id"]))
+    run_id = str(UUID(fixture["agent_run_id"]))
+    expected = {"PASS": "RESOLVED", "FAIL": "REOPENED", "INCONCLUSIVE": "VERIFYING"}[fixture["outcome"]]
+    path = f"/incidents/{identifier}/agent-runs/{run_id}"
+    waiting = client.api("GET", path)
+    check(waiting["status"] == "WAITING_APPROVAL" and waiting["workflow_version"] == "history-verification-v4", "durable 내부 검증 실행의 승인 대기가 필요합니다.")
+    review_path = "/reviews/"+waiting["approval"]["approval_id"]
+    review = client.api("GET", review_path)
+    body = {"reason": "합성 내부 검토 기록을 확인했습니다.", "expected_version": review["approval"]["version"]}
+    key = "http-verification-"+identifier
+    approved = client.api("POST", review_path+"/approve", body, idempotency_key=key)
+    check(client.api("POST", review_path+"/approve", body, idempotency_key=key) == approved, "Review 재전송은 멱등해야 합니다.")
+    detail = waiting
+    for _ in range(30):
+        detail = client.api("GET", path)
+        if detail["status"] in {"COMPLETED", "FAILED"}:
+            break
+        time.sleep(.5)
+    check(detail["status"] == "COMPLETED", "실제 resume Worker가 검증을 완료해야 합니다.")
+    check(detail["execution"]["execution_mode"] == "INTERNAL_RECORD_ONLY", "외부 실행으로 기록하면 안 됩니다.")
+    check(detail["verification"]["observation_mode"] == "SIMULATED" and detail["verification"]["result"] == fixture["outcome"], "합성 검토 Evidence 기준의 서버 판정이 필요합니다.")
+    check(detail["resulting_incident_status"] == expected and client.api("GET", "/incidents/"+identifier)["status"] == expected, "실제 Domain 최종 상태가 일치해야 합니다.")
+    check(detail["config_version"] == fixture["config_version"], "Run Config snapshot을 유지해야 합니다.")
+    check(len(detail["verification_evidence"]) == 1 and len(detail["steps"]) == 15, "중복되지 않은 근거와 전체 Trace가 필요합니다.")
+    check(not any(v in json.dumps(detail) for v in ("SYNTHETIC-RAW-SENTINEL", "raw_prompt", "raw_response", "delegated_roles")), "민감한 원문/권한 정보가 노출되면 안 됩니다.")
+    jobs = client.api("GET", "/jobs?"+urlencode({"incident_id": identifier}))
+    check(len([j for j in jobs if j["type"] == "incident.history_resume"]) == 1, "resume Job이 중복되면 안 됩니다.")
+    print(f"[통과] nginx→Review 승인→실제 Worker/checkpoint→내부 실행→Verification {fixture['outcome']}→{expected} · 외부 변경 0")
 
 
 def verify_capa_http(client, fixture):

@@ -131,6 +131,8 @@ jobs:
         run: uv run --extra dev python -m scripts.serviq_llm_gateway_smoke
       - name: LangGraph History·Evidence/RCA/CAPA·승인 interrupt/resume·재시작·Tenant 검증
         run: uv run --extra dev python -m scripts.serviq_langgraph_smoke
+      - name: 내부 실행·Verification Golden PASS/FAIL/INCONCLUSIVE·재시작 검증
+        run: uv run --extra dev python -m scripts.serviq_verification_smoke
 
   docker:
     name: 이미지와 Compose 운영 흐름 검증
@@ -177,6 +179,15 @@ jobs:
         run: |
           fixture=$(docker compose --project-name serviq-ci --profile serviq exec -T --workdir /app api sh -c 'SERVIQ_TEST_DATABASE_URL="$SERVIQ_DATABASE_URL" python -m scripts.serviq_langgraph_smoke --seed-capa-http')
           SERVIQ_CAPA_HTTP_FIXTURE="$fixture" python -m scripts.serviq_http_smoke
+      - name: nginx Golden 내부 실행·Verification 세 경로 검증
+        shell: bash
+        run: |
+          for outcome in PASS FAIL INCONCLUSIVE; do
+            docker compose --project-name serviq-ci --profile serviq stop worker
+            fixture=$(docker compose --project-name serviq-ci --profile serviq exec -T --workdir /app api sh -c "SERVIQ_TEST_DATABASE_URL=\"\$SERVIQ_DATABASE_URL\" python -m scripts.serviq_verification_smoke --seed-http $outcome")
+            docker compose --project-name serviq-ci --profile serviq start worker
+            SERVIQ_VERIFICATION_HTTP_FIXTURE="$fixture" python -m scripts.serviq_http_smoke
+          done
       - name: Worker의 실제 Outbox 완료 기록 확인
         shell: bash
         run: |

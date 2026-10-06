@@ -335,7 +335,7 @@ def main():
         verify(dsn)
 
 
-def seed_capa_http(dsn):
+def seed_capa_http(dsn, *, internal_execution=False):
     """공개 실행 API 없이 검증 전용 Application에서 Job만 등록합니다."""
     from src.application.incidents.service import IncidentService
     migrate(dsn)
@@ -347,6 +347,7 @@ def seed_capa_http(dsn):
         previous = uow.configs.current()
         config = replace(previous.config if previous else RuntimeConfig(), jev_enabled=True,
             auto_investigation=True, auto_rca_draft=True, auto_capa_draft=True,
+            internal_execution_enabled=internal_execution,
             allowed_tools=("voc.search",), hosted_ai_allowed=False, llm_enabled_providers=(),
             llm_models=(), separation_of_duties=True, required_roles=("REVIEWER", "HQ_ADMIN"))
         version = (previous.config_version if previous else 0)+1

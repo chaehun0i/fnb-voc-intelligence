@@ -1,0 +1,10 @@
+{
+  "dataset_version": "serviq-day26-v1",
+  "execution_mode": "INTERNAL_RECORD_ONLY",
+  "observation_mode": "SIMULATED",
+  "cases": [
+    {"case_id": "verification_pass", "scenario_type": "PASS", "initial_incident": "quality/MEDIUM/INVESTIGATING", "expected_required_evidence": ["two authorized historical VOC reviews", "post-execution internal simulated review record", "additional evidence references"], "acceptable_root_causes": ["REPEATED_HISTORY_SIGNAL"], "approval_required": true, "expected_final_status": "RESOLVED", "notes": "Synthetic internal review exists with additional references; no physical quality or external action claim."},
+    {"case_id": "verification_fail", "scenario_type": "FAIL", "initial_incident": "quality/MEDIUM/INVESTIGATING", "expected_required_evidence": ["two authorized historical VOC reviews", "post-execution record explicitly observing review absent"], "acceptable_root_causes": ["REPEATED_HISTORY_SIGNAL"], "approval_required": true, "expected_final_status": "REOPENED", "notes": "Explicit synthetic criterion failure, not missing evidence."},
+    {"case_id": "verification_inconclusive", "scenario_type": "INCONCLUSIVE", "initial_incident": "quality/MEDIUM/INVESTIGATING", "expected_required_evidence": ["two authorized historical VOC reviews", "post-execution record with unknown review observation"], "acceptable_root_causes": ["REPEATED_HISTORY_SIGNAL"], "approval_required": true, "expected_final_status": "VERIFYING", "notes": "Unknown or absent post-action observation cannot produce PASS; no automatic CLOSED."}
+  ]
+}

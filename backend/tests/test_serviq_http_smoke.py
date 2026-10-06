@@ -62,6 +62,19 @@ def test_http_smoke_requires_explicit_environment_before_any_request(
         smoke_script["main"]()
 
 
+def test_verification_http_mode_preserves_preceding_full_regression(smoke_script, monkeypatch):
+    calls = []
+    namespace = smoke_script["main"].__globals__
+    fixture = {"incident_id": "fixture", "outcome": "PASS"}
+    monkeypatch.setenv("SERVIQ_TEST_API_BASE_URL", "http://127.0.0.1:18080/api/v1")
+    monkeypatch.setenv("SERVIQ_VERIFICATION_HTTP_FIXTURE", json.dumps(fixture))
+    for name in ("verify_frontend", "verify_incident_flow", "verify_settings_flow", "verify_jev_flow", "verify_capa_http"):
+        monkeypatch.setitem(namespace, name, lambda *args, label=name: calls.append(label))
+    monkeypatch.setitem(namespace, "verify_verification_http", lambda client, body: calls.append(("verification", body)))
+    smoke_script["main"]()
+    assert calls == ["verify_frontend", ("verification", fixture)]
+
+
 @pytest.mark.parametrize("capa", [False, True])
 def test_http_smoke_modes_preserve_independent_validation(smoke_script, monkeypatch, capa):
     calls = []
