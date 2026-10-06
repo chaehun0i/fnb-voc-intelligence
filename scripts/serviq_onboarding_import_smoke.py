@@ -73,8 +73,9 @@ def verify(dsn):
     status = TestClient(restarted).get("/api/v1/data/onboarding", headers=h).json()
     assert status["checklist"]["results"] and not status["first_run"]
     # Canonical file input remains separate from its temporary preview.
-    csv = "매장명,자료ID,발생일시,VOC 내용,평점\n체험 매장,file-1,2026-10-07,품질 점검 필요,2\n"
-    preview = client.post("/api/v1/data/preview", headers=h, data={"store": "체험 매장", "kind": "VOC"},
+    assert client.post("/api/v1/data/stores", headers={**h, "Idempotency-Key": "file-store"}, json={"store": "파일 매장"}).status_code == 200
+    csv = "매장명,자료ID,발생일시,VOC 내용,평점\n파일 매장,file-1,2026-10-07,품질 점검 필요,2\n"
+    preview = client.post("/api/v1/data/preview", headers=h, data={"store": "파일 매장", "kind": "VOC"},
         files={"file": ("voc.csv", csv.encode(), "text/csv")}).json()
     assert preview["valid"]
     with p.transaction(tenant) as uow:

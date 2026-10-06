@@ -211,3 +211,20 @@ def test_external_link_and_macro_archives_are_rejected():
             archive.writestr(path, "untrusted")
         assert upload(registered(), output.getvalue(), filename="unsafe.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").status_code == 422
+
+
+def test_demo_and_operational_imports_cannot_be_mixed_in_one_store():
+    c = registered()
+    assert c.post("/api/v1/data/sample", headers=headers(key="sample"),
+        json={"store": "허용 매장", "confirmed": True}).status_code == 200
+    preview = upload(c).json()
+    assert c.post("/api/v1/data/imports/"+preview["preview_id"]+"/confirm", headers=headers(key="confirm"),
+        json={"digest": preview["digest"], "confirmed": True}).status_code == 409
+    with c.app.state.access_persistence.transaction("a") as uow:
+        assert len(uow.intake.list("SOURCE")) == 4 and all(r["sample"] for r in uow.intake.list("SOURCE"))
+    real = registered()
+    preview = upload(real).json()
+    assert real.post("/api/v1/data/imports/"+preview["preview_id"]+"/confirm", headers=headers(key="confirm"),
+        json={"digest": preview["digest"], "confirmed": True}).status_code == 200
+    assert real.post("/api/v1/data/sample", headers=headers(key="sample"),
+        json={"store": "허용 매장", "confirmed": True}).status_code == 409

@@ -62,7 +62,7 @@ function OnboardingHttp() {
       {choice && <p role="status">선택한 방법: {{ sample: "샘플 데이터", template: "엑셀 템플릿", file: "내 파일" }[choice]} · 먼저 대상 매장을 확인해 주세요.</p>}
       {choice === "template" && <><p>매장·VOC·판매_거래·재고 Sheet와 입력가이드를 제공합니다. 거래·재고는 관측 자료 입력이며 POS/ERP 연결이 아닙니다.</p><Button disabled={pending} onClick={template}>공식 Excel 템플릿 다운로드</Button></>}
       {choice === "sample" && status.can_import && <div><label>Demo 대상 매장 <select value={sampleStore} onChange={(e) => { setSampleStore(e.target.value); setSampleConfirmed(false); }}><option value="">매장 선택</option>{status.stores.map((s) => <option key={s}>{s}</option>)}</select></label>
-        <p>Demo VOC 2건, 환불 관측 1건, 재고 부족 관측 1건을 추가합니다. 실제 개인정보나 POS/ERP 연결은 없으며 기존 자료는 덮어쓰지 않습니다. 같은 매장의 Demo는 한 번만 생성됩니다.</p>
+        <p>운영 자료가 없는 별도의 체험 매장을 선택해 주세요. Demo VOC 2건, 환불 관측 1건, 재고 부족 관측 1건을 추가합니다. 실제 개인정보나 POS/ERP 연결은 없습니다. Demo와 운영 파일은 같은 매장에 혼합하지 않으며 같은 매장의 Demo는 한 번만 생성됩니다.</p>
         <label><input type="checkbox" checked={sampleConfirmed} onChange={(e) => setSampleConfirmed(e.target.checked)} />Demo 데이터 추가 내용을 확인했습니다.</label>
         <Button disabled={pending || !sampleStore || !sampleConfirmed} onClick={sample}>확인 후 샘플 준비</Button></div>}
     </article>

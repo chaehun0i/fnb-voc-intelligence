@@ -193,6 +193,7 @@ class DataIntake:
         existing = uow.intake.get("IMPORT", digest)
         if existing:
             return existing
+        uow.intake.require_separate_dataset(store, sample)
         refs = uow.intake.save_records(records, sample=sample)
         receipt = {"import_id": digest, "store": store, "sample": sample, "row_count": len(refs),
             "source_refs": refs, "created_at": self.clock().isoformat()}

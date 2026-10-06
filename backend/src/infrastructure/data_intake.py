@@ -80,6 +80,15 @@ class IntakeRepository:
                         (self.tenant_id, record["store"], agent, ref, observation.observed_at, Jsonb(observation.model_dump(mode="json"))))
         return refs
 
+    def require_separate_dataset(self, store, sample):
+        if self.connection:
+            conflict = self.connection.execute("SELECT EXISTS(SELECT 1 FROM serviq_data_intake WHERE tenant_id=%s AND kind='SOURCE' AND store=%s AND (document->>'sample')::boolean IS DISTINCT FROM %s)",
+                (self.tenant_id, store, sample)).fetchone()[0]
+        else:
+            conflict = any(r["store"] == store and r["sample"] != sample for r in self.list("SOURCE"))
+        if conflict or (sample and store in self.source_stores()):
+            raise IncidentConflict("Demo와 운영 자료는 같은 매장에 혼합하지 않습니다. 별도의 체험 매장 또는 운영 매장을 선택해 주세요.")
+
     def source_stores(self):
         if self.connection:
             return [r[0] for r in self.connection.execute("SELECT DISTINCT store FROM serviq_history_sources WHERE tenant_id=%s UNION SELECT DISTINCT store FROM serviq_operational_observations WHERE tenant_id=%s",
