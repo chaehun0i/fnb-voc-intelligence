@@ -25,11 +25,11 @@ Day 20 결과는 이 작업 브랜치와 PR의 구현이고 병합 전부터 mai
 | --- | --- |
 | `backend/src/domain/config/` | 불변 RuntimeConfig/ConfigVersion, 결정적인 안전 검증 |
 | `backend/src/application/config/` | Tenant 조회·서버 diff·변경·복원 Command |
-| `backend/src/application/ports/config_repository.py` | 설정 저장소 계약과 버전 충돌 |
+| `backend/src/application/ports/repositories.py` | 설정 저장소 계약과 버전 충돌 |
 | `backend/src/infrastructure/repositories/config_repository.py` | PostgreSQL append-only 저장과 명시적 memory 테스트 구현 |
 | `backend/src/infrastructure/access_unit_of_work.py` | Config·Audit·Outbox·Idempotency를 한 트랜잭션으로 기록 |
 | `backend/src/api/routes/settings.py`, `schemas/settings.py` | 인증·DTO·4개 Settings Endpoint |
-| `frontend/src/api/settings/` | Mock/HTTP Adapter와 응답·오류 검증 |
+| `frontend/src/features/settings/` | Mock/HTTP Adapter와 응답·오류 검증 |
 | `frontend/src/features/settings/ControlPlaneSettings.tsx` | 한국어 설정·해석값·이력·복원 화면 |
 | `scripts/serviq_settings_smoke.py` | 실제 PostgreSQL 보안·버전·원자 저장 회귀 |
 

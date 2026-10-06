@@ -22,7 +22,7 @@ Day 16의 실제 Incident Runtime 위에 요청자 → 조직·역할 검증 →
 | 로그인·회원 범위 | 실제 OIDC/SSO·JWT 검증·계정/조직 membership 저장은 미연결 | PARTIAL / PLANNED |
 | Job/Queue | 독립 Job 운영 API와 실제 Queue UI는 아직 없음. 기존 Outbox Worker만 실제 동작 | PLANNED |
 
-주요 코드는 backend/src/application/security·approvals·commands·ports, backend/src/domain/approvals, backend/src/infrastructure/auth·repositories·access_unit_of_work.py, backend/src/api/routes/reviews.py·schemas/reviews.py, frontend/src/api/reviews와 features/reviews에 있습니다.
+주요 코드는 backend/src/application/security·approvals·commands·ports, backend/src/domain/approvals, backend/src/infrastructure/auth·repositories·access_unit_of_work.py, backend/src/api/routes/reviews.py·schemas/reviews.py, frontend/src/features/reviews/api.ts와 features/reviews에 있습니다.
 
 Principal의 역할과 조직은 서버 설정에서 결정합니다. 브라우저의 X-Role/X-Tenant-ID 같은 값을 권한으로 신뢰하지 않습니다. HQ_ADMIN은 전체 업무 역할, QA_MANAGER/OPS_MANAGER/STORE_MANAGER는 운영, REVIEWER는 승인·반려, AUDITOR는 읽기를 지원합니다. STORE_MANAGER는 지정한 매장만 접근하며 검토자는 조사 명령을 실행하지 못합니다. 실제 관리 설정 API는 이번 범위가 아닙니다.
 
