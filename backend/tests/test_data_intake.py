@@ -157,3 +157,57 @@ def test_sample_is_tenant_scoped_marked_and_version_idempotent():
     with c.app.state.access_persistence.transaction("a") as uow:
         rows = uow.intake.list("SOURCE")
         assert len(rows) == 4 and all(r["sample"] for r in rows)
+
+
+def test_first_analysis_uses_real_commands_jev_and_persistent_job():
+    c = registered()
+    receipt = c.post("/api/v1/data/sample", json={"store": "허용 매장", "confirmed": True}, headers=headers(key="sample")).json()
+    path = "/api/v1/data/imports/"+receipt["import_id"]+"/analysis"
+    assert c.post(path, json={"topic": "품질"}, headers=headers(key="analysis")).status_code == 409
+    assert c.post("/api/v1/data/initialize-runtime", json={"confirmed": True}, headers=headers(key="init")).status_code == 200
+    first = c.post(path, json={"topic": "품질"}, headers=headers(key="analysis"))
+    assert first.status_code == 200, first.text
+    assert c.post(path, json={"topic": "품질"}, headers=headers(key="analysis")).json() == first.json()
+    assert c.post(path, json={"topic": "다른 주제"}, headers=headers(key="analysis")).status_code == 409
+    assert c.post(path, json={"topic": "품질"}, headers=headers("other")).status_code == 404
+    status = c.get("/api/v1/data/onboarding", headers=headers()).json()
+    assert status["checklist"]["incident"] and status["analysis_configured"]
+    assert status["imports"][0]["incident_id"] == first.json()["incident_id"]
+    assert not status["can_initialize_runtime"]
+    with c.app.state.access_persistence.transaction("a") as uow:
+        job = uow.jobs.get(first.json()["job_id"])
+        assert job.job_type == "incident.history_investigation" and job.delegated_principal_id == "admin"
+        assert uow.decisions.get(job.payload_ref).incident_id == first.json()["incident_id"]
+        assert not uow.configs.current().config.hosted_ai_allowed
+
+
+def test_source_conflict_rolls_back_without_overwriting_existing_data():
+    c = registered()
+    def confirm(preview, key):
+        return c.post("/api/v1/data/imports/"+preview["preview_id"]+"/confirm", headers=headers(key=key),
+            json={"digest": preview["digest"], "confirmed": True})
+    assert confirm(upload(c).json(), "one").status_code == 200
+    changed = upload(c, CSV.replace("품질 문제가 반복됩니다.", "다른 내용으로 변경")).json()
+    assert confirm(changed, "two").status_code == 409
+    with c.app.state.access_persistence.transaction("a") as uow:
+        assert len(uow.intake.list("SOURCE")) == 1
+        assert uow.intake.list("SOURCE")[0]["text"] == "품질 문제가 반복됩니다."
+
+
+def test_ambiguous_columns_require_explicit_mapping_and_store_cannot_be_forged():
+    c = registered()
+    ambiguous = CSV.replace("VOC 내용,평점", "VOC 내용,고객의견,평점").replace("반복됩니다.,1", "반복됩니다.,다른 의견,1")
+    result = upload(c, ambiguous).json()
+    assert not result["valid"] and any(m["warning"] for m in result["sheets"][0]["mapping"])
+    assert upload(c, ambiguous, mapping={"VOC": {"VOC 내용": "text", "고객의견": None}}).json()["valid"]
+    assert not upload(c, CSV.replace("허용 매장", "비허용 매장")).json()["valid"]
+
+
+def test_external_link_and_macro_archives_are_rejected():
+    from zipfile import ZIP_DEFLATED, ZipFile
+    for path in ("xl/externalLinks/externalLink1.xml", "xl/vbaProject.bin", "../traversal.xml"):
+        output = BytesIO()
+        with ZipFile(output, "w", ZIP_DEFLATED) as archive:
+            archive.writestr(path, "untrusted")
+        assert upload(registered(), output.getvalue(), filename="unsafe.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").status_code == 422

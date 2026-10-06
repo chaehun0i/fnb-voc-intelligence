@@ -2,9 +2,9 @@
 import hashlib
 import json
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
-from src.application.incidents.service import IncidentNotFound
+from src.application.incidents.service import IncidentNotFound, IncidentService
 from src.application.intake_schema import IntakeCommandResult, validate_tables
 from src.application.ports.repositories import IncidentConflict
 from src.application.security.authorization import allowed, require
@@ -19,7 +19,7 @@ class DataIntake:
 
     def audit(self, uow, action, identifier):
         p, now = self.context.principal, self.clock()
-        uow.audit.append(AuditRecord(hashlib.sha256((action+identifier+now.isoformat()).encode()).hexdigest(),
+        uow.audit.append(AuditRecord(str(uuid4()),
             p.tenant_id, p.principal_id, action, "data_intake", identifier, "SUCCESS",
             self.context.request_id, self.context.correlation_id, now.isoformat()))
 
@@ -35,10 +35,19 @@ class DataIntake:
             stores.update(source_stores)
             imports = [i for i in uow.intake.list("IMPORT") if allowed(p, "read", i["store"])]
             has_data = bool(incidents or imports or source_stores)
+            config = uow.configs.current()
+            analyses = [a for a in uow.intake.list("ANALYSIS") if allowed(p, "read", a["store"])]
+            linked = {a["import_id"]: a["incident_id"] for a in analyses}
+            runs = [run for item in incidents for run in uow.agent_runs.history(item.id, 10, 0)]
             return {"stores": sorted(stores), "has_data": has_data, "first_run": not has_data,
+                "analysis_configured": bool(config and config.config.jev_enabled and config.config.auto_investigation
+                    and "voc.search" in config.config.allowed_tools and "HISTORY" in config.config.allowed_agent_types),
+                "can_initialize_runtime": config is None and allowed(p, "admin"),
+                "checklist": {"store": bool(stores), "data": has_data, "incident": bool(incidents),
+                    "investigation": bool(runs), "results": any(r.state.findings for r in runs)},
                 "import_count": len(imports), "incident_count": len(incidents),
-                "can_import": allowed(p, "operate"), "imports": [{k: i[k] for k in
-                    ("import_id", "store", "sample", "row_count", "created_at")}
+                "can_import": allowed(p, "operate"), "imports": [{**{k: i[k] for k in
+                    ("import_id", "store", "sample", "row_count", "created_at")}, "incident_id": linked.get(i["import_id"])}
                     for i in sorted(imports, key=lambda i: i["created_at"], reverse=True)[:50]]}
 
     def add_store(self, store):
@@ -105,6 +114,74 @@ class DataIntake:
                 IntakeCommandResult(kind="IMPORT", identifier=receipt["import_id"], store=draft["store"]))
             uow.intake.delete("PREVIEW", identifier)
             return receipt
+
+    def initialize_runtime(self):
+        """명시적으로 동의한 관리자만, 기존 설정이 없는 조직에 안전한 초기값을 만듭니다."""
+        from src.application.config.commands import SettingsCommands
+        from src.domain.config.models import RuntimeConfig
+        require(self.context.principal, "admin")
+        config = RuntimeConfig(jev_enabled=True, auto_investigation=True, auto_rca_draft=True,
+            auto_capa_draft=True, multi_agent_enabled=True, loop_enabled=True,
+            allowed_agent_types=("HISTORY", "TRANSACTION", "INVENTORY"),
+            allowed_tools=("voc.search", "transaction.search", "inventory.snapshot"))
+        version = SettingsCommands(self.persistence, self.context, clock=self.clock).update(
+            config, 0, "첫 실행: 외부 AI 및 외부 실행 없는 조사 설정")
+        return {"config_version": version.config_version}
+
+    def analyze(self, import_id, topic):
+        """확인된 Import만 조사 대상으로 연결하며 임의 Agent/Prompt 입력을 받지 않습니다."""
+        from src.ai.decision.service import ShadowDecisions
+        from src.ai.workflow.runtime import HistoryWorkflows, WorkflowNotAllowed
+        from src.domain.incidents.enums import Severity
+        from src.domain.incidents.models import Evidence
+        from src.domain.jobs.models import Job
+        p, now = self.context.principal, self.clock()
+        require(p, "operate")
+        if not self.context.idempotency_key:
+            raise AccessError("IDEMPOTENCY_KEY_REQUIRED", 422)
+        with self.persistence.transaction(p.tenant_id) as uow:
+            receipt = uow.intake.get("IMPORT", import_id)
+            if receipt is None:
+                raise IncidentNotFound()
+            require(p, "operate", receipt["store"])
+            fingerprint = hashlib.sha256(json.dumps([import_id, topic]).encode()).hexdigest()
+            uow.idempotency.claim(p.principal_id, "intake_analyze", self.context.idempotency_key, fingerprint)
+            config = uow.configs.current()
+            if not config or not config.config.jev_enabled or not config.config.auto_investigation:
+                raise IncidentConflict("운영 설정에서 Jev와 자동 조사를 활성화해 주세요.")
+            uow.intake.lock_store(receipt["store"])
+            link = uow.intake.get("ANALYSIS", import_id)
+            if link and link["topic"] != topic:
+                raise IncidentConflict("이 Import의 조사 주제는 이미 고정되었습니다. 연결된 사건을 확인해 주세요.")
+            identity = str(uuid5(NAMESPACE_URL, "intake-analysis:"+p.tenant_id+":"+import_id))
+            if not link:
+                commands = IncidentService(uow.incidents, self.clock, lambda: identity, p)
+                incident = commands.create(topic, Severity.MEDIUM, receipt["store"], "데이터 담당자")
+                incident = commands.triage(identity, expected_version=incident.version)
+                incident = commands.investigate(identity, expected_version=incident.version)
+                for index, ref in enumerate(receipt["source_refs"][:20]):
+                    incident = commands.add_evidence(identity, Evidence("intake-ref-"+str(index), ref["source_ref"],
+                        ref["agent_type"], "가져온 자료의 출처 참조", 1.0), expected_version=incident.version)
+                link = {"import_id": import_id, "store": receipt["store"], "incident_id": identity, "topic": topic}
+                uow.intake.put("ANALYSIS", import_id, receipt["store"], link)
+                self.audit(uow, "first_incident", identity)
+            snapshot_id = str(uuid5(NAMESPACE_URL, "intake-snapshot:"+identity))
+            snapshot = uow.jobs.get(snapshot_id) or uow.jobs.save(Job(snapshot_id, p.tenant_id,
+                "incident.snapshot", self.context.correlation_id, now, now, incident_id=identity, store=receipt["store"]))
+            uow.idempotency.complete(p.principal_id, "intake_analyze", self.context.idempotency_key,
+                IntakeCommandResult(kind="IMPORT", identifier=import_id, store=receipt["store"]))
+            existing = uow.decisions.by_job(snapshot_id)
+            job = uow.jobs.get(str(uuid5(NAMESPACE_URL, "history:"+p.tenant_id+":"+existing.decision_id))) if existing else None
+            if job:
+                return {"incident_id": identity, "job_id": job.job_id, "status": str(job.status)}
+        decision = ShadowDecisions(self.persistence, clock=self.clock).record(snapshot)
+        if decision is None:
+            raise IncidentConflict("현재 정책에서 조사를 시작할 수 없습니다. 운영 설정을 확인해 주세요.")
+        try:
+            job = HistoryWorkflows(self.persistence, clock=self.clock).enqueue(self.context, identity, decision.decision_id)
+        except WorkflowNotAllowed as exc:
+            raise IncidentConflict("현재 사건 상태 또는 정책에서 자동 조사를 허용하지 않습니다.") from exc
+        return {"incident_id": identity, "job_id": job.job_id, "status": str(job.status)}
 
     def _import(self, uow, records, store, *, sample):
         if not records or not any(r["kind"] != "매장" for r in records):

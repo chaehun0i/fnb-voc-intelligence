@@ -1,6 +1,6 @@
 import { apiBaseUrl, authHeaders, commandKey } from "../../shared/api";
 
-export type IntakeStatus = { stores: string[]; has_data: boolean; first_run: boolean; can_import: boolean; import_count: number; incident_count: number; imports: Array<{ import_id: string; store: string; sample: boolean; row_count: number; incident_id?: string }> };
+export type IntakeStatus = { stores: string[]; has_data: boolean; first_run: boolean; can_import: boolean; analysis_configured: boolean; can_initialize_runtime: boolean; checklist: Record<string, boolean>; import_count: number; incident_count: number; imports: Array<{ import_id: string; store: string; sample: boolean; row_count: number; incident_id?: string }> };
 export async function dataRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiBaseUrl}/data${path}`, { ...init, headers: { ...authHeaders(), ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }), ...init.headers } });
   if (!response.ok) {
@@ -16,6 +16,8 @@ export const intakeStatus = async () => {
 };
 export const registerStore = (store: string) => dataRequest<{ store: string }>("/stores", { method: "POST", headers: { "Idempotency-Key": commandKey() }, body: JSON.stringify({ store }) });
 export const addSample = (store: string, key: string) => dataRequest<ImportReceipt>("/sample", { method: "POST", headers: { "Idempotency-Key": key }, body: JSON.stringify({ store, confirmed: true }) });
+export const initializeRuntime = (key: string) => dataRequest<{ config_version: number }>("/initialize-runtime", { method: "POST", headers: { "Idempotency-Key": key }, body: JSON.stringify({ confirmed: true }) });
+export const startAnalysis = (id: string, topic: string, key: string) => dataRequest<{ incident_id: string; job_id: string }>(`/imports/${encodeURIComponent(id)}/analysis`, { method: "POST", headers: { "Idempotency-Key": key }, body: JSON.stringify({ topic }) });
 export async function downloadTemplate() {
   const response = await fetch(`${apiBaseUrl}/data/template`, { headers: authHeaders() });
   if (!response.ok) throw new Error("템플릿을 다운로드하지 못했습니다. 인증과 연결을 확인해 주세요.");

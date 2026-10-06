@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button, PageHeading, StateMessage } from "../../components/ui";
 import { useQuery } from "../../lib/useQuery";
-import { addSample, downloadTemplate, intakeStatus, registerStore } from "./api";
+import { addSample, downloadTemplate, initializeRuntime, intakeStatus, registerStore, startAnalysis } from "./api";
 import { commandKey } from "../../shared/api";
 import type { ImportReceipt } from "./api";
 import { DataImport } from "./DataImport";
@@ -16,6 +16,18 @@ export function Onboarding() {
   const [sampleStore, setSampleStore] = useState("");
   const [sampleConfirmed, setSampleConfirmed] = useState(false);
   const [sampleKey] = useState(commandKey);
+  const [topic, setTopic] = useState("품질");
+  const [consent, setConsent] = useState(false);
+  const [analysisKey] = useState(commandKey);
+  const [initKey] = useState(commandKey);
+  async function initialize() {
+    setPending(true); setError("");
+    try { await initializeRuntime(initKey); query.reload(); } catch (e) { setError(e instanceof Error ? e.message : "설정 실패"); } finally { setPending(false); }
+  }
+  async function analyze(id: string) {
+    setPending(true); setError("");
+    try { const result = await startAnalysis(id, topic, analysisKey); window.location.hash = `/incidents?incident=${encodeURIComponent(result.incident_id)}`; } catch (e) { setError(e instanceof Error ? e.message : "조사 시작 실패"); } finally { setPending(false); }
+  }
   async function sample() {
     setPending(true); setError("");
     try { setReceipt(await addSample(sampleStore, sampleKey)); query.reload(); } catch (e) { setError(e instanceof Error ? e.message : "샘플 준비 실패"); } finally { setPending(false); }
@@ -49,6 +61,15 @@ export function Onboarding() {
         <Button disabled={pending || !sampleStore || !sampleConfirmed} onClick={sample}>확인 후 샘플 준비</Button></div>}
     </article>
     {status.can_import && (choice === "file" || choice === "template") && <DataImport stores={status.stores} onImported={(value) => { setReceipt(value); query.reload(); }} />}
+    <article className="panel"><h2>3. ServIQ 시작 체크리스트</h2>
+      <ul>{[["store", "매장 확인"], ["data", "데이터 준비"], ["incident", "첫 사건 확인"], ["investigation", "AI 조사 실행"], ["results", "근거와 조사 결과 확인"]].map(([key, label]) => <li key={key}>{status.checklist?.[key] ? "✓" : "○"} {label}</li>)}</ul>
+      {!status.analysis_configured && <><p>조사 실행은 서버 운영 정책이 허용해야 합니다. 기존 설정은 자동으로 변경하지 않습니다.</p><a href="#/settings">운영 설정 확인</a></>}
+      {status.can_initialize_runtime && <><p>관리자 초기 체험 설정: Jev·제한 조사·RCA/CAPA 제안을 허용합니다. 외부 AI 전송, 외부 시스템 변경, 내부 실행은 허용하지 않으며 사람의 승인 정책은 유지합니다.</p>
+        <label><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />조직 초기 조사 설정에 동의합니다.</label><Button disabled={pending || !consent} onClick={initialize}>안전한 초기 조사 설정 적용</Button></>}
+      {status.imports.length > 0 && <><label>조사할 VOC 검색어 <input value={topic} maxLength={100} onChange={(e) => setTopic(e.target.value)} /></label><p>가져온 VOC에 포함된 짧은 주제로 조사합니다. 개인정보나 원문 전체를 입력하지 마세요. 거래/재고 관측은 POS/ERP 연결이 아닙니다.</p>
+        {status.imports.map((i) => <div key={i.import_id}><p>{i.sample ? "Demo" : "파일 입력"} · {i.store} · {i.row_count}건</p>{i.incident_id ? <a href={`#/incidents?incident=${encodeURIComponent(i.incident_id)}`}>사건의 근거·RCA·조치안 확인</a> : status.can_import && <Button disabled={pending || !status.analysis_configured || topic.trim().length < 2} onClick={() => analyze(i.import_id)}>이 자료로 첫 조사 시작</Button>}</div>)}
+        <p>Worker가 조사를 처리하면 사건 상세의 실제 Agent 조사에서 근거·부족한 자료·RCA·CAPA를 확인합니다. 승인과 실행은 별개이며 외부 시스템은 변경하지 않습니다.</p></>}
+    </article>
     {error && <p role="alert">{error}</p>}
     <a href="#/dashboard">Dashboard 보기</a> · <a href="#/incidents">Incident 보기</a>
     {status.has_data && <p>기존 데이터가 있습니다. 데이터 입력을 건너뛰고 업무를 계속할 수 있습니다.</p>}

@@ -53,6 +53,31 @@ class SampleInput(StoreInput):
     confirmed: bool = Field(strict=True)
 
 
+class ConsentInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    confirmed: bool = Field(strict=True)
+
+
+class AnalysisInput(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    topic: str = Field(min_length=2, max_length=100, pattern=r"^[^\x00-\x1f]+$")
+
+
+@router.post("/initialize-runtime")
+def initialize_runtime(body: ConsentInput, request: Request):
+    if not body.confirmed:
+        return error_response(request, 422, "CONFIRMATION_REQUIRED", "초기 설정 내용을 확인해 주세요.")
+    return service(request).initialize_runtime()
+
+
+@router.post("/imports/{import_id}/analysis")
+def analyze(import_id: str, body: AnalysisInput, request: Request):
+    try:
+        return service(request).analyze(import_id, body.topic)
+    except psycopg.Error:
+        return error_response(request, 503, "DATA_UNAVAILABLE", "조사 저장소를 사용할 수 없습니다.")
+
+
 @router.post("/sample")
 def sample(body: SampleInput, request: Request):
     if not body.confirmed:
