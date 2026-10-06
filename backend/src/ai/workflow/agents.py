@@ -17,12 +17,37 @@ from src.ai.workflow.models import (
     EvidenceCandidate,
     EvidenceGap,
     Finding,
+    InvestigationResult,
     NormalizedEvidence,
     RCACandidate,
     WorkflowState,
 )
 from src.ai.workflow.policy import server_risk
 from src.application.security.principal import AccessError
+
+
+class OperationalInvestigation:
+    def __init__(self, source, clock):
+        self.source, self.clock = source, clock
+
+    def __call__(self, context, branch_id):
+        started = self.clock()
+        observations = self.source.observations(context)
+        if any(o.tenant_id != context.tenant_id or o.store != context.store
+                or o.agent_type != context.agent_type for o in observations):
+            raise AccessError()
+        candidates = tuple(EvidenceCandidate(source_ref=o.source_ref, source_type=context.agent_type,
+            tenant_id=o.tenant_id, store=o.store, rank=rank, source_at=o.observed_at,
+            retrieved_at=self.clock(), provenance=("synthetic_operational",),
+            observation_code=o.signal, stance=o.stance) for rank, o in enumerate(observations, 1))
+        return InvestigationResult(agent_type=context.agent_type, branch_id=branch_id,
+            tenant_id=context.tenant_id, incident_id=context.incident_id, store=context.store,
+            status="SUCCESS" if candidates else "NO_EVIDENCE", evidence_candidates=candidates,
+            findings=(Finding(code=context.agent_type+"_SIGNAL_FOUND", evidence_refs=tuple(e.source_ref for e in candidates)),)
+                if candidates else (),
+            evidence_gaps=() if candidates else (EvidenceGap(code="NO_EVIDENCE_FOUND", agent_type=context.agent_type),),
+            uncertainty="OBSERVATIONS_NOT_CAUSE" if candidates else "MISSING_EVIDENCE",
+            started_at=started, completed_at=self.clock(), context_digest=context.digest)
 
 
 def normalize_evidence(candidates, *, tenant_id, store, agent_run_id):

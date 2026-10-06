@@ -79,3 +79,20 @@ def test_context_stale_and_base_budget_fail_closed():
         provenance="AUTHORIZED_HISTORY_SEARCH"),)).freshness == "STALE"
     with pytest.raises(ValueError, match="BUDGET_EXHAUSTED"):
         context(budget_bytes=256)
+
+
+@pytest.mark.parametrize("agent,signal", [("TRANSACTION", "REFUND_SIGNAL"), ("INVENTORY", "STOCK_SHORTAGE")])
+def test_read_only_operational_agent(agent, signal):
+    from uuid import uuid4
+
+    from src.ai.workflow.agents import OperationalInvestigation
+    from src.ai.workflow.models import OperationalObservation
+    from src.infrastructure.investigation_source import MemoryInvestigationSource
+    item = OperationalObservation(tenant_id="tenant-a", store="store-a", agent_type=agent,
+        source_ref=agent.lower()+":1", observed_at=NOW, signal=signal)
+    source = MemoryInvestigationSource((item, item.model_copy(update={"tenant_id": "other"})))
+    result = OperationalInvestigation(source, lambda: NOW)(context(agent), str(uuid4()))
+    assert result.status == "SUCCESS"
+    assert len(result.evidence_candidates) == 1
+    assert result.evidence_candidates[0].provenance == ("synthetic_operational",)
+    assert not source.observations(context(agent, store="other"))

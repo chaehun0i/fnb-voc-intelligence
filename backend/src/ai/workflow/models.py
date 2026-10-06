@@ -113,16 +113,16 @@ class WorkflowStatus(StrEnum):
 
 
 class EvidenceCandidate(SafeModel):
-    source_ref: str = Field(pattern=r"^review:[A-Za-z0-9_.:-]{1,128}$")
-    source_type: Literal["VOC_REVIEW"] = "VOC_REVIEW"
+    source_ref: str = Field(pattern=r"^(review|transaction|inventory):[A-Za-z0-9_.:-]{1,128}$")
+    source_type: Literal["VOC_REVIEW", "TRANSACTION", "INVENTORY"] = "VOC_REVIEW"
     rank: int = Field(ge=1, le=20)
     retrieved_at: datetime
     tenant_id: str | None = Field(default=None, min_length=1, max_length=128)
     store: str | None = Field(default=None, min_length=1, max_length=128)
-    provenance: tuple[Literal["lexical", "vector", "hybrid", "legacy_reference"], ...] = ("legacy_reference",)
+    provenance: tuple[Literal["lexical", "vector", "hybrid", "legacy_reference", "synthetic_operational"], ...] = ("legacy_reference",)
     source_at: datetime | None = None
     stance: Literal["SUPPORTING", "CONTRADICTING", "NEUTRAL"] = "NEUTRAL"
-    observation_code: Literal["RELATED_HISTORY_MATCH", "REFERENCE_ONLY"] = "REFERENCE_ONLY"
+    observation_code: Literal["RELATED_HISTORY_MATCH", "REFERENCE_ONLY", "REFUND_SIGNAL", "CANCEL_SIGNAL", "STOCK_SHORTAGE", "STOCK_ADJUSTMENT"] = "REFERENCE_ONLY"
 
     @field_validator("retrieved_at", "source_at")
     @classmethod
@@ -133,13 +133,61 @@ class EvidenceCandidate(SafeModel):
 
 
 class Finding(SafeModel):
-    code: Literal["RELATED_HISTORY_FOUND"] = "RELATED_HISTORY_FOUND"
+    code: Literal["RELATED_HISTORY_FOUND", "TRANSACTION_SIGNAL_FOUND", "INVENTORY_SIGNAL_FOUND"] = "RELATED_HISTORY_FOUND"
     evidence_refs: tuple[str, ...] = Field(min_length=1, max_length=20)
 
 
 class EvidenceGap(SafeModel):
     code: Literal["NO_AUTHORIZED_HISTORY", "LLM_POLICY_DENIED", "LLM_UNAVAILABLE",
-                  "INSUFFICIENT_SOURCE_COVERAGE", "CONFLICTING_EVIDENCE", "RCA_DISABLED", "RCA_BUDGET_EXHAUSTED"]
+                  "INSUFFICIENT_SOURCE_COVERAGE", "CONFLICTING_EVIDENCE", "RCA_DISABLED", "RCA_BUDGET_EXHAUSTED",
+                  "CAPABILITY_UNAVAILABLE", "SOURCE_UNAVAILABLE", "SOURCE_STALE", "BRANCH_FAILED", "NO_EVIDENCE_FOUND", "BRANCH_BUDGET_EXHAUSTED"]
+    agent_type: InvestigationAgent | None = None
+
+
+class OperationalObservation(SafeModel):
+    tenant_id: str = Field(min_length=1, max_length=128)
+    store: str = Field(min_length=1, max_length=128)
+    agent_type: Literal["TRANSACTION", "INVENTORY"]
+    source_ref: str = Field(pattern=r"^(transaction|inventory):[A-Za-z0-9_.:-]{1,128}$")
+    observed_at: datetime
+    signal: Literal["REFUND_SIGNAL", "CANCEL_SIGNAL", "STOCK_SHORTAGE", "STOCK_ADJUSTMENT"]
+    stance: Literal["SUPPORTING", "CONTRADICTING", "NEUTRAL"] = "NEUTRAL"
+    source: Literal["SYNTHETIC_OPERATIONAL_FIXTURE"] = "SYNTHETIC_OPERATIONAL_FIXTURE"
+
+    @model_validator(mode="after")
+    def integrity(self):
+        if (self.observed_at.utcoffset() is None or not self.source_ref.startswith(self.agent_type.lower()+":")
+                or (self.signal.startswith("STOCK") != (self.agent_type == "INVENTORY"))):
+            raise ValueError("OPERATIONAL_SOURCE_INVALID")
+        return self
+
+
+class InvestigationResult(SafeModel):
+    agent_type: InvestigationAgent
+    agent_version: Literal["1"] = "1"
+    branch_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    tenant_id: str
+    incident_id: str
+    store: str
+    status: Literal["SUCCESS", "FAILED", "UNAVAILABLE", "NO_EVIDENCE", "STALE"]
+    findings: tuple[Finding, ...] = ()
+    evidence_candidates: tuple[EvidenceCandidate, ...] = Field(default=(), max_length=20)
+    evidence_gaps: tuple[EvidenceGap, ...] = ()
+    retryable: bool = False
+    uncertainty: Literal["OBSERVATIONS_NOT_CAUSE", "MISSING_EVIDENCE"]
+    started_at: datetime
+    completed_at: datetime
+    context_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def integrity(self):
+        if (any(e.tenant_id != self.tenant_id or e.store != self.store for e in self.evidence_candidates)
+                or (self.status != "SUCCESS" and self.evidence_candidates)
+                or self.started_at.utcoffset() is None or self.completed_at.utcoffset() is None
+                or self.completed_at < self.started_at
+                or not {r for f in self.findings for r in f.evidence_refs} <= {e.source_ref for e in self.evidence_candidates}):
+            raise ValueError("BRANCH_RESULT_INVALID")
+        return self
 
 
 class NormalizedEvidence(EvidenceCandidate):
