@@ -18,6 +18,10 @@ def projection(run):
         "rca_candidates": [c.model_dump(mode="json") for c in state.rca_candidates],
         "capa_proposals": [p.model_dump(mode="json", exclude={"tenant_id", "store"}) for p in state.capa_proposals],
         "approval": state.approval.model_dump(mode="json") if state.approval else None,
+        "execution": state.execution.model_dump(mode="json", exclude={"tenant_id"}) if state.execution else None,
+        "verification": state.verification.model_dump(mode="json") if state.verification else None,
+        "verification_evidence": [e.model_dump(mode="json", exclude={"tenant_id", "store"}) for e in state.verification_evidence],
+        "resulting_incident_status": state.resulting_incident_status,
         "evidence_gaps": [g.model_dump() for g in state.evidence_gaps],
         "token_spent": state.token_spent, "cost_spent": state.cost_spent,
         "iteration": state.iteration, "tool_call_count": state.tool_call_count}
