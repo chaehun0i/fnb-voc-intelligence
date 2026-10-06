@@ -36,6 +36,25 @@ class LoopTrace(SafeModel):
     new_evidence: bool = False
 
 
+class AgentRunManifest(SafeModel):
+    workflow_id: str
+    workflow_version: str = Field(pattern=r"^(history-(v1|evidence-v2|capa-v3|verification-v4)|multi-investigation-v5)$")
+    graph_version: Literal["serviq-graph-1"] = "serviq-graph-1"
+    config_version: int = Field(strict=True, ge=1)
+    agent_registry_version: Literal["investigation-1"] = "investigation-1"
+    context_policy_version: Literal["minimal-context-1"] = "minimal-context-1"
+    loop_policy_version: Literal["bounded-investigation-1"] = "bounded-investigation-1"
+    harness_policy_version: Literal["operation-gate-1"] = "operation-gate-1"
+    agent_versions: tuple[tuple[InvestigationAgent, Literal["1"]], ...] = ()
+    source_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def unique_agents(self):
+        if len({a for a, _ in self.agent_versions}) != len(self.agent_versions):
+            raise ValueError("MANIFEST_AGENT_DUPLICATE")
+        return self
+
+
 class AgentDefinition(SafeModel):
     agent_type: InvestigationAgent
     agent_version: Literal["1"] = "1"
@@ -432,6 +451,7 @@ class WorkflowState(SafeModel):
 
 
 class AgentRun(SafeModel):
+    manifest: AgentRunManifest | None = None
     agent_run_id: str
     tenant_id: str
     incident_id: str
@@ -454,6 +474,12 @@ class AgentRun(SafeModel):
 
     @model_validator(mode="after")
     def lineage(self):
+        if self.manifest and (self.manifest.workflow_id != self.workflow_id
+                or self.manifest.workflow_version != self.workflow_version
+                or self.manifest.config_version != self.config_version
+                or self.manifest.agent_versions != tuple((a.agent_type, a.agent_version)
+                    for a in (self.state.selection.selected if self.state.selection else ()))):
+            raise ValueError("MANIFEST_LINEAGE_INVALID")
         if any(getattr(self, key) != getattr(self.state, key)
                for key in ("tenant_id", "incident_id", "workflow_id", "agent_run_id", "config_version")):
             raise ValueError("실행과 상태의 원본 참조가 일치해야 합니다.")

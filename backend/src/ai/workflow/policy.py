@@ -103,6 +103,20 @@ def evidence_digest(refs):
     return hashlib.sha256(json.dumps(sorted(set(refs)), separators=(",", ":")).encode()).hexdigest()
 
 
+def run_manifest(run):
+    from pathlib import Path
+
+    from src.ai.workflow.models import AgentRunManifest
+    directory = Path(__file__).parent
+    # An actual source bundle checksum, not an invented Git/AI Release version.
+    sources = tuple(directory / name for name in ("models.py", "agents.py", "graph.py", "policy.py", "runtime.py"))
+    digest = hashlib.sha256(b"".join(p.read_bytes() for p in sources)).hexdigest()
+    return AgentRunManifest(workflow_id=run.workflow_id, workflow_version=run.workflow_version,
+        config_version=run.config_version, source_digest=digest,
+        agent_versions=tuple((a.agent_type, a.agent_version)
+            for a in (run.state.selection.selected if run.state.selection else ())))
+
+
 def server_risk(*values):
     return max(("MEDIUM", *values), key=RISK_ORDER.index)
 

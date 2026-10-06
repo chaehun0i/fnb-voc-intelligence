@@ -40,6 +40,7 @@ from src.ai.workflow.policy import (
     approval_policy_digest,
     build_context,
     evaluate_sufficiency,
+    run_manifest,
     select_agents,
     server_risk,
 )
@@ -217,6 +218,7 @@ class HistoryWorkflows:
                 ),
                 requested_by=job.delegated_principal_id, delegated_roles=job.delegated_roles,
                 delegated_store_scope=job.delegated_store_scope, initial_incident_version=incident.version)
+            run = AgentRun.model_validate(run.model_copy(update={"manifest": run_manifest(run)}).model_dump(mode="json"))
             return uow.agent_runs.save(run), resolved, decision
 
 

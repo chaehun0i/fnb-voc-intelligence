@@ -24,6 +24,8 @@ def validate(run, previous, tenant):
             raise ValueError("완료된 실행은 변경할 수 없습니다.")
         if previous.state.selection is not None and (run.state.selection != previous.state.selection or run.state.contexts != previous.state.contexts):
             raise ValueError("INVESTIGATION_SNAPSHOT_IMMUTABLE")
+        if run.manifest != previous.manifest:
+            raise ValueError("MANIFEST_IMMUTABLE")
     if run.state.config_version != run.config_version or run.state.tenant_id != tenant:
         raise ValueError("실행 상태의 조직과 설정 버전을 확인해 주세요.")
 
