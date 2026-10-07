@@ -9,16 +9,17 @@ backend/src/
 ├─ ai/
 │  ├─ models.py          # SDK 독립 frozen/sensitive-field 공통 계약
 │  ├─ decision/          # models / pure engine / Shadow·query service
-│  ├─ intelligence/      # models / policy·routing·Gateway service
+│  ├─ intelligence/      # models / Gateway service / node composition·prompts
 │  │  └─ providers/      # Fake / Gemini SDK / Ollama HTTP adapter
 │  ├─ workflow/          # models / agents / policy / graph / runtime
-│  ├─ execution/         # models / approval policy / 내부 실행·검증 service
+│  ├─ execution/         # 내부 실행·검증 / Harness / tools·bound runtime
 │  └─ ax/                # 기존 안전한 실행 Trace projection/query service
 ├─ domain/               # Incident·Approval·Job·Config 순수 규칙
 ├─ application/          # 공유 권한·업무 Command/Query
 │  └─ ports/             # repositories.py / identity_provider.py
 ├─ infrastructure/       # tenant-scoped Repository·Outbox·Job Worker
 ├─ api/                  # HTTP routes·DTO·인증 dependency
+├─ mcp/                  # 공식 SDK private in-memory adapter (안전 정책은 Execution)
 └─ data·rag·ingestion·analysis·dashboard·config/ # 기존 Data Intelligence
 
 frontend/src/
@@ -35,7 +36,7 @@ frontend/src/
 └─ app·lib·test/          # 앱 조립·표시 도우미·테스트 fixture
 ```
 
-Decision=Jev, Intelligence=LLM+향후 LangChain composition, Workflow=LangGraph+최소 Multi-Agent+향후 Loop, Execution=Harness/MCP 책임 영역, AX=Agent Experience입니다. 문서의 9개 개념은 유지합니다. 현재 Execution은 **내부 실행/Verification Command와 승인 재검증**이며 Harness/MCP transport·Connector write·외부 Action reconciliation은 미구현입니다. AX는 **안전한 Trace 조회/투영과 조사 업무 진행·근거 범위**를 제공하며 새 AI Brief·Next Best Action 정책은 추가하지 않았습니다.
+Decision=Jev, Intelligence=LLM+LangChain Node composition, Workflow=LangGraph+최소 Multi-Agent+bounded Loop, Execution=Harness/Business Tool 안전 경계, AX=Agent Experience입니다. 문서의 9개 개념은 유지합니다. 현재 Execution은 **내부 실행/Verification Command·승인 재검증·read Tool Harness**를 포함하고 MCP adapter는 이를 호출합니다. Connector write·외부 Action reconciliation 전체는 미구현입니다. AX는 안전한 Trace·조사 진행·근거 범위·Loop 제어·Tool 업무 상태를 투영하며 새 자율 AI Brief 정책은 추가하지 않았습니다.
 
 ## 안전 경계
 
@@ -47,7 +48,7 @@ Job Worker의 `src.infrastructure.jobs.runtime` 진입점과 Outbox dispatch·cl
 
 ## 실행·검증
 
-`backend/`는 루트 Python 프로젝트를 editable dependency로 사용하며 실제 구현은 `backend/src/`의 `src` 패키지입니다. 루트와 backend lockfile, 기존 CLI/RAG/Streamlit을 유지합니다. `src.infrastructure.migrations`는 `db/migrations/001`~`018`을 패키지 리소스로 읽으며 이번 리팩토링은 schema/migration/Checkpoint payload를 변경하지 않습니다.
+`backend/`는 루트 Python 프로젝트를 editable dependency로 사용하며 실제 구현은 `backend/src/`의 `src` 패키지입니다. 루트와 backend lockfile, 기존 CLI/RAG/Streamlit을 유지합니다. `src.infrastructure.migrations`는 현재 `db/migrations/001`~`021`을 패키지 리소스로 읽습니다. 구조 리팩토링 당시에는 018까지였으며 Day 29는 새 DB schema/migration 없이 기존 AgentRun document에 안전한 Tool receipt를 추가합니다.
 
 ```bash
 # backend 디렉터리
@@ -80,4 +81,6 @@ Day 27의 정적 Registry·capability-aware 선택·최소 reference Context·3�
 
 Day 28은 기존 Workflow/Execution 책임 안에 제한 Loop·Harness·Manifest·사람 제어를 추가했습니다. `application/data_intake.py`/`intake_schema.py`, `infrastructure/data_intake.py`/`intake_workbook.py`, `features/data`는 온보딩/입력/첫 조사를 담당하며 별도 AI framework가 아닙니다. additive migration은 `020_loop_harness.sql`, `021_data_intake.sql`입니다. 실제 계약/검증은 [Loop/Harness](serviq_loop_harness.md)와 [첫 사용 가이드](serviq_onboarding_import.md)를 따릅니다.
 
-production OIDC/SSO·deployment, 전체 retention/migration engine, 고급 Context enrichment·동적 Registry·자율 Loop, MCP, 외부 Action reconciliation 전체는 후속 범위입니다. 승인된 내부 실행을 실제 외부 변경과 구분하며 Jev Shadow 전체를 자동 실행하지 않습니다. v0.6 MVP Next는 Day 29 LangChain/MCP/Tool AX, Day 30 AX/AI MVP RC입니다.
+Day 29의 `intelligence/node.py`·`prompts.py`, `execution/tools.py`·`runtime.py`, `application/tool_queries.py`, `mcp/server.py`는 좁은 composition/read Tool 경로를 담당합니다. MCP transport는 안전 정책을 소유하지 않습니다. 상세 책임·버전·검증·제한은 [LangChain/MCP](serviq_langchain_mcp.md)를 따릅니다.
+
+production OIDC/SSO·deployment, 전체 retention/migration engine, 고급 Context enrichment·동적 Registry·자율 planner, public MCP endpoint, 외부 Action reconciliation 전체는 후속 범위입니다. 승인된 내부 실행을 실제 외부 변경과 구분하며 Jev Shadow 전체를 자동 실행하지 않습니다. v0.6 MVP Next는 Day 30 AX/AI MVP RC입니다.

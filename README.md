@@ -117,3 +117,5 @@ Day 26 승인 재검증·내부 실행 기록·Evidence 기반 Verification과 P
 Day 27 capability-aware Registry·최소 Context Pack·History/Transaction/Inventory read-only fan-out/fan-in·부분 실패 격리·checkpoint 복구와 실제 업무 AX는 [Multi-Agent 문서](docs/serviq_multi_agent.md)를 참고하세요. 거래/재고는 합성 운영 관측 자료이며 실제 POS/ERP 연결이나 외부 write가 아닙니다. 기존 Sufficiency/RCA/승인/내부 실행/Verification 흐름을 재사용하고 Jev Shadow는 자동 실행하지 않습니다.
 
 Day 28 제한 반복·종료·현재 정책 Harness·불변 Manifest·안전 Replay·Pause/Resume/Stop/수동 인계는 [Loop/Harness 문서](docs/serviq_loop_harness.md)를, 첫 실행·Excel Template·컬럼 매핑·확인 Import·Demo·첫 조사 체크리스트는 [온보딩 문서](docs/serviq_onboarding_import.md)를 참고하세요. MCP/LangChain 신규 Runtime과 실제 외부 write는 미구현입니다.
+
+Day 29 versioned Tool/Prompt Registry·LLM Gateway 기반 LangChain Node composition·공식 MCP in-memory read adapter·Harness·거래/재고 Tool branch와 안전한 Tool AX는 [LangChain/MCP 문서](docs/serviq_langchain_mcp.md)를 참고하세요. Day 28 당시 미구현이던 두 Runtime의 좁은 Vertical Slice이며, public MCP endpoint·실제 POS/ERP write·모든 Node migration·Day 30 RC를 의미하지 않습니다.
