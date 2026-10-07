@@ -44,3 +44,51 @@ def test_errors_and_ax_are_machine_readable_without_raw_exception():
         assert contract.when_to_use and contract.when_not_to_use and contract.preconditions
         assert "NO_DATA" in contract.common_errors
         assert "NO_RETRY_ON_AUTH" in contract.retry_guidance
+
+
+def query_setup():
+    from datetime import UTC, datetime, timedelta
+    from uuid import uuid4
+
+    from src.ai.workflow.models import OperationalObservation
+    from src.ai.workflow.policy import build_context
+    from src.application.incidents.service import IncidentService
+    from src.application.security.principal import Principal, Role
+    from src.infrastructure.investigation_source import MemoryInvestigationSource
+    from tests.test_data_intake import client
+    persistence = client().app.state.access_persistence
+    principal = Principal("operator", "a", frozenset({Role.HQ_ADMIN}))
+    now = datetime.now(UTC)
+    with persistence.transaction("a") as uow:
+        item = IncidentService(uow.incidents, principal=principal).create("품질", "MEDIUM", "매장", "operator")
+        other = IncidentService(uow.incidents, principal=principal).create("유사 사례", "MEDIUM", "매장", "operator")
+    observations = tuple(OperationalObservation(tenant_id="a", store="매장", agent_type=agent,
+        source_ref=agent.lower()+":"+str(uuid4()), observed_at=now,
+        signal="REFUND_SIGNAL" if agent == "TRANSACTION" else "STOCK_SHORTAGE")
+        for agent in ("TRANSACTION", "INVENTORY"))
+    source = MemoryInvestigationSource(observations, history_available=True)
+    contexts = tuple(build_context(agent, tenant_id="a", incident_id=item.id, store="매장",
+        category="GENERAL", severity="MEDIUM", window_start=now-timedelta(hours=1),
+        window_end=now, now=now) for agent in ("HISTORY", "TRANSACTION", "INVENTORY"))
+    return persistence, source, principal, item, other, contexts, now
+
+
+def test_four_business_queries_are_bounded_reference_only_and_scoped():
+    from src.application.incidents.service import IncidentNotFound
+    from src.application.security.principal import AccessError, Principal, Role
+    from src.application.tool_queries import BusinessToolQueries
+    p, source, principal, incident, _, packs, _ = query_setup()
+    queries = BusinessToolQueries(p, source)
+    for name, pack in zip(("get_incident", "search_similar_incidents", "get_transactions", "get_inventory"), (packs[0], packs[0], packs[1], packs[2]), strict=True):
+        result = queries.read(name, ToolInput(incident_id=incident.id, limit=1), principal=principal, context=pack)
+        assert result.items and len(result.items) == 1
+        assert "품질" not in result.model_dump_json()
+        assert "tenant_id" not in result.model_dump_json()
+    with pytest.raises(IncidentNotFound):
+        queries.read("get_incident", ToolInput(incident_id="0"*36), principal=principal, context=packs[0])
+    with pytest.raises(AccessError):
+        queries.read("get_inventory", ToolInput(incident_id=incident.id), principal=principal,
+            context=packs[2].model_copy(update={"tenant_id": "other"}))
+    restricted = Principal("store", "a", frozenset({Role.STORE_MANAGER}), frozenset({"다른 매장"}))
+    with pytest.raises(AccessError):
+        queries.read("get_incident", ToolInput(incident_id=incident.id), principal=restricted, context=packs[0])
