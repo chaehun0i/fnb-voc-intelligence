@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { agentRunApi, type AgentRunApi, type InvestigationProgress } from "./api";
+import { agentRunApi, type AgentRunApi, type ControlAction, type InvestigationProgress, type RuntimeAX } from "./api";
 import { incidentApi } from "../incidents/api";
 import { apiMode } from "../../shared/api";
 import { SelectField } from "../../components/SelectField";
@@ -32,6 +32,9 @@ function RunDetail({ incidentId, runId, api }: { incidentId: string; runId: stri
   if (error) return <StateMessage kind="error" title="조사 상세 기록을 불러오지 못했습니다" onRetry={reload}>{error}</StateMessage>;
   if (!run) return null;
   return <div className="space-y-4 mt-4">
+    {run.runtime && <RuntimeControls runtime={run.runtime} onControl={api.control ? async (action, key) => {
+      await api.control!(incidentId, runId, action, run.runtime!.control_version, key); reload();
+    } : undefined} />}
     {run.investigation && <InvestigationProgressPanel progress={run.investigation} />}
     <details open={!run.investigation}><summary>기술 실행 상세</summary>
     <div className="summary-grid"><StatCard label="조사 상태" value={statusLabels[run.status]} /><StatCard label="근거 후보" value={`${run.evidence_candidates.length}건`} /><StatCard label="사용 토큰" value={run.token_spent.toLocaleString()} /><StatCard label="예상 비용" value={`$${run.cost_spent.toFixed(4)}`} hint="Gateway 기록 기준 · 실제 청구액 아님" /></div>
@@ -49,6 +52,29 @@ function RunDetail({ incidentId, runId, api }: { incidentId: string; runId: stri
   </div>;
 }
 
+export function RuntimeControls({ runtime, onControl }: { runtime: RuntimeAX; onControl?: (action: ControlAction, key: string) => Promise<void> }) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string>();
+  const [retry, setRetry] = useState<{ action: ControlAction; key: string }>();
+  const labels: Record<ControlAction, string> = { pause: "일시정지", resume: "자동 조사 재개", stop: "자동 조사 중단", takeover: "담당자 수동 인계" };
+  async function execute(action: ControlAction) {
+    if (!onControl || !runtime.permissions[action] || pending) return;
+    const key = retry?.action === action ? retry.key : crypto.randomUUID();
+    setPending(true); setError(undefined); setRetry({ action, key });
+    try { await onControl(action, key); setRetry(undefined); }
+    catch (value) { setError(value instanceof Error ? value.message : "제어 요청을 처리하지 못했습니다. 상태를 새로고침해 주세요."); }
+    finally { setPending(false); }
+  }
+  return <article className="panel !min-h-0" aria-label="자동 조사 제어">
+    <h3>자동 조사 상태</h3><p>{runtime.message}</p><p>{runtime.budget_summary}</p><p>{runtime.new_evidence ? "추가 조사에서 새 근거를 확보했습니다." : "새 근거 발견 여부는 서버 조사 결과를 확인해 주세요."}</p><p>{runtime.human_action}</p>
+    {error && <p role="alert">{error}</p>}
+    <div className="flex flex-wrap gap-2">{(Object.keys(labels) as ControlAction[]).map((action) =>
+      <Button key={action} disabled={pending || !onControl || !runtime.permissions[action]} onClick={() => void execute(action)}>{labels[action]}</Button>)}</div>
+    {pending && <p role="status">제어 요청을 처리하고 있습니다.</p>}
+    <details><summary>실행 정책 버전</summary><dl>{Object.entries(runtime.versions).map(([name, value]) => <div key={name}><dt>{name}</dt><dd>{value}</dd></div>)}</dl></details>
+  </article>;
+}
+
 export function HistoryTracePanel({ incidentId, api = agentRunApi }: { incidentId: string; api?: AgentRunApi }) {
   const loader = useMemo(() => () => api.list(incidentId), [api, incidentId]);
   const { data, loading, error, reload } = useQuery(loader);
@@ -56,7 +82,7 @@ export function HistoryTracePanel({ incidentId, api = agentRunApi }: { incidentI
   const [detailRevision, setDetailRevision] = useState(0);
   if (loading) return <StateMessage kind="loading" title="실제 History 조사 기록을 불러오는 중입니다" />;
   if (error) return <StateMessage kind="error" title="실제 조사 기록을 불러오지 못했습니다" onRetry={reload}>{error}</StateMessage>;
-  return <section aria-label="실제 History 조사 기록"><div className="flex items-center justify-between gap-3"><h2>실제 History 조사 기록</h2><Button onClick={() => { reload(); setDetailRevision((value) => value + 1); }}>조사 기록 새로고침</Button></div><p className="muted">{apiMode === "http" ? "서버 실행 기록" : "예시 모드 · 실제 실행 없음"} · History와 Evidence/RCA, 정책에서 허용한 CAPA 제안·사람의 승인을 표시합니다. 사용 가능한 데이터에 한해 독립 조사를 표시합니다. 외부 조치·Harness/MCP는 실행하지 않습니다.</p>
+  return <section aria-label="실제 History 조사 기록"><div className="flex items-center justify-between gap-3"><h2>실제 History 조사 기록</h2><Button onClick={() => { reload(); setDetailRevision((value) => value + 1); }}>조사 기록 새로고침</Button></div><p className="muted">{apiMode === "http" ? "서버 실행 기록" : "예시 모드 · 실제 실행 없음"} · History와 Evidence/RCA, 정책에서 허용한 CAPA 제안·사람의 승인을 표시합니다. 사용 가능한 데이터에 한해 독립 조사를 표시합니다. 자동 조사는 서버 안전 정책을 따릅니다. 외부 조치·MCP는 실행하지 않습니다.</p>
     {!data?.runs.length ? <StateMessage title="아직 실행된 History 조사가 없습니다">명시적으로 등록한 History Job의 실행 결과가 여기에 표시됩니다.</StateMessage> : <><SelectField label="조사 실행 선택" value={selected ?? data.runs[0].agent_run_id} options={data.runs.map((r) => ({ value: r.agent_run_id, label: `${statusLabels[r.status]} · ${dateTime(r.started_at)} · v${r.config_version}` }))} onValueChange={setSelected} /><RunDetail key={`${selected ?? data.runs[0].agent_run_id}-${detailRevision}`} incidentId={incidentId} runId={selected ?? data.runs[0].agent_run_id} api={api} />{data.has_more && <p>최근 20건을 표시합니다. 이전 기록은 조회 API로 확인할 수 있습니다.</p>}</>}
   </section>;
 }

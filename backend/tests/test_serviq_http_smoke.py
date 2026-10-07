@@ -97,9 +97,9 @@ def test_http_smoke_modes_preserve_independent_validation(smoke_script, monkeypa
         monkeypatch.setenv("SERVIQ_CAPA_HTTP_FIXTURE", json.dumps(fixture))
     else:
         monkeypatch.delenv("SERVIQ_CAPA_HTTP_FIXTURE", raising=False)
-    for name in ("verify_frontend", "verify_incident_flow", "verify_settings_flow", "verify_jev_flow"):
+    for name in ("verify_frontend", "verify_incident_flow", "verify_settings_flow", "verify_jev_flow", "verify_data_intake_http"):
         monkeypatch.setitem(namespace, name, lambda client, label=name: calls.append(label))
     monkeypatch.setitem(namespace, "verify_capa_http", lambda client, body: calls.append(("capa", body)))
     smoke_script["main"]()
     assert calls == (["verify_frontend", ("capa", fixture)] if capa else
-                     ["verify_frontend", "verify_incident_flow", "verify_settings_flow", "verify_jev_flow"])
+                     ["verify_frontend", "verify_incident_flow", "verify_settings_flow", "verify_jev_flow", "verify_data_intake_http"])

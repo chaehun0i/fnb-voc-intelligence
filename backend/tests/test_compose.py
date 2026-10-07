@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import yaml
+
 COMPOSE = Path(__file__).parents[2] / "compose.yaml"
 
 
@@ -32,3 +34,12 @@ def test_compose_db_is_the_local_backend_database_without_public_exposure() -> N
     contents = COMPOSE.read_text(encoding="utf-8")
     assert contents.startswith("name: serviq\n")
     assert '127.0.0.1:${POSTGRES_PORT:-5432}:5432' in contents
+
+
+def test_ci_parses_and_runs_onboarding_and_loop_smokes_in_both_jobs() -> None:
+    workflow = yaml.safe_load((COMPOSE.parent / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    for job in ("postgres", "docker"):
+        steps = workflow["jobs"][job]["steps"]
+        commands = "\n".join(step.get("run", "") for step in steps)
+        assert "scripts.serviq_onboarding_import_smoke" in commands
+        assert "scripts.serviq_loop_harness_smoke" in commands

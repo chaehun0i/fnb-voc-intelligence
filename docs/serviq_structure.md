@@ -78,4 +78,6 @@ Public API, DB schema, Checkpoint payload, Runtime behavior는 동일합니다. 
 
 Day 27의 정적 Registry·capability-aware 선택·최소 reference Context·3개 read-only branch와 fan-in/복구/업무 AX는 [Multi-Agent 문서](serviq_multi_agent.md)를 따릅니다. Workflow 영역을 다시 Agent별 package로 분할하지 않았고 read-only source adapter 하나만 추가했습니다. 적용 migration은 additive `019_multi_agent.sql`까지입니다. 기존 단일 History v1~v4와 내부 실행/Verification의 의미는 유지합니다.
 
-production OIDC/SSO·deployment, 전체 retention/migration engine, 고급 Context enrichment·동적 Registry·branch 자동 Loop, Harness/MCP, 외부 Action reconciliation은 후속 범위입니다. 승인된 내부 실행을 실제 외부 변경과 구분하고 Jev Shadow를 자동 AI 실행으로 바꾸지 않습니다. v0.6 MVP Next는 Day 28 최소 Loop/Harness, Day 29 LangChain/MCP/Tool AX, Day 30 AX/AI MVP RC입니다.
+Day 28은 기존 Workflow/Execution 책임 안에 제한 Loop·Harness·Manifest·사람 제어를 추가했습니다. `application/data_intake.py`/`intake_schema.py`, `infrastructure/data_intake.py`/`intake_workbook.py`, `features/data`는 온보딩/입력/첫 조사를 담당하며 별도 AI framework가 아닙니다. additive migration은 `020_loop_harness.sql`, `021_data_intake.sql`입니다. 실제 계약/검증은 [Loop/Harness](serviq_loop_harness.md)와 [첫 사용 가이드](serviq_onboarding_import.md)를 따릅니다.
+
+production OIDC/SSO·deployment, 전체 retention/migration engine, 고급 Context enrichment·동적 Registry·자율 Loop, MCP, 외부 Action reconciliation 전체는 후속 범위입니다. 승인된 내부 실행을 실제 외부 변경과 구분하며 Jev Shadow 전체를 자동 실행하지 않습니다. v0.6 MVP Next는 Day 29 LangChain/MCP/Tool AX, Day 30 AX/AI MVP RC입니다.

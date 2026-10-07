@@ -76,7 +76,7 @@ class OperationalInvestigation:
             raise AccessError()
         candidates = tuple(EvidenceCandidate(source_ref=o.source_ref, source_type=context.agent_type,
             tenant_id=o.tenant_id, store=o.store, rank=rank, source_at=o.observed_at,
-            retrieved_at=self.clock(), provenance=("synthetic_operational",),
+            retrieved_at=self.clock(), provenance=("file_imported_operational" if o.source == "FILE_IMPORTED_OBSERVATION" else "synthetic_operational",),
             observation_code=o.signal, stance=o.stance) for rank, o in enumerate(observations, 1))
         return InvestigationResult(agent_type=context.agent_type, branch_id=branch_id,
             tenant_id=context.tenant_id, incident_id=context.incident_id, store=context.store,
@@ -213,7 +213,7 @@ class RCAInvestigation:
         config = self.resolved.effective
         if not config.auto_rca_draft:
             return self.gap(state, "RCA_DISABLED")
-        if state.iteration >= config.max_agent_iterations or (self.deadline and self.clock() >= self.deadline):
+        if (state.loop is None and state.iteration >= config.max_agent_iterations) or (self.deadline and self.clock() >= self.deadline):
             return self.gap(state, "RCA_BUDGET_EXHAUSTED")
         refs = state.sufficiency.supporting_refs
         confidence, tokens, cost = .5, 0, 0.0
@@ -260,7 +260,7 @@ class RCAInvestigation:
             llm_request_id=request_id if self.requires_llm else None), state.normalized_evidence)
         return state.model_copy(update={"rca_candidates": (candidate,),
             "token_spent": state.token_spent+tokens, "cost_spent": state.cost_spent+cost,
-            "iteration": state.iteration+1})
+            "iteration": state.iteration if state.loop else state.iteration+1})
 
     @staticmethod
     def gap(state, code):

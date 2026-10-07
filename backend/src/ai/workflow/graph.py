@@ -32,7 +32,7 @@ def history_graph(checkpointer, investigate, persist, *, observe=None,
                   normalize=None, evaluate=None, rca=None, capa=None, apply_capa=None,
                   request_approval=None, approval_result=None, internal_execution=None,
                   begin_verification=None, verification=None, apply_verification=None,
-                  investigate_branch=None, fan_in=None):
+                  investigate_branch=None, fan_in=None, guard=None):
     if any(action is not None for action in (normalize, evaluate, rca)) and not all(
             callable(action) for action in (normalize, evaluate, rca)):
         raise ValueError("Evidence 단계는 모두 명시적으로 연결해야 합니다.")
@@ -44,6 +44,8 @@ def history_graph(checkpointer, investigate, persist, *, observe=None,
     def node(name, action):
         def execute(value):
             state = WorkflowState.model_validate(value["snapshot"])
+            if guard is not None:
+                guard(name, state)
             started = perf_counter()
             try:
                 updated = action(state)

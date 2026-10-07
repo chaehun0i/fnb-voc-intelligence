@@ -25,6 +25,7 @@ from src.ai.workflow.agents import (
     isolated_branch,
     normalize_evidence,
 )
+from src.ai.workflow.controller import ControlInterrupted, InvestigationLoop
 from src.ai.workflow.graph import history_graph, invoke_or_resume
 from src.ai.workflow.models import (
     AgentContextPack,
@@ -32,17 +33,24 @@ from src.ai.workflow.models import (
     AgentStep,
     ApprovalTrace,
     InvestigationResult,
+    LoopTrace,
     WorkflowState,
     WorkflowStatus,
     finish_run,
 )
 from src.ai.workflow.policy import (
     approval_policy_digest,
+    bounded_loop_config,
     build_context,
     evaluate_sufficiency,
+    evidence_digest,
+    loop_policy,
+    run_manifest,
     select_agents,
     server_risk,
+    validate_manifest,
 )
+from src.application.agent_controls import CONTINUE_JOB
 from src.application.approvals.service import ApprovalService
 from src.application.incidents.service import IncidentNotFound, IncidentService
 from src.application.ports.repositories import IncidentConflict
@@ -139,6 +147,17 @@ class HistoryWorkflows:
             return job
 
     def prepare(self, job):
+        if job.job_type == CONTINUE_JOB:
+            with self.persistence.transaction(job.tenant_id) as uow:
+                run = uow.agent_runs.get(job.payload_ref)
+                if (run is None or run.job_id != job.parent_job_id or run.incident_id != job.incident_id
+                        or run.config_version != job.config_version
+                        or any(c.store != job.store for c in run.state.contexts)):
+                    raise WorkflowNotAllowed()
+                version, decision = uow.configs.get(run.config_version), uow.decisions.get(run.jev_decision_id)
+                if version is None or decision is None:
+                    raise WorkflowNotAllowed()
+                return run, ConfigResolver().resolve(version.config), decision
         if job.job_type == RESUME_JOB:
             with self.persistence.transaction(job.tenant_id) as uow:
                 approval = uow.approvals.get(job.payload_ref)
@@ -175,6 +194,8 @@ class HistoryWorkflows:
                 if version is None or decision is None:
                     raise WorkflowNotAllowed()
                 return previous, ConfigResolver().resolve(version.config), decision
+            if uow.agent_runs.automation_blocked(job.incident_id):
+                raise WorkflowNotAllowed()
             incident = uow.incidents.get(job.incident_id)
             if incident is None or incident.store != job.store:
                 raise WorkflowNotAllowed()
@@ -198,7 +219,7 @@ class HistoryWorkflows:
                 selection = select_agents(decision.result.investigation_agents,
                     self.source.capabilities(job.tenant_id, job.store, now), tenant_id=job.tenant_id,
                     store=job.store, category=category, allowed_agents=tool_agents, now=now)
-                if len(selection.selected) > resolved.effective.max_tool_calls:
+                if len(selection.selected) > resolved.effective.max_tool_calls and not resolved.effective.loop_enabled:
                     raise WorkflowNotAllowed()
                 contexts = tuple(build_context(a.agent_type, tenant_id=job.tenant_id,
                     incident_id=job.incident_id, store=job.store, category=category,
@@ -207,6 +228,8 @@ class HistoryWorkflows:
                     for a in selection.selected)
                 state = WorkflowState.model_validate(state.model_copy(update={"selection": selection,
                     "contexts": contexts}).model_dump(mode="json"))
+                if resolved.effective.loop_enabled:
+                    state = state.model_copy(update={"loop": LoopTrace(policy=loop_policy(resolved.effective))})
             run = AgentRun(agent_run_id=rid, tenant_id=job.tenant_id, incident_id=incident.id,
                 workflow_id=wid, job_id=job.job_id, correlation_id=job.correlation_id,
                 config_version=version.config_version, jev_decision_id=decision.decision_id,
@@ -217,6 +240,7 @@ class HistoryWorkflows:
                 ),
                 requested_by=job.delegated_principal_id, delegated_roles=job.delegated_roles,
                 delegated_store_scope=job.delegated_store_scope, initial_incident_version=incident.version)
+            run = AgentRun.model_validate(run.model_copy(update={"manifest": run_manifest(run)}).model_dump(mode="json"))
             return uow.agent_runs.save(run), resolved, decision
 
 
@@ -457,9 +481,21 @@ class HistoryProcessor:
     def __call__(self, job):
         with execution_lease(self.dsn, job, self.lease_seconds) as check:
             run, resolved, decision = HistoryWorkflows(self.persistence, self.clock, self.source).prepare(job)
+            validate_manifest(run)
+            if run.state.loop:
+                try:
+                    InvestigationLoop(self.persistence, run.agent_run_id, job.tenant_id,
+                        self.source, self.clock).authorize()
+                except ControlInterrupted as error:
+                    if run.status == WorkflowStatus.COMPLETED:
+                        return run
+                    with self.persistence.transaction(job.tenant_id) as uow:
+                        current = uow.agent_runs.lock(run.agent_run_id)
+                        loop = current.state.loop.model_copy(update={"termination": error.reason})
+                        return uow.agent_runs.save(current.model_copy(update={"state": current.state.model_copy(update={"loop": loop})}))
             if run.status == WorkflowStatus.COMPLETED:
                 return run
-            if run.status == WorkflowStatus.WAITING_APPROVAL and job.job_type != RESUME_JOB:
+            if run.status == WorkflowStatus.WAITING_APPROVAL and job.job_type not in {RESUME_JOB, CONTINUE_JOB}:
                 return run
             def record(call):
                 check()
@@ -526,6 +562,7 @@ class HistoryProcessor:
 
             def rca(state):
                 check()
+                rca_config = resolved
                 with self.persistence.transaction(job.tenant_id) as uow:
                     current = uow.agent_runs.get(run.agent_run_id)
                     if current.state.rca_completed:
@@ -535,6 +572,8 @@ class HistoryProcessor:
                         policy = uow.configs.current()
                         if policy is None or not policy.config.auto_rca_draft:
                             return RCAInvestigation.gap(state, "RCA_DISABLED")
+                        if state.loop:
+                            rca_config = bounded_loop_config(resolved, policy.config, state.loop.policy)
                         if decision.result.requires_llm and (not policy.config.hosted_ai_allowed
                                 or not set(resolved.effective.llm_enabled_providers) <= set(policy.config.llm_enabled_providers)):
                             return RCAInvestigation.gap(state, "LLM_POLICY_DENIED")
@@ -551,9 +590,9 @@ class HistoryProcessor:
                             if key in effects:
                                 raise UncertainHistoryCall()
                             effects.add(key)
-                result = RCAInvestigation(resolved, run.jev_decision_id,
+                result = RCAInvestigation(rca_config, run.jev_decision_id,
                     requires_llm=decision.result.requires_llm, clock=self.clock, executor=executor,
-                    deadline=run.started_at+timedelta(seconds=resolved.effective.timeout_seconds))(state)
+                    deadline=run.started_at+timedelta(seconds=rca_config.effective.timeout_seconds))(state)
                 result = result.model_copy(update={"rca_completed": True})
                 persist(result)
                 return result
@@ -608,7 +647,7 @@ class HistoryProcessor:
                                 raise AccessError()
                             with self.persistence.transaction(job.tenant_id) as uow:
                                 previous = uow.agent_runs.branch(run.agent_run_id, pack.agent_type)
-                                if previous:
+                                if previous and run.state.loop is None:
                                     return previous
                             def action(context, bid):
                                 if context.agent_type != "HISTORY":
@@ -626,14 +665,37 @@ class HistoryProcessor:
                                     findings=found.findings, evidence_candidates=found.evidence_candidates,
                                     evidence_gaps=found.evidence_gaps, started_at=started, completed_at=self.clock(),
                                     uncertainty="OBSERVATIONS_NOT_CAUSE", context_digest=pack.digest)
-                            result = isolated_branch(action, pack, branch_id, clock=self.clock,
-                                deadline=run.started_at+timedelta(seconds=resolved.effective.timeout_seconds))
+                            def bounded_action(context, bid):
+                                return isolated_branch(action, context, bid, clock=self.clock,
+                                    deadline=run.started_at+timedelta(seconds=resolved.effective.timeout_seconds))
+                            if run.state.loop:
+                                return InvestigationLoop(self.persistence, run.agent_run_id, job.tenant_id,
+                                    self.source, self.clock).execute(pack, branch_id, bounded_action)
+                            result = bounded_action(pack, branch_id)
                             check()
                             with self.persistence.transaction(job.tenant_id) as uow:
                                 return uow.agent_runs.append_branch(run.agent_run_id, result)
 
                         def collect(state):
                             result = investigation_fan_in(state)
+                            if run.state.loop:
+                                with self.persistence.transaction(job.tenant_id) as uow:
+                                    stored = uow.agent_runs.get(run.agent_run_id).state
+                                    events = uow.agent_runs.events(run.agent_run_id)
+                                    current_config = uow.configs.current().config
+                                baseline = {e.source_ref for event in events if event.kind == "RESULT" and event.attempt == 1
+                                    for e in event.result.evidence_candidates}
+                                new_evidence = bool(set(result.evidence_refs)-baseline) if stored.iteration > 1 else bool(result.evidence_refs)
+                                termination = stored.loop.termination
+                                if termination is None:
+                                    termination = "NO_NEW_EVIDENCE" if not result.evidence_refs or (stored.iteration > 1 and not new_evidence) else (
+                                        "ITERATION_LIMIT" if any(b.retryable and b.evidence_gaps for b in state.branches)
+                                        and stored.iteration >= min(stored.loop.policy.max_iterations, current_config.max_agent_iterations)
+                                        else "COMPLETED")
+                                loop = stored.loop.model_copy(update={"termination": termination,
+                                    "evidence_digest": evidence_digest(result.evidence_refs), "new_evidence": new_evidence})
+                                result = result.model_copy(update={"iteration": stored.iteration,
+                                    "tool_call_count": stored.tool_call_count, "loop": loop})
                             persist(result)
                             observe("history_investigation", state, result, 0)
                             return result
@@ -652,9 +714,25 @@ class HistoryProcessor:
                             vc = VerificationCommands(self.persistence, run.agent_run_id, job.tenant_id, self.clock)
                             stages.update(internal_execution=vc.execute, begin_verification=vc.begin_verification,
                                 verification=vc.evaluate, apply_verification=vc.apply)
-                    graph = history_graph(saver, investigate, persist, observe=observe, **stages)
+                    def guard(name, state):
+                        if run.state.loop:
+                            operation = {"rca_investigation": "RCA_DRAFT", "capa_proposal": "CAPA_DRAFT",
+                                "apply_capa": "CAPA_APPLY", "request_approval": "APPROVAL_REQUEST",
+                                "approval_result": "APPROVAL_RESULT", "internal_execution": "INTERNAL_EXECUTION",
+                                "begin_verification": "VERIFICATION", "verification": "VERIFICATION",
+                                "apply_verification": "VERIFICATION"}.get(name)
+                            InvestigationLoop(self.persistence, run.agent_run_id, job.tenant_id,
+                                self.source, self.clock).authorize(operation)
+                    graph = history_graph(saver, investigate, persist, observe=observe, guard=guard, **stages)
+                    approval_id = job.payload_ref if job.job_type == RESUME_JOB else None
+                    if job.job_type == CONTINUE_JOB and run.state.approval:
+                        with self.persistence.transaction(job.tenant_id) as uow:
+                            approval = uow.approvals.get(run.state.approval.approval_id)
+                            if approval is not None and approval.status in {"APPROVED", "REJECTED"}:
+                                validate_approval(uow, approval, self.clock(), decided=True)
+                                approval_id = approval.approval_id
                     result = invoke_or_resume(graph, run.state,
-                        approval_id=job.payload_ref if job.job_type == RESUME_JOB else None,
+                        approval_id=approval_id,
                         parallelism=resolved.effective.parallelism)
                 check()
                 with self.persistence.transaction(job.tenant_id) as uow:
@@ -663,6 +741,11 @@ class HistoryProcessor:
                         return uow.agent_runs.save(current.model_copy(update={"state": result,
                             "status": WorkflowStatus.WAITING_APPROVAL, "completed_at": None}))
                     return uow.agent_runs.save(finish_run(current, result, self.clock()))
+            except ControlInterrupted as error:
+                with self.persistence.transaction(job.tenant_id) as uow:
+                    current = uow.agent_runs.lock(run.agent_run_id)
+                    loop = current.state.loop.model_copy(update={"termination": error.reason})
+                    return uow.agent_runs.save(current.model_copy(update={"state": current.state.model_copy(update={"loop": loop})}))
             except Exception as error:
                 logger.error("History 조사 실패 code=WORKFLOW_FAILED job_id=%s", job.job_id)
                 with self.persistence.transaction(job.tenant_id) as uow:

@@ -126,7 +126,7 @@ def test_legacy_history_v1_still_has_only_original_nodes(history_setup):
     job = service.enqueue(context, "i", decision.decision_id)
     run, _, _ = service.prepare(job)
     # 이전 영속 레코드의 버전을 fixture에서 복원합니다. 실제 저장소 불변성은 우회하지 않습니다.
-    persistence.memory.data["agent_runs"][run.agent_run_id] = run.model_copy(update={"workflow_version": "history-v1"})
+    persistence.memory.data["agent_runs"][run.agent_run_id] = run.model_copy(update={"workflow_version": "history-v1", "manifest": None})
     result = processor(persistence, ScopedSearch(), memory_checkpoint(), None)(job)
     with persistence.transaction("t") as uow:
         assert [s.node_name for s in uow.agent_runs.steps(result.agent_run_id)] == [

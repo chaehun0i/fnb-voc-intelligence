@@ -366,6 +366,10 @@ def main() -> None:
         raise SystemExit("로컬 테스트 스택의 SERVIQ_TEST_API_BASE_URL을 명시해 주세요.")
     client = SmokeClient(base_url)
     verify_frontend(client)
+    loop_fixture = os.getenv("SERVIQ_LOOP_HARNESS_HTTP_FIXTURE")
+    if loop_fixture:
+        verify_loop_harness_http(client, json.loads(loop_fixture))
+        return
     multi_fixture = os.getenv("SERVIQ_MULTI_AGENT_HTTP_FIXTURE")
     if multi_fixture:
         verify_multi_agent_http(client, json.loads(multi_fixture))
@@ -383,6 +387,59 @@ def main() -> None:
     verify_incident_flow(client)
     verify_settings_flow(client)
     verify_jev_flow(client)
+    verify_data_intake_http(client)
+
+
+def verify_data_intake_http(client):
+    store = "http-intake-"+uuid4().hex
+    client.api("POST", "/data/stores", {"store": store})
+    check(store in client.api("GET", "/data/onboarding")["stores"], "서버 매장 상태가 필요합니다.")
+    status, workbook, _ = client.fetch("GET", client.base_url+"/data/template")
+    check(status == 200 and workbook.startswith(b"PK"), "실제 Excel 템플릿을 다운로드해야 합니다.")
+    boundary = "ServIQ"+uuid4().hex
+    csv = f"매장명,자료ID,발생일시,VOC 내용,평점\n{store},http-voc,2026-10-07,품질 점검 필요,2\n"
+    body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"store\"\r\n\r\n{store}\r\n"
+        f"--{boundary}\r\nContent-Disposition: form-data; name=\"kind\"\r\n\r\nVOC\r\n"
+        f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"voc.csv\"\r\nContent-Type: text/csv\r\n\r\n{csv}\r\n--{boundary}--\r\n").encode()
+    request = Request(client.base_url+"/data/preview", data=body,
+        headers={"Content-Type": "multipart/form-data; boundary="+boundary}, method="POST")
+    with client.opener.open(request, timeout=10) as response:
+        preview = json.loads(response.read())
+    check(preview["valid"] and preview["row_count"] == 1, "nginx 업로드 검증이 필요합니다.")
+    path = "/data/imports/"+preview["preview_id"]+"/confirm"
+    key, payload = str(uuid4()), {"digest": preview["digest"], "confirmed": True}
+    receipt = client.api("POST", path, payload, idempotency_key=key)
+    check(client.api("POST", path, payload, idempotency_key=key) == receipt, "Import 재전송은 중복 저장하면 안 됩니다.")
+    check(not receipt["sample"] and "품질 점검 필요" not in json.dumps(receipt), "입력 원문은 조회 Trace에 복제하지 않습니다.")
+    print("[통과] nginx 온보딩·템플릿·multipart CSV 검증·미리보기·확인 Import·멱등성")
+
+
+def verify_loop_harness_http(client, fixtures):
+    for fixture in fixtures:
+        path = "/incidents/"+fixture["incident_id"]+"/agent-runs/"+fixture["agent_run_id"]
+        before = client.api("GET", path)
+        check(before["runtime"]["control_status"] == "PAUSED", "검증 fixture는 실제 영속 Pause 상태여야 합니다.")
+        action = fixture["action"]
+        body = {"expected_version": before["runtime"]["control_version"]}
+        key = "loop-http-"+fixture["agent_run_id"]
+        first = client.api("POST", path+"/controls/"+action, body, idempotency_key=key)
+        check(client.api("POST", path+"/controls/"+action, body, idempotency_key=key) == first, "제어 명령은 멱등해야 합니다.")
+        detail = client.api("GET", path)
+        if action == "resume":
+            for _ in range(30):
+                detail = client.api("GET", path)
+                if detail["status"] in {"COMPLETED", "FAILED"}:
+                    break
+                time.sleep(.5)
+            check(detail["status"] == "COMPLETED" and detail["runtime"]["termination_reason"] == "COMPLETED",
+                "실제 Resume Job/Worker/checkpoint가 동일 run을 완료해야 합니다.")
+            check(detail["normalized_evidence"], "재개된 실행은 원본 근거를 보존해야 합니다.")
+        else:
+            target = "STOPPED" if action == "stop" else "MANUAL_TAKEOVER"
+            check(detail["runtime"]["control_status"] == target, "중단/인계 상태를 숨기면 안 됩니다.")
+            check(not any(detail["runtime"]["permissions"].values()), "중단/인계 후 자동 재개는 금지됩니다.")
+        check(not any(v in json.dumps(detail) for v in ("source_digest", "delegated_roles", "raw_prompt", "raw_response", "MULTI-RAW-SENTINEL")), "제어 Trace에 민감 원문을 노출하면 안 됩니다.")
+        print("[통과] nginx Loop/Harness control·Worker·safe AX "+action)
 
 
 def verify_multi_agent_http(client, fixture):

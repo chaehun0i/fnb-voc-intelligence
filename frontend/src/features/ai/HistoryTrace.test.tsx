@@ -2,7 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import type { AgentRunApi } from "./api";
 import { historyFixture } from "../../test/agentRunFixture";
-import { HistoryTracePanel, InvestigationProgressPanel } from "./HistoryTrace";
+import { HistoryTracePanel, InvestigationProgressPanel, RuntimeControls } from "./HistoryTrace";
+import type { RuntimeAX } from "./api";
 
 it("부분 실패에서도 확보한 근거와 업무별 범위를 서버 결과로 표시한다", () => {
   render(<InvestigationProgressPanel progress={{ status: "PARTIAL", evidence_count: 3,
@@ -43,4 +44,30 @@ it("HTTP 오류·권한 부족을 예시로 대체하지 않는다", async () =>
   expect(screen.getByRole("alert")).toHaveTextContent("req-1");
   expect(api.detail).not.toHaveBeenCalled();
   expect(screen.queryByText("과거 VOC와 유사 사례를 조사했습니다.")).not.toBeInTheDocument();
+});
+
+const runtime: RuntimeAX = { control_status: "RUNNING", control_version: 0, termination_reason: "NO_NEW_EVIDENCE",
+  message: "새로운 근거를 찾지 못해 조사를 중단했습니다.", budget_summary: "읽기 조사 2 / 20회",
+  remaining_operations: 18, new_evidence: false, human_action: "담당자가 근거를 검토해 주세요.",
+  permissions: { pause: true, resume: false, stop: true, takeover: true }, versions: { loop: "bounded-investigation-1" } };
+
+it("서버의 종료 문구와 버튼 권한을 사용하며 제어 실패를 숨기지 않는다", async () => {
+  const control = vi.fn().mockRejectedValue(new Error("상태가 바뀌었습니다. 새로고침해 주세요."));
+  render(<RuntimeControls runtime={runtime} onControl={control} />);
+  expect(screen.getByText(runtime.message)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "자동 조사 재개" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "일시정지" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("상태가 바뀌었습니다");
+  const key = control.mock.calls[0][1];
+  fireEvent.click(screen.getByRole("button", { name: "일시정지" }));
+  await screen.findByRole("alert");
+  expect(control.mock.calls[1]).toEqual(["pause", key]);
+  expect(screen.queryByText(/LangGraph|checkpoint|provider retry/)).not.toBeInTheDocument();
+});
+
+it("수동 인계 후 서버가 금지한 자동 작업 버튼을 활성화하지 않는다", () => {
+  render(<RuntimeControls runtime={{ ...runtime, control_status: "MANUAL_TAKEOVER", termination_reason: "MANUAL_TAKEOVER",
+    message: "담당자가 직접 처리를 이어가고 있습니다.", permissions: { pause: false, resume: false, stop: false, takeover: false } }} onControl={vi.fn()} />);
+  expect(screen.getByText("담당자가 직접 처리를 이어가고 있습니다.")).toBeInTheDocument();
+  for (const button of screen.getAllByRole("button")) expect(button).toBeDisabled();
 });

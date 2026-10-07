@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Activity, Boxes, ChevronRight, ClipboardCheck, FileWarning, LayoutDashboard, Settings, Sparkles, Workflow } from "lucide-react";
 import type { Route } from "./App";
 
-const navigation: Array<[Route, string, typeof LayoutDashboard]> = [["dashboard", "운영 대시보드", LayoutDashboard], ["incidents", "인시던트", FileWarning], ["reviews", "검토 대기함", ClipboardCheck], ["trace", "실행 추적", Workflow], ["integrations", "연동 관리", Boxes], ["queue", "작업 대기열", Activity], ["settings", "운영 설정", Settings]];
+const navigation: Array<[Route, string, typeof LayoutDashboard]> = [["dashboard", "운영 대시보드", LayoutDashboard], ["incidents", "인시던트", FileWarning], ["reviews", "검토 대기함", ClipboardCheck], ["trace", "실행 추적", Workflow], ["integrations", "연동 관리", Boxes], ["queue", "작업 대기열", Activity], ["settings", "운영 설정", Settings], ["onboarding", "데이터 시작하기", Sparkles]];
 
 export function AppShell({ route, onNavigate, children }: { route: Route; onNavigate: (route: Route) => void; children: ReactNode }) {
   const scrollRef = useRef<HTMLDivElement>(null);

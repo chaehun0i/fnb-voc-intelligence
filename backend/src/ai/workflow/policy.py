@@ -1,7 +1,7 @@
 """ai/workflow/policy: 통합된 기능 책임, 기존 실행 계약 유지."""
 import hashlib
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import timedelta
 from uuid import NAMESPACE_URL, uuid5
 
@@ -18,6 +18,15 @@ from src.ai.workflow.models import (
 )
 
 RISK_ORDER = ("LOW", "MEDIUM", "HIGH", "CRITICAL")
+
+
+def bounded_loop_config(resolved, current, policy):
+    """고정 실행 의미는 유지하되 현재 안전 한도는 낮추는 방향으로만 적용합니다."""
+    pinned = resolved.effective
+    return replace(resolved, effective=replace(pinned,
+        token_budget=min(pinned.token_budget, current.token_budget, policy.token_budget),
+        cost_budget_usd=min(pinned.cost_budget_usd, current.cost_budget_usd, policy.cost_budget),
+        timeout_seconds=min(pinned.timeout_seconds, current.timeout_seconds, policy.timeout_seconds)))
 
 AGENT_REGISTRY = tuple(AgentDefinition(agent_type=agent, business_label=label, purpose=purpose,
     required_capabilities=(capability,)) for agent, label, purpose, capability in (
@@ -75,6 +84,53 @@ def build_context(agent, *, tenant_id, incident_id, store, category, severity,
             raise ValueError("CONTEXT_BUDGET_EXHAUSTED")
         refs.pop()
         excluded += 1
+
+
+def loop_policy(config):
+    from src.ai.workflow.models import LoopPolicy
+    from src.domain.config.resolution import ConfigResolver
+    current = ConfigResolver().resolve(config).effective
+    return LoopPolicy(max_iterations=min(3, current.max_agent_iterations),
+        max_operations=current.max_tool_calls, token_budget=current.token_budget,
+        cost_budget=current.cost_budget_usd, timeout_seconds=current.timeout_seconds)
+
+
+def loop_termination(policy, state, *, now, started_at, before_refs=None):
+    """Each operation is an actual read lookup; no synthetic MCP ToolCall is counted."""
+    if (state.tool_call_count >= policy.max_operations or state.token_spent >= policy.token_budget
+            or state.cost_spent >= policy.cost_budget
+            or now-started_at >= timedelta(seconds=policy.timeout_seconds)):
+        return "BUDGET_EXHAUSTED"
+    if before_refs is not None and set(state.evidence_refs) <= set(before_refs):
+        return "NO_NEW_EVIDENCE"
+    if state.iteration >= policy.max_iterations:
+        return "ITERATION_LIMIT"
+    return None
+
+
+def evidence_digest(refs):
+    return hashlib.sha256(json.dumps(sorted(set(refs)), separators=(",", ":")).encode()).hexdigest()
+
+
+def run_manifest(run):
+    from pathlib import Path
+
+    from src.ai.workflow.models import AgentRunManifest
+    directory = Path(__file__).parent
+    # An actual source bundle checksum, not an invented Git/AI Release version.
+    sources = tuple(directory / name for name in ("models.py", "agents.py", "graph.py", "policy.py", "runtime.py", "controller.py"))
+    sources += tuple(directory.parent / "execution" / name for name in ("models.py", "policy.py", "service.py", "harness.py"))
+    digest = hashlib.sha256(b"".join(p.read_bytes().replace(b"\r\n", b"\n") for p in sources)).hexdigest()
+    return AgentRunManifest(workflow_id=run.workflow_id, workflow_version=run.workflow_version,
+        config_version=run.config_version, source_digest=digest,
+        agent_versions=tuple((a.agent_type, a.agent_version)
+            for a in (run.state.selection.selected if run.state.selection else ())))
+
+
+def validate_manifest(run):
+    # Existing pre-manifest runs stay on their validated legacy path; no synthesized snapshot.
+    if run.manifest is not None and run.manifest != run_manifest(run):
+        raise ValueError("MANIFEST_INCOMPATIBLE")
 
 
 def server_risk(*values):

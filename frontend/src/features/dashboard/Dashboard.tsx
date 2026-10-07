@@ -23,7 +23,7 @@ export function Dashboard({ onIncidents, onReviews, onQueue, onIncident }: { onI
     </PageHeading>
     {apiMode === "mock" ? <PreviewNotice /> : <p className="preview-notice">실제 서버 운영 현황 · 예시 데이터를 섞지 않습니다.</p>}
     <p className="muted">정보 기준 시각: {dateTime(snapshot.as_of)} · 추세 날짜 기준: UTC · 조회 기간: 최근 7일</p>
-    {empty && <StateMessage title="현재 조회 범위에 운영 기록이 없습니다." />}
+    {empty && <><StateMessage title="현재 조회 범위에 운영 기록이 없습니다.">분석할 데이터가 없다면 샘플 데이터로 체험하거나 운영 파일을 가져올 수 있습니다.</StateMessage><a className="text-link" href="#/onboarding">샘플 데이터 추가 / 파일 가져오기</a></>}
     <div className="summary-grid">
       <StatCard label="진행 중 인시던트" value={`${kpis.open_incidents}건`} hint="해결·종결 제외" />
       <StatCard label="긴급 인시던트" value={`${kpis.critical_incidents}건`} hint="진행 중 CRITICAL" />

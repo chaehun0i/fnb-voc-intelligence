@@ -47,7 +47,7 @@ from src.infrastructure.repositories.postgres_incident_repository import (
 )
 
 
-def seed(dsn, *, inventory=True, tenant=None, closed_loop=False):
+def seed(dsn, *, inventory=True, tenant=None, closed_loop=False, loop=False, max_operations=20):
     migrate(dsn)
     now, suffix = datetime.now(UTC), uuid4().hex
     tenant = tenant or "multi-"+suffix
@@ -77,6 +77,7 @@ def seed(dsn, *, inventory=True, tenant=None, closed_loop=False):
     with persistence.transaction(tenant) as uow:
         previous = uow.configs.current()
         config = RuntimeConfig(jev_enabled=True, auto_investigation=True, auto_rca_draft=True, multi_agent_enabled=True,
+            loop_enabled=loop, max_tool_calls=max_operations,
             auto_capa_draft=closed_loop, internal_execution_enabled=closed_loop,
             allowed_tools=("voc.search", "transaction.search", "inventory.snapshot"), hosted_ai_allowed=False,
             llm_enabled_providers=(), llm_models=())

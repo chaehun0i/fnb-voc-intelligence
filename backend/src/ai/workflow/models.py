@@ -7,6 +7,7 @@ from pydantic import Field, field_validator, model_validator
 
 from src.ai.execution.models import (
     ActionExecutionRecord,
+    HarnessDecision,
     VerificationCandidate,
     VerificationEvidence,
 )
@@ -14,6 +15,68 @@ from src.ai.models import SafeModel
 
 InvestigationAgent = Literal["HISTORY", "TRANSACTION", "INVENTORY"]
 DataCapability = Literal["HISTORY_DATA", "TRANSACTION_DATA", "INVENTORY_DATA"]
+
+TerminationReason = Literal["COMPLETED", "NO_NEW_EVIDENCE", "BUDGET_EXHAUSTED",
+    "ITERATION_LIMIT", "POLICY_DENIED", "PAUSED", "STOPPED", "MANUAL_TAKEOVER", "INCOMPLETE"]
+
+
+class LoopPolicy(SafeModel):
+    version: Literal["bounded-investigation-1"] = "bounded-investigation-1"
+    max_iterations: int = Field(strict=True, ge=1, le=3)
+    max_operations: int = Field(strict=True, ge=1, le=50)
+    token_budget: int = Field(strict=True, ge=100, le=100000)
+    cost_budget: float = Field(ge=0.01, le=20, allow_inf_nan=False)
+    timeout_seconds: int = Field(strict=True, ge=5, le=600)
+
+
+class LoopTrace(SafeModel):
+    policy: LoopPolicy
+    termination: TerminationReason | None = None
+    # counters remain exclusively on WorkflowState; no duplicate budget consumption.
+    evidence_digest: str = Field(default="", pattern=r"^([a-f0-9]{64})?$")
+    new_evidence: bool = False
+
+
+class RuntimeEvent(SafeModel):
+    event_id: str = Field(min_length=1, max_length=128)
+    kind: Literal["CLAIM", "RESULT", "CONTROL", "HARNESS"]
+    created_at: datetime
+    agent_type: InvestigationAgent | None = None
+    attempt: int = Field(default=1, strict=True, ge=1, le=3)
+    result: "InvestigationResult | None" = None
+    control: Literal["RUNNING", "PAUSED", "STOPPED", "MANUAL_TAKEOVER"] | None = None
+    actor_id: str | None = Field(default=None, max_length=128)
+    reason: TerminationReason | None = None
+    decision: HarnessDecision | None = None
+
+    @model_validator(mode="after")
+    def integrity(self):
+        if self.created_at.utcoffset() is None:
+            raise ValueError("RUNTIME_EVENT_TIME_INVALID")
+        if (self.kind in {"CLAIM", "RESULT"} and self.agent_type is None
+                or self.kind == "RESULT" and (self.result is None or self.result.agent_type != self.agent_type)
+                or self.kind == "CONTROL" and (self.control is None or self.actor_id is None)):
+            raise ValueError("RUNTIME_EVENT_INVALID")
+        return self
+
+
+class AgentRunManifest(SafeModel):
+    workflow_id: str
+    workflow_version: str = Field(pattern=r"^(history-(v1|evidence-v2|capa-v3|verification-v4)|multi-investigation-v5)$")
+    graph_version: Literal["serviq-graph-1"] = "serviq-graph-1"
+    config_version: int = Field(strict=True, ge=1)
+    agent_registry_version: Literal["investigation-1"] = "investigation-1"
+    context_policy_version: Literal["minimal-context-1"] = "minimal-context-1"
+    loop_policy_version: Literal["bounded-investigation-1"] = "bounded-investigation-1"
+    harness_policy_version: Literal["operation-gate-1"] = "operation-gate-1"
+    agent_versions: tuple[tuple[InvestigationAgent, Literal["1"]], ...] = ()
+    source_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def unique_agents(self):
+        if len({a for a, _ in self.agent_versions}) != len(self.agent_versions):
+            raise ValueError("MANIFEST_AGENT_DUPLICATE")
+        return self
 
 
 class AgentDefinition(SafeModel):
@@ -35,7 +98,7 @@ class TenantCapability(SafeModel):
     store: str = Field(min_length=1, max_length=128)
     capability: DataCapability
     available: bool
-    source: Literal["AUTHORIZED_HISTORY_SEARCH", "SYNTHETIC_OPERATIONAL_FIXTURE"]
+    source: Literal["AUTHORIZED_HISTORY_SEARCH", "SYNTHETIC_OPERATIONAL_FIXTURE", "FILE_IMPORTED_OBSERVATION"]
     health: Literal["HEALTHY", "UNAVAILABLE"]
     freshness: Literal["FRESH", "STALE", "UNKNOWN"]
     checked_at: datetime
@@ -58,7 +121,7 @@ class AgentSelection(SafeModel):
 class ContextReference(SafeModel):
     source_ref: str = Field(pattern=r"^(review|transaction|inventory):[A-Za-z0-9_.:-]{1,128}$")
     source_at: datetime | None = None
-    provenance: Literal["AUTHORIZED_HISTORY_SEARCH", "SYNTHETIC_OPERATIONAL_FIXTURE"]
+    provenance: Literal["AUTHORIZED_HISTORY_SEARCH", "SYNTHETIC_OPERATIONAL_FIXTURE", "FILE_IMPORTED_OBSERVATION"]
 
     @field_validator("source_at")
     @classmethod
@@ -119,7 +182,7 @@ class EvidenceCandidate(SafeModel):
     retrieved_at: datetime
     tenant_id: str | None = Field(default=None, min_length=1, max_length=128)
     store: str | None = Field(default=None, min_length=1, max_length=128)
-    provenance: tuple[Literal["lexical", "vector", "hybrid", "legacy_reference", "synthetic_operational"], ...] = ("legacy_reference",)
+    provenance: tuple[Literal["lexical", "vector", "hybrid", "legacy_reference", "synthetic_operational", "file_imported_operational"], ...] = ("legacy_reference",)
     source_at: datetime | None = None
     stance: Literal["SUPPORTING", "CONTRADICTING", "NEUTRAL"] = "NEUTRAL"
     observation_code: Literal["RELATED_HISTORY_MATCH", "REFERENCE_ONLY", "REFUND_SIGNAL", "CANCEL_SIGNAL", "STOCK_SHORTAGE", "STOCK_ADJUSTMENT"] = "REFERENCE_ONLY"
@@ -154,7 +217,7 @@ class OperationalObservation(SafeModel):
     observed_at: datetime
     signal: Literal["REFUND_SIGNAL", "CANCEL_SIGNAL", "STOCK_SHORTAGE", "STOCK_ADJUSTMENT"]
     stance: Literal["SUPPORTING", "CONTRADICTING", "NEUTRAL"] = "NEUTRAL"
-    source: Literal["SYNTHETIC_OPERATIONAL_FIXTURE"] = "SYNTHETIC_OPERATIONAL_FIXTURE"
+    source: Literal["SYNTHETIC_OPERATIONAL_FIXTURE", "FILE_IMPORTED_OBSERVATION"] = "SYNTHETIC_OPERATIONAL_FIXTURE"
 
     @model_validator(mode="after")
     def integrity(self):
@@ -317,6 +380,7 @@ class ApprovalTrace(SafeModel):
 
 
 class WorkflowState(SafeModel):
+    loop: LoopTrace | None = None
     tenant_id: str = Field(min_length=1, max_length=128)
     incident_id: str = Field(min_length=1, max_length=128)
     workflow_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
@@ -411,6 +475,7 @@ class WorkflowState(SafeModel):
 
 
 class AgentRun(SafeModel):
+    manifest: AgentRunManifest | None = None
     agent_run_id: str
     tenant_id: str
     incident_id: str
@@ -433,6 +498,12 @@ class AgentRun(SafeModel):
 
     @model_validator(mode="after")
     def lineage(self):
+        if self.manifest and (self.manifest.workflow_id != self.workflow_id
+                or self.manifest.workflow_version != self.workflow_version
+                or self.manifest.config_version != self.config_version
+                or self.manifest.agent_versions != tuple((a.agent_type, a.agent_version)
+                    for a in (self.state.selection.selected if self.state.selection else ()))):
+            raise ValueError("MANIFEST_LINEAGE_INVALID")
         if any(getattr(self, key) != getattr(self.state, key)
                for key in ("tenant_id", "incident_id", "workflow_id", "agent_run_id", "config_version")):
             raise ValueError("실행과 상태의 원본 참조가 일치해야 합니다.")
