@@ -149,3 +149,32 @@ def test_prompt_resolution_digest_and_inactive_fail_closed():
         PromptRegistry((p, p))
     with pytest.raises(ValueError):
         PromptRegistry((p.model_copy(update={"status": "INACTIVE"}),)).resolve(p.prompt_id)
+
+
+def test_official_mcp_client_schema_and_safe_protocol_errors():
+    import asyncio
+
+    from mcp import Client
+
+    from src.ai.execution.tools import ToolResult
+    from src.mcp.server import ReadToolServer
+    class BoundHarness:
+        def execute(self, name, arguments):
+            if arguments["incident_id"] == "failure":
+                raise RuntimeError("password=SECRET raw SQL")
+            return ToolResult(tool_name=name)
+    async def check():
+        async with Client(ReadToolServer(BoundHarness())) as client:
+            listed = await client.list_tools()
+            assert len(listed.tools) == 4
+            for t in listed.tools:
+                expected = READ_TOOLS.resolve(t.name)
+                assert t.input_schema == json.loads(expected.input_schema_json)
+                assert t.output_schema == json.loads(expected.output_schema_json)
+            result = await client.call_tool("get_incident", {"incident_id": "safe"})
+            assert not result.is_error and result.structured_content["tool_name"] == "get_incident"
+            for name, args in (("shell", {}), ("get_incident", {"incident_id": "safe", "tenant_id": "other"}),
+                    ("get_incident", {"incident_id": "failure"})):
+                failed = await client.call_tool(name, args)
+                assert failed.is_error and "SECRET" not in failed.model_dump_json()
+    asyncio.run(check())

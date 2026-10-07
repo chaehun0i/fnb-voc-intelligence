@@ -24,6 +24,7 @@ dependencies = [
     "httpx>=0.28,<1",
     "langgraph>=1,<2",
     "langchain-core>=1.6,<2",
+    "mcp>=2,<3",
     "langgraph-checkpoint-postgres>=3,<4",
     "openpyxl>=3.1.5,<4",
     "defusedxml>=0.7.1,<1",
