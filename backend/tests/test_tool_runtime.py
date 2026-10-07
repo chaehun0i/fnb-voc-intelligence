@@ -127,10 +127,25 @@ def test_langchain_composition_executes_only_through_gateway():
             assert '"messages"' in item.payload_json
             assert item.input_references == ("review:one",)
             return await LLMGateway(provider).execute(item, model="fake-v1", **kwargs)
-    item = intent(payload_json='{"evidence_refs":["review:one"]}', input_references=("review:one",))
-    result = asyncio.run(NodeRuntime(Gateway()).execute(item, None, template="Summarize supplied references only."))
+    item = intent(payload_json='{"evidence_refs":["review:one"]}', input_references=("review:one",),
+        prompt_template="reference-summary", schema_version="history-1")
+    result = asyncio.run(NodeRuntime(Gateway()).execute(item, None))
     assert result.provider == "fake" and provider.call_count == 1
     with pytest.raises(ValueError):
         asyncio.run(NodeRuntime(Gateway()).execute(item.model_copy(update={"payload_json": '{"raw_voc":"SECRET"}'}),
-            None, template="Summarize supplied references only."))
+            None))
     assert provider.call_count == 1
+
+
+def test_prompt_resolution_digest_and_inactive_fail_closed():
+    from src.ai.intelligence.prompts import PROMPTS, PromptRegistry
+    p = PROMPTS.resolve("observation-lookup")
+    assert p.reference() == PROMPTS.resolve(p.prompt_id).reference()
+    assert len(p.reference().digest) == 64
+    assert "template" not in p.reference().model_dump()
+    with pytest.raises(ValueError):
+        PROMPTS.resolve("unknown")
+    with pytest.raises(ValueError):
+        PromptRegistry((p, p))
+    with pytest.raises(ValueError):
+        PromptRegistry((p.model_copy(update={"status": "INACTIVE"}),)).resolve(p.prompt_id)

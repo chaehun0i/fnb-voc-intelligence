@@ -12,6 +12,7 @@ from src.ai.execution.models import (
     VerificationEvidence,
 )
 from src.ai.execution.tools import ToolCall
+from src.ai.intelligence.prompts import PromptReference
 from src.ai.models import SafeModel
 
 InvestigationAgent = Literal["HISTORY", "TRANSACTION", "INVENTORY"]
@@ -62,6 +63,9 @@ class RuntimeEvent(SafeModel):
 
 
 class AgentRunManifest(SafeModel):
+    tool_bundle_versions: tuple[Literal["read-tools-1"], ...] = ()
+    tool_versions: tuple[tuple[str, Literal["1"]], ...] = ()
+    prompt_versions: tuple[PromptReference, ...] = ()
     workflow_id: str
     workflow_version: str = Field(pattern=r"^(history-(v1|evidence-v2|capa-v3|verification-v4)|multi-investigation-v5)$")
     graph_version: Literal["serviq-graph-1"] = "serviq-graph-1"
@@ -381,6 +385,7 @@ class ApprovalTrace(SafeModel):
 
 
 class WorkflowState(SafeModel):
+    tool_runtime_enabled: bool = False
     tool_calls: tuple[ToolCall, ...] = Field(default=(), max_length=50)
     loop: LoopTrace | None = None
     tenant_id: str = Field(min_length=1, max_length=128)

@@ -115,6 +115,8 @@ def evidence_digest(refs):
 def run_manifest(run):
     from pathlib import Path
 
+    from src.ai.execution.tools import READ_TOOLS
+    from src.ai.intelligence.prompts import PROMPTS
     from src.ai.workflow.models import AgentRunManifest
     directory = Path(__file__).parent
     # An actual source bundle checksum, not an invented Git/AI Release version.
@@ -123,6 +125,12 @@ def run_manifest(run):
     digest = hashlib.sha256(b"".join(p.read_bytes().replace(b"\r\n", b"\n") for p in sources)).hexdigest()
     return AgentRunManifest(workflow_id=run.workflow_id, workflow_version=run.workflow_version,
         config_version=run.config_version, source_digest=digest,
+        tool_bundle_versions=(READ_TOOLS.version,) if run.state.tool_runtime_enabled else (),
+        tool_versions=tuple((t.name, t.version) for t in READ_TOOLS.contracts()
+            if t.agent_type in {a.agent_type for a in run.state.selection.selected})
+            if run.state.tool_runtime_enabled and run.state.selection else (),
+        prompt_versions=(PROMPTS.resolve("observation-lookup").reference(),
+            PROMPTS.resolve("reference-summary").reference()) if run.state.tool_runtime_enabled else (),
         agent_versions=tuple((a.agent_type, a.agent_version)
             for a in (run.state.selection.selected if run.state.selection else ())))
 
