@@ -112,3 +112,25 @@ def test_tool_harness_rechecks_policy_scope_and_reuses_receipt():
         harness.execute("shell", args)
     with pytest.raises(ToolFailure):
         harness.execute("get_transactions", args | {"tenant_id": "other"})
+
+
+def test_langchain_composition_executes_only_through_gateway():
+    import asyncio
+
+    from src.ai.intelligence.node import NodeRuntime
+    from src.ai.intelligence.providers.fake import FakeProvider
+    from src.ai.intelligence.service import LLMGateway
+    from tests.test_llm_contracts import intent
+    provider = FakeProvider()
+    class Gateway:
+        async def execute(self, item, resolved, **kwargs):
+            assert '"messages"' in item.payload_json
+            assert item.input_references == ("review:one",)
+            return await LLMGateway(provider).execute(item, model="fake-v1", **kwargs)
+    item = intent(payload_json='{"evidence_refs":["review:one"]}', input_references=("review:one",))
+    result = asyncio.run(NodeRuntime(Gateway()).execute(item, None, template="Summarize supplied references only."))
+    assert result.provider == "fake" and provider.call_count == 1
+    with pytest.raises(ValueError):
+        asyncio.run(NodeRuntime(Gateway()).execute(item.model_copy(update={"payload_json": '{"raw_voc":"SECRET"}'}),
+            None, template="Summarize supplied references only."))
+    assert provider.call_count == 1
