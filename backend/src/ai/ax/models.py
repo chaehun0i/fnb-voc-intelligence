@@ -54,7 +54,21 @@ class Explanation(SafeModel):
     technical_trace_available: bool = False
 
 
+class AgentControlView(SafeModel):
+    control_status: Literal["RUNNING", "PAUSED", "STOPPED", "MANUAL_TAKEOVER"]
+    control_version: int = Field(ge=0)
+    termination_reason: str | None
+    message: str
+    budget_summary: str
+    remaining_operations: int = Field(ge=0)
+    new_evidence: bool
+    human_action: str
+    permissions: dict[Literal["pause", "resume", "stop", "takeover"], bool]
+    versions: dict[str, str]
+
+
 class IncidentAX(SafeModel):
+    runtime: AgentControlView | None = None
     schema_version: Literal["incident-ax-1"] = "incident-ax-1"
     incident_id: str
     current_phase: str

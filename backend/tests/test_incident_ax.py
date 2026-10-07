@@ -91,3 +91,22 @@ def test_explanation_separates_verification_from_real_world_effect(result, phase
 def test_brief_never_describes_approval_as_execution():
     view = project_incident(demo_incidents()[0]).model_copy(update={"approval_status": "APPROVED"})
     assert "실행 완료는 아닙니다" in explain(view).brief.summary
+
+
+def test_ax_controls_reuse_current_runtime_and_preserve_manifest():
+    from src.ai.ax.service import IncidentAXQueries
+    from src.application.agent_controls import AgentControls
+    from src.application.security.principal import RequestContext
+    from tests.test_loop_harness import loop_setup
+    persistence, _, run, _ = loop_setup()
+    from src.application.security.principal import Principal
+    principal = Principal(run.requested_by, run.tenant_id, frozenset(run.delegated_roles), frozenset(run.delegated_store_scope))
+    context = RequestContext(principal, "ax-control", "ax-control", "ax-pause")
+    query = IncidentAXQueries(persistence, context)
+    before = query.get(run.incident_id)
+    assert before.runtime.permissions["pause"]
+    AgentControls(persistence).execute(context, run.incident_id, run.agent_run_id, "pause", 0)
+    after = query.get(run.incident_id)
+    assert after.runtime.control_status == "PAUSED" and after.runtime.control_version == 1
+    assert not after.runtime.permissions["pause"] and after.runtime.permissions["resume"]
+    assert before.manifest_reference == after.manifest_reference and before.coverage == after.coverage

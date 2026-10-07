@@ -3,6 +3,7 @@ import psycopg
 
 from src.ai.ax.actions import next_action
 from src.ai.ax.explanations import explain
+from src.ai.ax.models import AgentControlView
 from src.ai.ax.projector import project_incident
 from src.ai.workflow.controller import control_state
 from src.ai.workflow.policy import AGENT_REGISTRY
@@ -179,6 +180,7 @@ class IncidentAXQueries:
                         review = ReviewQueries(IncidentService(uow.incidents, principal=principal),
                             uow.approvals, self.context, uow.configs.current()).get(approval.approval_id)["approval"]["actions"]["approve"]["allowed"]
                 runtime = runtime_projection(uow, run, principal, incident.store) if run else None
+                updates["runtime"] = AgentControlView.model_validate(runtime) if runtime else None
                 uncertain = bool(run and any(c.error and c.error.code == "OUTCOME_UNKNOWN" or
                     not c.error and not c.result for c in run.state.tool_calls))
                 view = explain(view.model_copy(update=updates), run)

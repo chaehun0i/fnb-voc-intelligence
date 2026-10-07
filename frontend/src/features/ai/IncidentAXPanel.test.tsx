@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { IncidentAXPanel } from "./IncidentAXPanel";
 import { decodeAX, getIncidentAX, type IncidentAX } from "./ax";
+import { agentRunApi } from "./api";
 
 export const axFixture: IncidentAX = {
   schema_version: "incident-ax-1", incident_id: "i", current_phase: "PENDING_APPROVAL",
@@ -43,4 +44,21 @@ it("AX HTTP contract와 실패를 명시적으로 검증한다", async () => {
   expect(() => decodeAX({ ...axFixture, brief: { ...axFixture.brief, confidence_level: .99 } })).toThrow();
   await expect(getIncidentAX("i", vi.fn().mockResolvedValue(new Response("{}", { status: 403 })))).rejects.toThrow("권한");
   await expect(getIncidentAX("i", vi.fn().mockRejectedValue(new Error("raw secret")))).rejects.toThrow("연결하지 못했습니다");
+});
+
+it("AX에서 기존 서버 제어 명령과 버전을 사용하고 결과를 새로 조회한다", async () => {
+  const control = vi.fn().mockResolvedValue(undefined);
+  const previous = agentRunApi.control;
+  agentRunApi.control = control;
+  try {
+    const load = vi.fn().mockResolvedValue({ ...axFixture, runtime: {
+      control_status: "RUNNING", control_version: 3, termination_reason: null, message: "자료 조사 중",
+      budget_summary: "읽기 조사 2 / 20회", remaining_operations: 18, new_evidence: false,
+      human_action: "담당자가 근거를 확인해 주세요.", permissions: { pause: true, resume: false, stop: true, takeover: true }, versions: { loop: "bounded-investigation-1" },
+    } });
+    render(<IncidentAXPanel incidentId="i" load={load} onAction={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "일시정지" }));
+    expect(await screen.findByRole("button", { name: "자동 조사 재개" })).toBeDisabled();
+    expect(control).toHaveBeenCalledWith("i", "run", "pause", 3, expect.any(String));
+  } finally { agentRunApi.control = previous; }
 });
