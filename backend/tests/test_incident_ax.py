@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from src.ai.ax.actions import next_action
 from src.ai.ax.models import AIBrief
 from src.ai.ax.projector import project_incident
 from src.api.app import create_app, demo_incidents
@@ -46,3 +47,29 @@ def test_ax_api_is_scoped_and_separate_from_trace(history_setup):
     assert client.get(path, headers={"Authorization": "Bearer other"}).status_code == 404
     assert client.get(path, headers={"Authorization": "Bearer store"}).status_code == 403
     assert client.post(path, headers={"Authorization": "Bearer reader"}).status_code == 405
+
+
+@pytest.mark.parametrize("updates,kwargs,human,action", [
+    ({"approval_status": "PENDING"}, {}, "APPROVAL_REQUIRED", "OPEN_REVIEW"),
+    ({"approval_status": "APPROVED"}, {}, "REVIEW_REQUIRED", "CHECK_RESULT"),
+    ({"approval_status": "REJECTED"}, {}, "REVIEW_REQUIRED", "MANUAL_REVIEW"),
+    ({"current_phase": "VERIFYING"}, {}, "VERIFICATION_REQUIRED", "VERIFY"),
+    ({}, {"termination": "BUDGET_EXHAUSTED"}, "BUDGET_INCREASE_REQUIRED", "MANUAL_REVIEW"),
+    ({}, {"termination": "NO_NEW_EVIDENCE"}, "MORE_EVIDENCE_REQUIRED", "COLLECT_EVIDENCE"),
+    ({}, {"uncertain_effect": True}, "MANUAL_TAKEOVER_RECOMMENDED", "MANUAL_REVIEW"),
+    ({}, {"control": "STOPPED"}, "REVIEW_REQUIRED", "MANUAL_REVIEW"),
+    ({"current_phase": "RESOLVED"}, {}, "NONE", "CHECK_RESULT"),
+])
+def test_human_actions_do_not_invent_execution_or_retry(updates, kwargs, human, action):
+    view = project_incident(demo_incidents()[0]).model_copy(update=updates)
+    result = next_action(view, **kwargs)
+    assert result.human_action == human and result.next_action.action_type == action
+    assert result.next_action.risk == view.next_action.risk
+    if action != "CHECK_RESULT":
+        assert not result.next_action.permission and result.next_action.blocking_reason
+
+
+def test_pending_approval_uses_review_permission():
+    view = project_incident(demo_incidents()[0]).model_copy(update={"approval_status": "PENDING"})
+    assert not next_action(view, operate=True).next_action.permission
+    assert next_action(view, review=True).next_action.permission

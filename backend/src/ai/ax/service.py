@@ -1,10 +1,12 @@
 """ai/ax/service: 통합된 기능 책임, 기존 실행 계약 유지."""
 import psycopg
 
+from src.ai.ax.actions import next_action
 from src.ai.ax.projector import project_incident
 from src.ai.workflow.controller import control_state
 from src.ai.workflow.policy import AGENT_REGISTRY
-from src.application.incidents.service import IncidentNotFound
+from src.application.approvals.queries import ReviewQueries
+from src.application.incidents.service import IncidentNotFound, IncidentService
 from src.application.ports.repositories import AgentRunsUnavailable
 from src.application.security.authorization import allowed, require
 
@@ -166,12 +168,20 @@ class IncidentAXQueries:
                 view = project_incident(incident, run, investigation)
                 decisions = uow.decisions.history(incident_id, 1, 0)
                 updates = {}
+                review = False
                 if view.decision_reference is None and decisions:
                     updates["decision_reference"] = decisions[0].decision_id
                 if run and run.state.approval:
                     approval = uow.approvals.get(run.state.approval.approval_id)
                     if approval and approval.incident_id == incident_id and approval.agent_run_id == run.agent_run_id:
                         updates["approval_status"] = approval.status
-                return view.model_copy(update=updates)
+                        review = ReviewQueries(IncidentService(uow.incidents, principal=principal),
+                            uow.approvals, self.context, uow.configs.current()).get(approval.approval_id)["approval"]["actions"]["approve"]["allowed"]
+                runtime = runtime_projection(uow, run, principal, incident.store) if run else None
+                uncertain = bool(run and any(c.error and c.error.code == "OUTCOME_UNKNOWN" or
+                    not c.error and not c.result for c in run.state.tool_calls))
+                return next_action(view.model_copy(update=updates), operate=allowed(principal, "operate", incident.store),
+                    review=review, control=runtime["control_status"] if runtime else "RUNNING",
+                    termination=runtime["termination_reason"] if runtime else None, uncertain_effect=uncertain)
         except psycopg.Error as error:
             raise AgentRunsUnavailable() from error
