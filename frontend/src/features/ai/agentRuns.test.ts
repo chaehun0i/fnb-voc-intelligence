@@ -2,6 +2,16 @@ import { expect, it, vi } from "vitest";
 import { createHttpAgentRunApi, decodeDetail, decodeRun, mockAgentRunApi } from "./api";
 import { historyFixture } from "../../test/agentRunFixture";
 
+it("Tool 상태는 additive 계약이며 위조·과도한 응답을 거부한다", () => {
+  const tool = { name: "get_transactions", version: "1", status: "COMPLETED", message: "거래 자료 확인 완료",
+    evidence_count: 1, error_code: null, human_action: "NONE" };
+  expect(decodeRun({ ...historyFixture, tools: [tool] }).tools).toEqual([tool]);
+  for (const change of [{ name: "shell" }, { version: "unknown" }, { status: "EXECUTED" }, { evidence_count: 21 }]) {
+    expect(() => decodeRun({ ...historyFixture, tools: [{ ...tool, ...change }] })).toThrow("응답 형식");
+  }
+  expect(decodeRun(historyFixture).tools).toBeUndefined();
+});
+
 it("멀티 조사 업무 상태를 검증하고 위조 상태를 거부한다", () => {
   const investigation = { status: "PARTIAL", evidence_count: 1,
     uncertainty: "관측 근거이며 원인 확정은 아닙니다.", updated_at: historyFixture.started_at,

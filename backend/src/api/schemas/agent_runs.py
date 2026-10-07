@@ -17,7 +17,7 @@ class EvidenceCandidateResponse(BaseModel):
     source_type: Literal["VOC_REVIEW", "TRANSACTION", "INVENTORY"]
     rank: int
     retrieved_at: datetime
-    provenance: list[Literal["lexical", "vector", "hybrid", "legacy_reference", "synthetic_operational"]] = []
+    provenance: list[Literal["lexical", "vector", "hybrid", "legacy_reference", "synthetic_operational", "file_imported_operational"]] = []
     source_at: datetime | None = None
     stance: Literal["SUPPORTING", "CONTRADICTING", "NEUTRAL"] = "NEUTRAL"
     observation_code: Literal["RELATED_HISTORY_MATCH", "REFERENCE_ONLY", "REFUND_SIGNAL", "CANCEL_SIGNAL", "STOCK_SHORTAGE", "STOCK_ADJUSTMENT"] = "REFERENCE_ONLY"
@@ -151,7 +151,18 @@ class InvestigationResponse(BaseModel):
     updated_at: datetime
 
 
+class ToolProgressResponse(BaseModel):
+    name: Literal["get_incident", "search_similar_incidents", "get_transactions", "get_inventory"]
+    version: Literal["1"]
+    status: Literal["COMPLETED", "FAILED", "PENDING"]
+    message: str
+    evidence_count: int
+    error_code: str | None
+    human_action: str
+
+
 class AgentRunResponse(BaseModel):
+    tools: list[ToolProgressResponse] = []
     runtime: "RuntimeAXResponse | None" = None
     agent_run_id: str
     incident_id: str

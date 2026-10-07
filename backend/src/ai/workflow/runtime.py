@@ -229,7 +229,8 @@ class HistoryWorkflows:
                 state = WorkflowState.model_validate(state.model_copy(update={"selection": selection,
                     "contexts": contexts}).model_dump(mode="json"))
                 if resolved.effective.loop_enabled:
-                    state = state.model_copy(update={"loop": LoopTrace(policy=loop_policy(resolved.effective))})
+                    state = state.model_copy(update={"loop": LoopTrace(policy=loop_policy(resolved.effective)),
+                        "tool_runtime_enabled": True})
             run = AgentRun(agent_run_id=rid, tenant_id=job.tenant_id, incident_id=incident.id,
                 workflow_id=wid, job_id=job.job_id, correlation_id=job.correlation_id,
                 config_version=version.config_version, jev_decision_id=decision.decision_id,
@@ -651,6 +652,22 @@ class HistoryProcessor:
                                     return previous
                             def action(context, bid):
                                 if context.agent_type != "HISTORY":
+                                    if run.state.tool_runtime_enabled:
+                                        from src.ai.execution.runtime import ToolHarness
+                                        from src.ai.execution.tools import READ_TOOLS
+                                        from src.ai.intelligence.node import (
+                                            compose_tool,
+                                        )
+                                        from src.ai.workflow.agents import (
+                                            ToolInvestigation,
+                                        )
+                                        from src.mcp.server import MCPReadSession
+                                        name = "get_transactions" if context.agent_type == "TRANSACTION" else "get_inventory"
+                                        harness = ToolHarness(self.persistence, self.source, tenant_id=job.tenant_id,
+                                            run_id=run.agent_run_id, agent_type=context.agent_type, clock=self.clock)
+                                        session = MCPReadSession(harness)
+                                        return ToolInvestigation(lambda pack: compose_tool(READ_TOOLS.resolve(name),
+                                            session, {"incident_id": pack.incident_id, "limit": 20}), self.clock)(context, bid)
                                     return OperationalInvestigation(self.source, self.clock)(context, bid)
                                 # 이 branch는 참조 검색만 수행합니다. LLM 요약은 불필요하며 RCA는 기존 Gateway를 사용합니다.
                                 started = self.clock()
@@ -695,7 +712,8 @@ class HistoryProcessor:
                                 loop = stored.loop.model_copy(update={"termination": termination,
                                     "evidence_digest": evidence_digest(result.evidence_refs), "new_evidence": new_evidence})
                                 result = result.model_copy(update={"iteration": stored.iteration,
-                                    "tool_call_count": stored.tool_call_count, "loop": loop})
+                                    "tool_call_count": stored.tool_call_count, "loop": loop,
+                                    "tool_calls": stored.tool_calls})
                             persist(result)
                             observe("history_investigation", state, result, 0)
                             return result

@@ -36,6 +36,11 @@ function RunDetail({ incidentId, runId, api }: { incidentId: string; runId: stri
       await api.control!(incidentId, runId, action, run.runtime!.control_version, key); reload();
     } : undefined} />}
     {run.investigation && <InvestigationProgressPanel progress={run.investigation} />}
+    {!!run.tools?.length && <article className="panel !min-h-0" aria-label="조사 자료 확인"><h3>조사 자료 확인</h3>
+      <p>거래·재고는 입력된 관측 자료입니다. 실제 POS/ERP 원장이 아닙니다.</p>
+      <ul>{run.tools.map((tool, index) => <li key={`${tool.name}-${index}`}><p>{tool.message} · 자료 {tool.evidence_count}건</p>
+        <details><summary>자료 확인 이력</summary><p>{tool.name} · v{tool.version} · {tool.error_code ?? tool.status}</p></details></li>)}</ul>
+    </article>}
     <details open={!run.investigation}><summary>기술 실행 상세</summary>
     <div className="summary-grid"><StatCard label="조사 상태" value={statusLabels[run.status]} /><StatCard label="근거 후보" value={`${run.evidence_candidates.length}건`} /><StatCard label="사용 토큰" value={run.token_spent.toLocaleString()} /><StatCard label="예상 비용" value={`$${run.cost_spent.toFixed(4)}`} hint="Gateway 기록 기준 · 실제 청구액 아님" /></div>
     <article className="panel !min-h-0"><h3>History Investigation</h3><p>{run.findings.length ? "과거 VOC와 유사 사례를 조사했습니다." : "관련 이력이 부족해 추가 근거가 필요합니다."}</p><p>{run.token_spent ? "LLM Gateway의 구조화 보조 판단을 사용했습니다." : "기록된 LLM 사용량이 없습니다. 검색 근거와 아래 실패·제한 사항을 확인하세요."}</p>
@@ -82,7 +87,7 @@ export function HistoryTracePanel({ incidentId, api = agentRunApi }: { incidentI
   const [detailRevision, setDetailRevision] = useState(0);
   if (loading) return <StateMessage kind="loading" title="실제 History 조사 기록을 불러오는 중입니다" />;
   if (error) return <StateMessage kind="error" title="실제 조사 기록을 불러오지 못했습니다" onRetry={reload}>{error}</StateMessage>;
-  return <section aria-label="실제 History 조사 기록"><div className="flex items-center justify-between gap-3"><h2>실제 History 조사 기록</h2><Button onClick={() => { reload(); setDetailRevision((value) => value + 1); }}>조사 기록 새로고침</Button></div><p className="muted">{apiMode === "http" ? "서버 실행 기록" : "예시 모드 · 실제 실행 없음"} · History와 Evidence/RCA, 정책에서 허용한 CAPA 제안·사람의 승인을 표시합니다. 사용 가능한 데이터에 한해 독립 조사를 표시합니다. 자동 조사는 서버 안전 정책을 따릅니다. 외부 조치·MCP는 실행하지 않습니다.</p>
+  return <section aria-label="실제 History 조사 기록"><div className="flex items-center justify-between gap-3"><h2>실제 History 조사 기록</h2><Button onClick={() => { reload(); setDetailRevision((value) => value + 1); }}>조사 기록 새로고침</Button></div><p className="muted">{apiMode === "http" ? "서버 실행 기록" : "예시 모드 · 실제 실행 없음"} · History와 Evidence/RCA, 정책에서 허용한 CAPA 제안·사람의 승인을 표시합니다. 사용 가능한 데이터에 한해 독립 조사를 표시합니다. 자동 조사는 서버 안전 정책을 따릅니다. 내부의 제한된 읽기 도구만 사용하며 외부 시스템은 변경하지 않습니다.</p>
     {!data?.runs.length ? <StateMessage title="아직 실행된 History 조사가 없습니다">명시적으로 등록한 History Job의 실행 결과가 여기에 표시됩니다.</StateMessage> : <><SelectField label="조사 실행 선택" value={selected ?? data.runs[0].agent_run_id} options={data.runs.map((r) => ({ value: r.agent_run_id, label: `${statusLabels[r.status]} · ${dateTime(r.started_at)} · v${r.config_version}` }))} onValueChange={setSelected} /><RunDetail key={`${selected ?? data.runs[0].agent_run_id}-${detailRevision}`} incidentId={incidentId} runId={selected ?? data.runs[0].agent_run_id} api={api} />{data.has_more && <p>최근 20건을 표시합니다. 이전 기록은 조회 API로 확인할 수 있습니다.</p>}</>}
   </section>;
 }

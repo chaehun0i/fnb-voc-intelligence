@@ -64,6 +64,44 @@ def isolated_branch(action, context, branch_id, *, clock, deadline):
     return result
 
 
+class ToolInvestigation:
+    def __init__(self, read, clock):
+        self.read, self.clock = read, clock
+
+    def __call__(self, context, branch_id):
+        from src.ai.execution.tools import ToolFailure, ToolResult
+        from src.ai.workflow.controller import ControlInterrupted
+        started = self.clock()
+        try:
+            result = ToolResult.model_validate(self.read(context).model_dump(mode="json"))
+        except ToolFailure as error:
+            if error.error.category == "AUTHORIZATION_DENIED":
+                raise AccessError() from None
+            if error.error.code in {"POLICY_DENIED", "BUDGET_EXHAUSTED", "OUTCOME_UNKNOWN"}:
+                raise ControlInterrupted({"OUTCOME_UNKNOWN": "INCOMPLETE"}.get(error.error.code, error.error.code)) from None
+            return branch_gap(context, branch_id, self.clock,
+                code="SOURCE_UNAVAILABLE" if error.error.retryable else "NO_EVIDENCE_FOUND",
+                status="UNAVAILABLE", retryable=error.error.retryable, started=started)
+        if result.tool_name != {"TRANSACTION": "get_transactions", "INVENTORY": "get_inventory"}[context.agent_type]:
+            raise AccessError()
+        if any(i.source_type != context.agent_type or not i.source_ref.startswith(context.agent_type.lower()+":")
+                for i in result.items):
+            raise AccessError()
+        candidates = tuple(EvidenceCandidate(source_ref=i.source_ref, source_type=context.agent_type,
+            tenant_id=context.tenant_id, store=context.store, rank=i.rank,
+            source_at=i.source_at,
+            retrieved_at=self.clock(), provenance=i.provenance,
+            observation_code=i.observation_code, stance=i.stance) for i in result.items)
+        return InvestigationResult(agent_type=context.agent_type, branch_id=branch_id,
+            tenant_id=context.tenant_id, incident_id=context.incident_id, store=context.store,
+            status="SUCCESS" if candidates else "NO_EVIDENCE", evidence_candidates=candidates,
+            findings=(Finding(code=context.agent_type+"_SIGNAL_FOUND", evidence_refs=tuple(e.source_ref for e in candidates)),)
+                if candidates else (),
+            evidence_gaps=() if candidates else (EvidenceGap(code="NO_EVIDENCE_FOUND", agent_type=context.agent_type),),
+            uncertainty="OBSERVATIONS_NOT_CAUSE" if candidates else "MISSING_EVIDENCE",
+            started_at=started, completed_at=self.clock(), context_digest=context.digest)
+
+
 class OperationalInvestigation:
     def __init__(self, source, clock):
         self.source, self.clock = source, clock
@@ -244,7 +282,14 @@ class RCAInvestigation:
                 if not value["supporting_refs"] or not set(value["supporting_refs"]).issubset(refs):
                     raise ValueError("근거 참조를 확인해 주세요.")
             try:
-                result = asyncio.run(self.executor.execute(intent, self.resolved, domain_validator=domain_validate))
+                executor = self.executor
+                if state.tool_runtime_enabled:
+                    from src.ai.intelligence.node import NodeRuntime
+                    intent = intent.model_copy(update={"payload_json": json.dumps({"evidence_refs": refs,
+                        "observations": [{"ref": e.source_ref, "code": e.observation_code}
+                            for e in state.normalized_evidence if e.source_ref in refs]})})
+                    executor = NodeRuntime(executor)
+                result = asyncio.run(executor.execute(intent, self.resolved, domain_validator=domain_validate))
                 value = json.loads(validate_output(result.structured_json,
                     schema_validator(intent.output_schema_json), domain_validate))
                 refs, confidence = tuple(value["supporting_refs"]), value["confidence"]

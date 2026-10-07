@@ -57,3 +57,5 @@ UI는 “추가 근거를 찾지 못해 중단”, “자동 조사 한도 도�
 제한된 조사 재시도이며 자유형 planner나 범용 Agent loop가 아닙니다. 새 Agent 종류, MCP, LangChain composition, Tool Registry, 실제 POS/ERP/Connector write, 외부 Action reconciliation 전체, Prompt Registry, AI Release/Canary, production OIDC/deployment는 미구현입니다. 기존 실행은 INTERNAL_RECORD_ONLY, Verification은 SIMULATED 경계를 유지합니다. 자동 CLOSED를 만들지 않습니다.
 
 Day 29 Next는 최신 main/Drive 재확인 후 **LangChain Node Runtime + MCP + Tool AX**입니다. Day 30은 AX/AI MVP Release Candidate입니다.
+
+위 제한은 Day 28 마감 시점의 기록입니다. 이후 구현된 좁은 read Tool/Prompt Registry·LangChain composition·private MCP adapter는 [Day 29 문서](serviq_langchain_mcp.md)를 참고하세요. 기존 Loop/Harness가 계속 실행 안전 경계입니다.

@@ -27,6 +27,16 @@ def validate(run, previous, tenant):
             raise ValueError("INVESTIGATION_SNAPSHOT_IMMUTABLE")
         if run.manifest != previous.manifest:
             raise ValueError("MANIFEST_IMMUTABLE")
+        if run.state.tool_runtime_enabled != previous.state.tool_runtime_enabled:
+            raise ValueError("TOOL_RUNTIME_SNAPSHOT_IMMUTABLE")
+        receipts = {c.call_id: c for c in run.state.tool_calls}
+        if len(receipts) != len(run.state.tool_calls):
+            raise ValueError("TOOL_RECEIPT_DUPLICATE")
+        for old in previous.state.tool_calls:
+            current = receipts.get(old.call_id)
+            if (current is None or current.model_dump(exclude={"result", "error"}) != old.model_dump(exclude={"result", "error"})
+                    or (old.result is not None or old.error is not None) and current != old):
+                raise ValueError("TOOL_RECEIPT_IMMUTABLE")
         if previous.state.loop is not None and (run.state.loop is None or run.state.loop.policy != previous.state.loop.policy):
             raise ValueError("LOOP_POLICY_IMMUTABLE")
     if run.state.config_version != run.config_version or run.state.tenant_id != tenant:
