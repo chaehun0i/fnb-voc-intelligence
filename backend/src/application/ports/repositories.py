@@ -1,6 +1,7 @@
 """application/ports/repositories: 통합된 기능 책임, 기존 실행 계약 유지."""
 from typing import Protocol
 
+from src.ai.ax.models import ProductEvent
 from src.ai.decision.models import DecisionRecord
 from src.ai.intelligence.models import LLMCallRecord
 from src.ai.workflow.models import AgentRun, AgentStep
@@ -14,6 +15,11 @@ from src.domain.jobs.models import Job
 
 class IncidentConflict(ValueError):
     """다른 명령이 먼저 저장해 최신 버전을 다시 읽어야 합니다."""
+
+
+class ProductEventStore(Protocol):
+    def append(self, event: ProductEvent) -> None: ...
+    def history(self, incident_id: str, limit: int = 100) -> list[ProductEvent]: ...
 
 
 class IncidentRepository(Protocol):

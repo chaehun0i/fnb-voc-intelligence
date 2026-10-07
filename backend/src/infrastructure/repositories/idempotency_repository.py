@@ -3,6 +3,7 @@ from copy import deepcopy
 
 from psycopg.types.json import Jsonb
 
+from src.ai.ax.models import ProductEvent
 from src.ai.workflow.models import RuntimeEvent
 from src.application.intake_schema import IntakeCommandResult
 from src.application.security.principal import AccessError
@@ -17,6 +18,8 @@ from src.infrastructure.job_codec import job_document, job_from_document
 
 
 def result_document(result):
+    if isinstance(result, ProductEvent):
+        return {"resource_type": "ax_product_event", "document": result.model_dump(mode="json")}
     if isinstance(result, IntakeCommandResult):
         return {"resource_type": "data_intake", "document": result.model_dump()}
     if isinstance(result, RuntimeEvent):
@@ -31,6 +34,8 @@ def replay(record, fingerprint):
         raise AccessError("IDEMPOTENCY_CONFLICT", 409)
     if record[1] is None:
         raise AccessError("PROCESSING", 409)
+    if record[1].get("resource_type") == "ax_product_event":
+        return ProductEvent.model_validate(record[1]["document"])
     if record[1].get("resource_type") == "data_intake":
         return IntakeCommandResult.model_validate(record[1]["document"])
     if record[1].get("resource_type") == "job":

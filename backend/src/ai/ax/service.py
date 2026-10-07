@@ -1,9 +1,15 @@
 """ai/ax/service: 통합된 기능 책임, 기존 실행 계약 유지."""
 import psycopg
 
+from src.ai.ax.actions import next_action
+from src.ai.ax.explanations import explain
+from src.ai.ax.measurement import metrics
+from src.ai.ax.models import AgentControlView
+from src.ai.ax.projector import project_incident
 from src.ai.workflow.controller import control_state
 from src.ai.workflow.policy import AGENT_REGISTRY
-from src.application.incidents.service import IncidentNotFound
+from src.application.approvals.queries import ReviewQueries
+from src.application.incidents.service import IncidentNotFound, IncidentService
 from src.application.ports.repositories import AgentRunsUnavailable
 from src.application.security.authorization import allowed, require
 
@@ -140,5 +146,58 @@ class AgentRunQueries:
                 runs = uow.agent_runs.history(incident_id, limit+1, offset)
                 return {"runs": [projected_run(uow, r, self.principal, incident.store) for r in runs[:limit]], "limit": limit,
                         "offset": offset, "has_more": len(runs)>limit}
+        except psycopg.Error as error:
+            raise AgentRunsUnavailable() from error
+
+
+class IncidentAXQueries:
+    """Tenant-scoped read projection; commands and technical checkpoints stay separate."""
+
+    def __init__(self, persistence, context, clock=None):
+        self.persistence, self.context = persistence, context
+        self.clock = clock
+
+    def get(self, incident_id):
+        principal = self.context.principal
+        require(principal, "read")
+        try:
+            with self.persistence.transaction(principal.tenant_id) as uow:
+                incident = uow.incidents.get(incident_id)
+                if incident is None:
+                    raise IncidentNotFound()
+                require(principal, "read", incident.store)
+                runs = uow.agent_runs.history(incident_id, 1, 0)
+                run = runs[0] if runs else None
+                investigation = projected_run(uow, run)["investigation"] if run else None
+                view = project_incident(incident, run, investigation)
+                decisions = uow.decisions.history(incident_id, 1, 0)
+                updates = {}
+                review = False
+                approval = None
+                if view.decision_reference is None and decisions:
+                    updates["decision_reference"] = decisions[0].decision_id
+                if run and run.state.approval:
+                    approval = uow.approvals.get(run.state.approval.approval_id)
+                    if approval and (approval.incident_id != incident_id or approval.agent_run_id != run.agent_run_id):
+                        approval = None
+                else:
+                    approvals = uow.approvals.list(incident_id)
+                    approval = approvals[0] if approvals else None
+                if approval:
+                    updates["approval_status"] = approval.status
+                    permissions = ReviewQueries(IncidentService(uow.incidents, principal=principal, clock=self.clock),
+                        uow.approvals, self.context, uow.configs.current()).get(approval.approval_id)["approval"]["actions"]
+                    review = permissions["approve"]["allowed"] or permissions["reject"]["allowed"]
+                runtime = runtime_projection(uow, run, principal, incident.store) if run else None
+                updates["runtime"] = AgentControlView.model_validate(runtime) if runtime else None
+                updates["metrics"] = metrics(incident, run, uow.agent_runs.steps(run.agent_run_id) if run else (),
+                    uow.agent_runs.events(run.agent_run_id) if run else (), approval)
+                updates["feedback_allowed"] = bool(run and run.state.rca_candidates and allowed(principal, "operate", incident.store))
+                uncertain = bool(run and any(c.error and c.error.code == "OUTCOME_UNKNOWN" or
+                    not c.error and not c.result for c in run.state.tool_calls))
+                view = explain(view.model_copy(update=updates), run)
+                return next_action(view, operate=allowed(principal, "operate", incident.store),
+                    review=review, control=runtime["control_status"] if runtime else "RUNNING",
+                    termination=runtime["termination_reason"] if runtime else None, uncertain_effect=uncertain)
         except psycopg.Error as error:
             raise AgentRunsUnavailable() from error
