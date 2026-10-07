@@ -20,7 +20,15 @@ def project_incident(incident, run=None, investigation=None):
         progress = [AgentProgress(agent_type=a["agent_type"], label=a["business_label"],
             status=a["status"], evidence_count=a["evidence_count"]) for a in investigation["agents"]]
     state = run.state if run else None
-    count = len(state.normalized_evidence) if state else 0
+    count = len(state.normalized_evidence) if state else min(20, sum(e.status == "AVAILABLE" for e in incident.evidence))
+    if state and not investigation and state.sufficiency:
+        # Legacy single-History runs have no AgentSelection; do not lose their insufficiency.
+        if count:
+            coverage["confirmed"].append("HISTORY")
+        if state.sufficiency.status == "INSUFFICIENT":
+            coverage["missing"].append("HISTORY")
+        elif state.sufficiency.status == "CONFLICTING":
+            coverage["conflicting"].append("HISTORY")
     result = state.verification.result if state and state.verification else (
         incident.verification.result.value if incident.verification else None)
     hypothesis = "반복 이력에 공통 신호가 있어 추가 원인 검토가 필요합니다." if state and state.rca_candidates else None

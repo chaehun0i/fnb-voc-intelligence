@@ -62,3 +62,14 @@ it("AX에서 기존 서버 제어 명령과 버전을 사용하고 결과를 새
     expect(control).toHaveBeenCalledWith("i", "run", "pause", 3, expect.any(String));
   } finally { agentRunApi.control = previous; }
 });
+
+it("RAW 의견은 승인과 구분하며 측정 불가 지표를 숫자로 꾸미지 않는다", async () => {
+  const record = vi.fn().mockResolvedValue(undefined);
+  render(<IncidentAXPanel incidentId="i" load={async () => ({ ...axFixture, feedback_allowed: true,
+    metrics: [{ name: "time_to_first_useful_evidence", status: "UNAVAILABLE", value: null, unit: "seconds" }] })} record={record} onAction={vi.fn()} />);
+  fireEvent.click(await screen.findByRole("button", { name: "수정 필요 의견" }));
+  expect(await screen.findByText("의견을 기록했습니다. 승인이나 조치 실행은 변경하지 않았습니다.")).toBeInTheDocument();
+  expect(record).toHaveBeenCalledWith("i", "recommendation_edited", expect.any(String));
+  expect(screen.getByText(/측정 불가/)).toBeInTheDocument();
+  expect(record).toHaveBeenCalledWith("i", "ai_brief_viewed", expect.any(String));
+});

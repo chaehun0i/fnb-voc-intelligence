@@ -5,7 +5,8 @@ import psycopg
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.ai.ax.models import IncidentAX
+from src.ai.ax.measurement import ProductEvents
+from src.ai.ax.models import IncidentAX, ProductEventType
 from src.ai.ax.service import AgentRunQueries, IncidentAXQueries
 from src.api.dependencies.auth import request_context
 from src.api.schemas.agent_runs import AgentRunDetailResponse, AgentRunHistoryResponse
@@ -21,7 +22,22 @@ def query(request):
 
 @router.get("/{incident_id}/ax", response_model=IncidentAX)
 def incident_ax(incident_id: str, request: Request):
-    return IncidentAXQueries(request.app.state.access_persistence, request_context(request)).get(incident_id)
+    return IncidentAXQueries(request.app.state.access_persistence, request_context(request),
+        clock=request.app.state.service.clock).get(incident_id)
+
+
+class AXEventInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    event_type: ProductEventType
+
+
+@router.post("/{incident_id}/ax/events", status_code=201)
+def ax_event(incident_id: str, body: AXEventInput, request: Request):
+    try:
+        event = ProductEvents(request.app.state.access_persistence).record(request_context(request), incident_id, body.event_type)
+        return {"event_id": event.event_id, "recorded": True, "feedback_stage": event.feedback_stage}
+    except psycopg.Error as error:
+        raise AgentRunsUnavailable() from error
 
 
 @router.get("/{incident_id}/agent-runs", response_model=AgentRunHistoryResponse)

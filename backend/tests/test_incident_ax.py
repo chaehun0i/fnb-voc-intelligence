@@ -110,3 +110,34 @@ def test_ax_controls_reuse_current_runtime_and_preserve_manifest():
     assert after.runtime.control_status == "PAUSED" and after.runtime.control_version == 1
     assert not after.runtime.permissions["pause"] and after.runtime.permissions["resume"]
     assert before.manifest_reference == after.manifest_reference and before.coverage == after.coverage
+
+
+def test_legacy_single_history_insufficiency_is_not_lost(history_setup):
+    from contextlib import contextmanager
+    from unittest.mock import Mock
+
+    from src.ai.ax.service import IncidentAXQueries
+    from src.ai.workflow.runtime import HistoryProcessor, memory_checkpoint
+    p, service, context, decision = history_setup
+    job = service.enqueue(context, "i", decision.decision_id)
+    search = Mock()
+    search.search.return_value = [("review:r1", 1)]
+    @contextmanager
+    def checkpoint():
+        yield memory_checkpoint()
+    HistoryProcessor(p, search, checkpoint)(job)
+    view = IncidentAXQueries(p, context).get("i")
+    assert view.human_action == "MORE_EVIDENCE_REQUIRED" and "HISTORY" in view.coverage.missing
+
+
+def test_manual_incident_approval_uses_same_review_policy_and_clock():
+    from tests.test_review_queries import review_app
+    app = review_app()
+    client = TestClient(app)
+    view = client.get("/api/v1/incidents/review-incident/ax").json()
+    assert view["source_run_id"] is None and view["human_action"] == "APPROVAL_REQUIRED"
+    assert view["approval_status"] == "PENDING" and view["next_action"]["permission"]
+    from datetime import UTC, datetime
+    app.state.service.clock = lambda: datetime(2026, 10, 4, tzinfo=UTC)
+    expired = client.get("/api/v1/incidents/review-incident/ax").json()
+    assert not expired["next_action"]["permission"] and expired["next_action"]["blocking_reason"]

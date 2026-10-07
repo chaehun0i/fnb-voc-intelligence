@@ -45,6 +45,9 @@ from src.infrastructure.repositories.llm_call_repository import (
 from src.infrastructure.repositories.postgres_incident_repository import (
     PostgresIncidentRepository,
 )
+from src.infrastructure.repositories.product_event_repository import (
+    ProductEventRepository,
+)
 from src.infrastructure.repositories.scoped_incident_repository import (
     ScopedIncidentRepository,
 )
@@ -65,6 +68,7 @@ class AccessUnitOfWork:
     agent_runs: object = None
     executions: object = None
     intake: object = None
+    product_events: object = None
 
 
 class AccessPersistence:
@@ -93,6 +97,7 @@ class AccessPersistence:
                 )
                 work.executions = ExecutionRepository(work, self.memory, tenant_id)
                 work.intake = IntakeRepository(tenant_id, self.memory, connection)
+                work.product_events = ProductEventRepository(tenant_id, self.memory, connection)
                 yield work
         else:
             with self.incidents._lock, self.memory.lock:
@@ -113,6 +118,7 @@ class AccessPersistence:
                     )
                     work.executions = ExecutionRepository(work, self.memory, tenant_id)
                     work.intake = IntakeRepository(tenant_id, self.memory)
+                    work.product_events = ProductEventRepository(tenant_id, self.memory)
                     yield work
                 except Exception:
                     self.incidents._items = incidents

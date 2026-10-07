@@ -3,6 +3,8 @@ import type { RuntimeAX } from "./api";
 
 type Dimension = "HISTORY" | "TRANSACTION" | "INVENTORY";
 export type IncidentAX = {
+  feedback_allowed?: boolean;
+  metrics?: { name: string; status: "AVAILABLE" | "PARTIAL" | "UNAVAILABLE"; value: number | null; unit: string }[];
   runtime?: RuntimeAX | null;
   schema_version: "incident-ax-1"; incident_id: string; current_phase: string;
   brief: { headline: string; summary: string; primary_hypothesis: string | null; confidence_level: "LOW" | "MEDIUM" | "INCONCLUSIVE" };
@@ -31,6 +33,8 @@ export function decodeAX(v: unknown): IncidentAX {
     !text(v.updated_at) || !Number.isFinite(Date.parse(String(v.updated_at))) || !texts(v.uncertainties) ||
     !["NONE", "REVIEW_REQUIRED", "APPROVAL_REQUIRED", "MORE_EVIDENCE_REQUIRED", "MANUAL_TAKEOVER_RECOMMENDED", "POLICY_BLOCKED", "BUDGET_INCREASE_REQUIRED", "VERIFICATION_REQUIRED"].includes(String(v.human_action))) invalid();
   const b = v.brief, c = v.coverage, n = v.next_action, e = v.explanation;
+  if (v.feedback_allowed !== undefined && typeof v.feedback_allowed !== "boolean") invalid();
+  if (v.metrics !== undefined && (!Array.isArray(v.metrics) || v.metrics.length > 7 || !v.metrics.every((m) => object(m) && text(m.name) && ["AVAILABLE", "PARTIAL", "UNAVAILABLE"].includes(String(m.status)) && (m.value === null || typeof m.value === "number" && Number.isFinite(m.value) && m.value >= 0) && text(m.unit)))) invalid();
   if (v.runtime !== undefined && v.runtime !== null) {
     const r = v.runtime;
     if (!object(r) || !["RUNNING", "PAUSED", "STOPPED", "MANUAL_TAKEOVER"].includes(String(r.control_status)) || !Number.isSafeInteger(r.control_version) || Number(r.control_version) < 0 || !optional(r.termination_reason) ||
@@ -53,4 +57,12 @@ export async function getIncidentAX(id: string, transport: typeof fetch = fetch)
   if (!response.ok) throw new Error(({ 401: "로그인이 필요합니다.", 403: "이 매장의 업무 요약을 조회할 권한이 없습니다.",
     404: "사건을 찾을 수 없거나 접근할 수 없습니다." } as Record<number, string>)[response.status] ?? "업무 요약을 조회하지 못했습니다.");
   return decodeAX(await response.json());
+}
+
+export type ProductEventType = "ai_brief_viewed" | "evidence_opened" | "explanation_opened" | "recommendation_accepted" | "recommendation_edited" | "recommendation_rejected";
+export async function recordAXEvent(id: string, event_type: ProductEventType, key: string, transport: typeof fetch = fetch) {
+  const response = await transport(`${apiBaseUrl}/incidents/${encodeURIComponent(id)}/ax/events`, {
+    method: "POST", headers: { ...authHeaders(), "Content-Type": "application/json", "Idempotency-Key": key }, body: JSON.stringify({ event_type }),
+  });
+  if (!response.ok) throw new Error("피드백을 기록하지 못했습니다. 다시 시도해 주세요.");
 }

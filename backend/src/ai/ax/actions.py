@@ -18,7 +18,7 @@ def next_action(view, *, operate=False, review=False, control="RUNNING", termina
         human, action, label, reason = ("POLICY_BLOCKED", "MANUAL_REVIEW", "안전 정책 확인",
             "현재 정책에서 자동 진행을 허용하지 않습니다.")
         permission = operate
-    elif view.approval_status == "PENDING":
+    elif view.approval_status == "PENDING" or view.current_phase == "PENDING_APPROVAL" and view.approval_status is None:
         human, action, label, reason = ("APPROVAL_REQUIRED", "OPEN_REVIEW", "조치안 승인 검토",
             "조치안은 아직 승인되지 않았습니다. 기존 검토 화면에서 결정해 주세요.")
         permission, approval = review, True

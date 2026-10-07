@@ -3,6 +3,7 @@ import psycopg
 
 from src.ai.ax.actions import next_action
 from src.ai.ax.explanations import explain
+from src.ai.ax.measurement import metrics
 from src.ai.ax.models import AgentControlView
 from src.ai.ax.projector import project_incident
 from src.ai.workflow.controller import control_state
@@ -152,8 +153,9 @@ class AgentRunQueries:
 class IncidentAXQueries:
     """Tenant-scoped read projection; commands and technical checkpoints stay separate."""
 
-    def __init__(self, persistence, context):
+    def __init__(self, persistence, context, clock=None):
         self.persistence, self.context = persistence, context
+        self.clock = clock
 
     def get(self, incident_id):
         principal = self.context.principal
@@ -171,16 +173,26 @@ class IncidentAXQueries:
                 decisions = uow.decisions.history(incident_id, 1, 0)
                 updates = {}
                 review = False
+                approval = None
                 if view.decision_reference is None and decisions:
                     updates["decision_reference"] = decisions[0].decision_id
                 if run and run.state.approval:
                     approval = uow.approvals.get(run.state.approval.approval_id)
-                    if approval and approval.incident_id == incident_id and approval.agent_run_id == run.agent_run_id:
-                        updates["approval_status"] = approval.status
-                        review = ReviewQueries(IncidentService(uow.incidents, principal=principal),
-                            uow.approvals, self.context, uow.configs.current()).get(approval.approval_id)["approval"]["actions"]["approve"]["allowed"]
+                    if approval and (approval.incident_id != incident_id or approval.agent_run_id != run.agent_run_id):
+                        approval = None
+                else:
+                    approvals = uow.approvals.list(incident_id)
+                    approval = approvals[0] if approvals else None
+                if approval:
+                    updates["approval_status"] = approval.status
+                    permissions = ReviewQueries(IncidentService(uow.incidents, principal=principal, clock=self.clock),
+                        uow.approvals, self.context, uow.configs.current()).get(approval.approval_id)["approval"]["actions"]
+                    review = permissions["approve"]["allowed"] or permissions["reject"]["allowed"]
                 runtime = runtime_projection(uow, run, principal, incident.store) if run else None
                 updates["runtime"] = AgentControlView.model_validate(runtime) if runtime else None
+                updates["metrics"] = metrics(incident, run, uow.agent_runs.steps(run.agent_run_id) if run else (),
+                    uow.agent_runs.events(run.agent_run_id) if run else (), approval)
+                updates["feedback_allowed"] = bool(run and run.state.rca_candidates and allowed(principal, "operate", incident.store))
                 uncertain = bool(run and any(c.error and c.error.code == "OUTCOME_UNKNOWN" or
                     not c.error and not c.result for c in run.state.tool_calls))
                 view = explain(view.model_copy(update=updates), run)

@@ -67,7 +67,32 @@ class AgentControlView(SafeModel):
     versions: dict[str, str]
 
 
+ProductEventType = Literal["ai_brief_viewed", "evidence_opened", "explanation_opened",
+    "recommendation_accepted", "recommendation_edited", "recommendation_rejected"]
+FeedbackStage = Literal["RAW", "REVIEWED", "GOLDEN_CANDIDATE", "GOLDEN_APPROVED"]
+
+
+class ProductEvent(SafeModel):
+    event_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    tenant_id: str
+    incident_id: str
+    source_run_id: str | None
+    event_type: ProductEventType
+    occurred_at: datetime
+    feedback_stage: FeedbackStage | None = None
+
+
+class AXMetric(SafeModel):
+    name: Literal["end_to_end_completion", "time_to_first_useful_evidence", "time_to_decision",
+        "human_intervention", "manual_takeover", "loop_abort", "cost_per_completed_incident"]
+    status: Literal["AVAILABLE", "PARTIAL", "UNAVAILABLE"]
+    value: float | None = Field(default=None, ge=0)
+    unit: Literal["boolean", "seconds", "count", "estimated_usd"]
+
+
 class IncidentAX(SafeModel):
+    metrics: tuple[AXMetric, ...] = ()
+    feedback_allowed: bool = False
     runtime: AgentControlView | None = None
     schema_version: Literal["incident-ax-1"] = "incident-ax-1"
     incident_id: str
