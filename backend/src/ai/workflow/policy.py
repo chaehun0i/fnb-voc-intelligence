@@ -122,6 +122,10 @@ def run_manifest(run):
     # An actual source bundle checksum, not an invented Git/AI Release version.
     sources = tuple(directory / name for name in ("models.py", "agents.py", "graph.py", "policy.py", "runtime.py", "controller.py"))
     sources += tuple(directory.parent / "execution" / name for name in ("models.py", "policy.py", "service.py", "harness.py"))
+    if run.state.tool_runtime_enabled:
+        sources += tuple(directory.parent / "execution" / name for name in ("tools.py", "runtime.py"))
+        sources += tuple(directory.parent / "intelligence" / name for name in ("node.py", "prompts.py"))
+        sources += (directory.parent.parent / "mcp" / "server.py",)
     digest = hashlib.sha256(b"".join(p.read_bytes().replace(b"\r\n", b"\n") for p in sources)).hexdigest()
     return AgentRunManifest(workflow_id=run.workflow_id, workflow_version=run.workflow_version,
         config_version=run.config_version, source_digest=digest,
@@ -130,7 +134,8 @@ def run_manifest(run):
             if t.agent_type in {a.agent_type for a in run.state.selection.selected})
             if run.state.tool_runtime_enabled and run.state.selection else (),
         prompt_versions=(PROMPTS.resolve("observation-lookup").reference(),
-            PROMPTS.resolve("reference-summary").reference()) if run.state.tool_runtime_enabled else (),
+            PROMPTS.resolve("reference-summary").reference(),
+            PROMPTS.resolve("history-grounded-rca").reference()) if run.state.tool_runtime_enabled else (),
         agent_versions=tuple((a.agent_type, a.agent_version)
             for a in (run.state.selection.selected if run.state.selection else ())))
 

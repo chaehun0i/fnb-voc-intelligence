@@ -212,7 +212,7 @@ def test_canonical_fanin_dedupe_conflict_and_sufficiency():
     assert {"SUPPORTING", "CONTRADICTING"} <= set(combined.normalized_evidence[0].observed_stances)
 
 
-def multi_setup(*, all_agents=False, inventory=True, closed_loop=False):
+def multi_setup(*, all_agents=False, inventory=True, closed_loop=False, tool_runtime=False):
     from dataclasses import replace
     from uuid import uuid4
 
@@ -226,7 +226,7 @@ def multi_setup(*, all_agents=False, inventory=True, closed_loop=False):
     persistence, _, request, _ = setup_history()
     with persistence.transaction("t") as uow:
         version = uow.configs.current()
-        config = replace(version.config, multi_agent_enabled=True, auto_rca_draft=True,
+        config = replace(version.config, multi_agent_enabled=True, auto_rca_draft=True, loop_enabled=tool_runtime,
             auto_capa_draft=closed_loop, internal_execution_enabled=closed_loop,
             allowed_tools=("voc.search", "transaction.search", "inventory.snapshot"))
         version = replace(version, config=config, config_version=2, parent_version=1)

@@ -1,9 +1,10 @@
 """Immutable business contracts; no SDK, transport, DB or authorization implementation."""
 import json
+from datetime import datetime
 from types import MappingProxyType
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from src.ai.models import SafeModel
 
@@ -22,6 +23,13 @@ class ToolError(SafeModel):
     suggested_action: Literal["BOUNDED_RETRY", "FIX_INPUT", "REQUEST_ACCESS", "HUMAN_REVIEW", "ADD_EVIDENCE", "STOP"]
     human_action: Literal["NONE", "MORE_EVIDENCE_REQUIRED", "POLICY_BLOCKED", "MANUAL_REVIEW_REQUIRED"]
     details_ref: str | None = Field(default=None, pattern=r"^tool:[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def canonical(self):
+        if (self.category, self.retryable, self.safe_message, self.suggested_action,
+                self.human_action) != ERRORS[self.code]:
+            raise ValueError("TOOL_ERROR_CONTRACT_INVALID")
+        return self
 
 
 ERRORS = MappingProxyType({
@@ -54,18 +62,36 @@ class ToolInput(SafeModel):
     limit: int = Field(default=10, strict=True, ge=1, le=20)
 
 
+class ToolExecutionContext(SafeModel):
+    tenant_id: str = Field(min_length=1, max_length=128)
+    principal_id: str = Field(min_length=1, max_length=128)
+    agent_run_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    correlation_id: str = Field(min_length=1, max_length=128)
+    config_version: int = Field(ge=1)
+    allowed_store: str = Field(min_length=1, max_length=128)
+    tool_version: Literal["1"] = "1"
+    manifest_reference: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
 class ToolItem(SafeModel):
     source_ref: str = Field(pattern=r"^(incident|review|transaction|inventory):[A-Za-z0-9_.:-]{1,128}$")
     source_type: Literal["INCIDENT", "HISTORY", "TRANSACTION", "INVENTORY"]
     observation_code: Literal["REFERENCE_ONLY", "RELATED_HISTORY_MATCH", "REFUND_SIGNAL", "CANCEL_SIGNAL", "STOCK_SHORTAGE", "STOCK_ADJUSTMENT"] = "REFERENCE_ONLY"
     stance: Literal["SUPPORTING", "CONTRADICTING", "NEUTRAL"] = "NEUTRAL"
-    source_at: str | None = None
-    provenance: tuple[str, ...] = Field(default=(), max_length=4)
+    source_at: datetime | None = None
+    provenance: tuple[Literal["incident_application", "file_imported_operational", "synthetic_operational"], ...] = Field(default=(), max_length=4)
     rank: int = Field(default=1, ge=1, le=20)
+
+    @field_validator("source_at")
+    @classmethod
+    def aware(cls, value):
+        if value is not None and value.utcoffset() is None:
+            raise ValueError("TOOL_SOURCE_TIME_INVALID")
+        return value
 
 
 class ToolResult(SafeModel):
-    tool_name: str
+    tool_name: Literal["get_incident", "search_similar_incidents", "get_transactions", "get_inventory"]
     tool_version: Literal["1"] = "1"
     items: tuple[ToolItem, ...] = Field(default=(), max_length=20)
 

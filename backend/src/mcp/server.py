@@ -68,3 +68,13 @@ async def call_in_memory(harness, name, arguments):
         from src.ai.execution.tools import ToolError
         raise ToolFailure(ToolError.model_validate(result.structured_content))
     return ToolResult.model_validate(result.structured_content)
+
+
+class MCPReadSession:
+    """Workflow-owned, in-process transport; there is no network client configuration."""
+    def __init__(self, harness):
+        self.harness = harness
+
+    def execute(self, name, arguments):
+        import asyncio
+        return asyncio.run(call_in_memory(self.harness, name, arguments))

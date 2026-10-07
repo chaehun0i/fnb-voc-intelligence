@@ -178,3 +178,190 @@ def test_official_mcp_client_schema_and_safe_protocol_errors():
                 failed = await client.call_tool(name, args)
                 assert failed.is_error and "SECRET" not in failed.model_dump_json()
     asyncio.run(check())
+
+
+def test_tool_agent_vertical_slice_preserves_evidence_and_reuses_completed_work():
+    from contextlib import contextmanager
+    from unittest.mock import Mock
+
+    from src.ai.ax.service import AgentRunQueries
+    from src.ai.workflow.models import EvidenceCandidate
+    from src.ai.workflow.runtime import HistoryProcessor, memory_checkpoint
+    from src.api.schemas.agent_runs import AgentRunDetailResponse
+    from src.application.security.principal import Principal
+    from tests.test_multi_agent import NOW, multi_setup
+    p, _, source, job = multi_setup(all_agents=True, tool_runtime=True)
+    source.observations = Mock(wraps=source.observations)
+    class Search:
+        def search_evidence(self, *args):
+            return tuple(EvidenceCandidate(source_ref="review:"+r, rank=1, tenant_id="t", store="store",
+                source_at=NOW, retrieved_at=NOW, observation_code="RELATED_HISTORY_MATCH", stance="SUPPORTING")
+                for r in ("one", "two"))
+    saver = memory_checkpoint()
+    @contextmanager
+    def checkpoint():
+        yield saver
+    processor = HistoryProcessor(p, Search(), checkpoint, source=source, clock=lambda: NOW)
+    result = processor(job)
+    assert result.state.tool_runtime_enabled and len(result.state.tool_calls) == 2
+    assert result.state.tool_call_count == 3  # three real reads, not five double-charged operations.
+    assert result.state.sufficiency.allows_rca and result.state.rca_candidates
+    assert len(result.state.normalized_evidence) == 4
+    assert result.manifest.tool_bundle_versions == ("read-tools-1",)
+    assert {r.prompt_id for r in result.manifest.prompt_versions} == {"reference-summary", "observation-lookup", "history-grounded-rca"}
+    assert processor(job) == result and source.observations.call_count == 2
+    detail = AgentRunQueries(p, Principal("auditor", "t", frozenset({"AUDITOR"}))).execute("i", run_id=result.agent_run_id)
+    dto = AgentRunDetailResponse.model_validate(detail).model_dump(mode="json")
+    assert len(dto["tools"]) == 2 and all(t["status"] == "COMPLETED" for t in dto["tools"])
+    assert "tool_calls" not in dto and "context_digest" not in str(dto)
+
+
+@pytest.mark.parametrize("control", ["PAUSED", "STOPPED", "MANUAL_TAKEOVER"])
+def test_tool_control_recheck_blocks_even_cached_reads(control):
+    from src.ai.execution.runtime import ToolHarness
+    from src.ai.execution.tools import ToolFailure
+    from src.ai.workflow.models import RuntimeEvent
+    from tests.test_loop_harness import loop_setup
+    p, source, run, now = loop_setup()
+    harness = ToolHarness(p, source, tenant_id="t", run_id=run.agent_run_id,
+        agent_type="TRANSACTION", clock=lambda: now)
+    args = {"incident_id": run.incident_id}
+    harness.execute("get_transactions", args)
+    with p.transaction("t") as uow:
+        uow.agent_runs.append_event(run.agent_run_id, RuntimeEvent(event_id="control",
+            kind="CONTROL", control=control, actor_id="operator", created_at=now))
+    with pytest.raises(ToolFailure) as error:
+        harness.execute("get_transactions", args)
+    assert error.value.error.code == "POLICY_DENIED"
+
+
+def test_uncertain_tool_claim_never_reexecutes_or_leaks_exception():
+    import asyncio
+    from unittest.mock import Mock
+
+    from src.ai.execution.runtime import ToolHarness
+    from src.ai.execution.tools import ToolFailure
+    from src.mcp.server import call_in_memory
+    from tests.test_loop_harness import loop_setup
+    p, source, run, now = loop_setup()
+    source.observations = Mock(side_effect=LookupError("credential=SECRET"))
+    harness = ToolHarness(p, source, tenant_id="t", run_id=run.agent_run_id,
+        agent_type="TRANSACTION", clock=lambda: now)
+    for _ in range(2):
+        with pytest.raises(ToolFailure) as error:
+            asyncio.run(call_in_memory(harness, "get_transactions", {"incident_id": run.incident_id}))
+        assert error.value.error.code == "OUTCOME_UNKNOWN" and not error.value.error.retryable
+        assert "SECRET" not in str(error.value)
+    assert source.observations.call_count == 1
+
+
+def test_current_capability_budget_and_receipt_immutability():
+    from unittest.mock import Mock
+
+    from src.ai.execution.runtime import ToolHarness
+    from src.ai.execution.tools import ToolFailure
+    from tests.test_loop_harness import loop_setup
+    p, source, run, now = loop_setup(max_operations=1)
+    harness = ToolHarness(p, source, tenant_id="t", run_id=run.agent_run_id,
+        agent_type="TRANSACTION", clock=lambda: now)
+    args = {"incident_id": run.incident_id, "limit": 1}
+    result = harness.execute("get_transactions", args)
+    with pytest.raises(ToolFailure) as exhausted:
+        harness.execute("get_transactions", args | {"limit": 2})
+    assert exhausted.value.error.code == "BUDGET_EXHAUSTED"
+    source.capabilities = Mock(return_value=())
+    with pytest.raises(ToolFailure) as denied:
+        harness.execute("get_transactions", args)
+    assert denied.value.error.code == "NO_DATA"
+    with p.transaction("t") as uow:
+        current = uow.agent_runs.get(run.agent_run_id)
+        changed = current.state.tool_calls[0].model_copy(update={"result": result.model_copy(update={"items": ()})})
+        with pytest.raises(ValueError, match="IMMUTABLE"):
+            uow.agent_runs.save(current.model_copy(update={"state": current.state.model_copy(update={"tool_calls": (changed,)})}))
+        with pytest.raises(ValueError, match="IMMUTABLE"):
+            uow.agent_runs.save(current.model_copy(update={"state": current.state.model_copy(update={"tool_calls": ()})}))
+
+
+def test_tool_cross_tenant_and_scope_cannot_be_injected():
+    from src.ai.execution.runtime import ToolHarness
+    from src.application.incidents.service import IncidentNotFound
+    from src.application.security.principal import AccessError
+    from tests.test_loop_harness import loop_setup
+    p, source, run, now = loop_setup()
+    foreign = ToolHarness(p, source, tenant_id="other", run_id=run.agent_run_id,
+        agent_type="TRANSACTION", clock=lambda: now)
+    with pytest.raises(IncidentNotFound):
+        foreign.execute("get_transactions", {"incident_id": run.incident_id})
+    bound = ToolHarness(p, source, tenant_id="t", run_id=run.agent_run_id,
+        agent_type="TRANSACTION", clock=lambda: now)
+    with pytest.raises(AccessError):
+        bound.execute("get_inventory", {"incident_id": run.incident_id})
+    with pytest.raises(TypeError):
+        bound.execute("get_transactions", {"incident_id": run.incident_id}, principal="admin")
+
+
+def test_normalized_tool_output_cannot_carry_unbounded_or_sensitive_payloads():
+    from src.ai.execution.tools import ToolItem, ToolResult, tool_error
+    with pytest.raises(ValidationError):
+        ToolItem(source_ref="transaction:one", source_type="TRANSACTION", source_at="SECRET")
+    with pytest.raises(ValidationError):
+        ToolItem(source_ref="transaction:one", source_type="TRANSACTION", provenance=("raw credential",))
+    item = ToolItem(source_ref="transaction:one", source_type="TRANSACTION")
+    with pytest.raises(ValidationError):
+        ToolResult(tool_name="get_transactions", items=(item,)*21)
+    with pytest.raises(ValidationError):
+        type(tool_error("NO_DATA")).model_validate(tool_error("NO_DATA").model_dump() | {"safe_message": "SECRET"})
+
+
+def test_langchain_malformed_output_preserves_gateway_error_contract():
+    import asyncio
+
+    from src.ai.intelligence.models import LLMError, LLMErrorCode
+    from src.ai.intelligence.node import NodeRuntime
+    from src.ai.intelligence.providers.fake import FakeProvider
+    from src.ai.intelligence.service import LLMGateway
+    from tests.test_llm_contracts import intent
+    class Gateway:
+        async def execute(self, item, resolved, **kwargs):
+            return await LLMGateway(FakeProvider(["not-json"])).execute(item, model="fake-v1", **kwargs)
+    item = intent(payload_json='{"evidence_refs":["review:one"]}', input_references=("review:one",),
+        prompt_template="reference-summary", schema_version="history-1")
+    with pytest.raises(LLMError) as error:
+        asyncio.run(NodeRuntime(Gateway()).execute(item, None))
+    assert error.value.code == LLMErrorCode.OUTPUT_SCHEMA_INVALID
+
+
+def test_actual_rca_node_uses_pinned_composition_and_fake_gateway():
+    from datetime import UTC, datetime
+
+    from src.ai.intelligence.providers.fake import FakeProvider
+    from src.ai.intelligence.service import LLMGateway
+    from tests.test_rca_investigation import node, ready
+    provider = FakeProvider(['{"code":"REPEATED_HISTORY_SIGNAL","supporting_refs":["review:r1","review:r2"],"confidence":0.6}'])
+    class Gateway:
+        async def execute(self, item, resolved, **kwargs):
+            assert item.prompt_template == "history-grounded-rca" and item.prompt_version == "1"
+            assert '"messages"' in item.payload_json and '"raw_voc"' not in item.payload_json
+            return await LLMGateway(provider, clock=lambda: datetime(2026, 10, 6, tzinfo=UTC)).execute(
+                item, model="fake-v1", **kwargs)
+    engine = node(executor=Gateway())
+    engine.requires_llm = True
+    result = engine(ready().model_copy(update={"tool_runtime_enabled": True}))
+    assert result.rca_candidates[0].generated_by == "LLM_GATEWAY"
+    assert provider.call_count == 1 and result.token_spent == 15
+
+
+def test_imported_tool_evidence_provenance_survives_trace_dto():
+    from datetime import UTC, datetime
+
+    from src.ai.execution.tools import ToolItem, ToolResult
+    from src.api.schemas.agent_runs import EvidenceCandidateResponse
+
+    item = ToolItem(source_ref="transaction:imported", source_type="TRANSACTION",
+        provenance=("file_imported_operational",))
+    result = ToolResult(tool_name="get_transactions", items=(item,))
+    dto = EvidenceCandidateResponse.model_validate({
+        "source_ref": result.items[0].source_ref, "source_type": "TRANSACTION", "rank": 1,
+        "retrieved_at": datetime(2026, 10, 7, tzinfo=UTC), "provenance": result.items[0].provenance,
+    })
+    assert dto.provenance == ["file_imported_operational"]

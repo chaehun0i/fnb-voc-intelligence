@@ -43,6 +43,15 @@ def projection(run, branches=None):
     return {**run.model_dump(mode="json", exclude={"tenant_id", "state", "requested_by",
             "delegated_roles", "delegated_store_scope", "initial_incident_version", "manifest"}),
         "route": state.route, "risk_level": state.risk_level,
+        "tools": [{"name": c.tool_name, "version": c.tool_version,
+            "status": "COMPLETED" if c.result else "FAILED" if c.error else "PENDING",
+            "message": c.error.safe_message if c.error else
+                ({"get_incident": "사건 자료 확인 완료", "search_similar_incidents": "유사 사례 확인 완료",
+                  "get_transactions": "거래 자료 확인 완료", "get_inventory": "재고 자료 확인 완료"}[c.tool_name]
+                 if c.result and c.result.items else "필요한 자료가 없습니다." if c.result else "자료를 확인하고 있습니다."),
+            "evidence_count": len(c.result.items) if c.result else 0,
+            "error_code": c.error.code if c.error else None,
+            "human_action": c.error.human_action if c.error else "NONE"} for c in state.tool_calls],
         "findings": [f.model_dump() for f in state.findings],
         "evidence_candidates": [e.model_dump(mode="json", exclude={"tenant_id", "store"}) for e in state.evidence_candidates],
         "normalized_evidence": [e.model_dump(mode="json", exclude={"tenant_id", "store"}) for e in state.normalized_evidence],
@@ -84,7 +93,10 @@ def runtime_projection(uow, run, principal, store):
         "permissions": {"pause": eligible and control == "RUNNING", "resume": eligible and control == "PAUSED" and resumable,
             "stop": eligible and control in {"RUNNING", "PAUSED"}, "takeover": eligible and control in {"RUNNING", "PAUSED"}},
         "versions": {"workflow": run.workflow_version, "config": str(run.config_version),
-            "loop": policy.version, "harness": run.manifest.harness_policy_version if run.manifest else "legacy"}}
+            "loop": policy.version, "harness": run.manifest.harness_policy_version if run.manifest else "legacy",
+            **({"tool_bundle": ", ".join(run.manifest.tool_bundle_versions),
+                "prompts": ", ".join(p.prompt_id+":"+p.version for p in run.manifest.prompt_versions)}
+               if run.manifest and run.manifest.tool_bundle_versions else {})}}
 
 
 def projected_run(uow, run, principal=None, store=None):

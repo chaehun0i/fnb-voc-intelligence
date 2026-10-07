@@ -4,6 +4,7 @@ import { decodeCAPATrace, type ApprovalTrace, type CAPAProposal } from "./capa";
 import { decodeClosedLoop, type ClosedLoopTrace } from "./verification";
 
 export type HistoryRun = {
+  tools?: ToolProgress[];
   runtime?: RuntimeAX | null;
   agent_run_id: string; incident_id: string; workflow_id: string; job_id: string;
   correlation_id: string; config_version: number; jev_decision_id: string; workflow_version: "history-v1" | "history-evidence-v2" | "history-capa-v3" | "history-verification-v4" | "multi-investigation-v5";
@@ -17,6 +18,9 @@ export type HistoryRun = {
   evidence_gaps: EvidenceGap[];
   capa_proposals?: CAPAProposal[]; approval?: ApprovalTrace | null;
 } & Partial<EvidenceTrace> & ClosedLoopTrace;
+export type ToolProgress = { name: "get_incident" | "search_similar_incidents" | "get_transactions" | "get_inventory";
+  version: "1"; status: "COMPLETED" | "FAILED" | "PENDING"; message: string;
+  evidence_count: number; error_code: string | null; human_action: string };
 export type HistoryStep = { agent_run_id: string; sequence: number; node_name: "validate_context" | "history_investigation" | "normalize_evidence" | "evaluate_sufficiency" | "rca_investigation" | "persist_result" | "capa_proposal" | "apply_capa" | "request_approval" | "approval_interrupt" | "approval_result" | "internal_execution" | "begin_verification" | "verification" | "apply_verification"; attempt: number; status: HistoryRun["status"]; started_at: string; completed_at: string; latency_ms: number; token_spent: number; cost_spent: number; evidence_refs: string[]; error_code: string | null };
 export type HistoryRunDetail = HistoryRun & { steps: HistoryStep[] };
 export type HistoryRunPage = { runs: HistoryRun[]; limit: number; offset: number; has_more: boolean };
@@ -61,6 +65,10 @@ export function decodeRun(v: unknown): HistoryRun {
     !Array.isArray(v.evidence_candidates) || v.evidence_candidates.length > 20 || !v.evidence_candidates.every((e) => object(e) && refs([e.source_ref]) && ["VOC_REVIEW", "TRANSACTION", "INVENTORY"].includes(String(e.source_type)) && integer(e.rank) && Number(e.rank) > 0 && date(e.retrieved_at)) ||
     !Array.isArray(v.evidence_gaps) || !v.evidence_gaps.every((g) => object(g) && gapCodes.includes(g.code as EvidenceGap["code"]))) invalid();
   const trace = decodeEvidenceTrace(v);
+  if (v.tools !== undefined && (!Array.isArray(v.tools) || v.tools.length > 50 || !v.tools.every((t) =>
+    object(t) && ["get_incident", "search_similar_incidents", "get_transactions", "get_inventory"].includes(String(t.name)) &&
+    t.version === "1" && ["COMPLETED", "FAILED", "PENDING"].includes(String(t.status)) && text(t.message) &&
+    integer(t.evidence_count) && Number(t.evidence_count) <= 20 && (t.error_code === null || text(t.error_code)) && text(t.human_action)))) invalid();
   if (v.runtime !== undefined && v.runtime !== null) {
     const r = v.runtime;
     if (!object(r) || !["RUNNING", "PAUSED", "STOPPED", "MANUAL_TAKEOVER"].includes(String(r.control_status)) ||

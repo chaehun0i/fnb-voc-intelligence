@@ -3,7 +3,7 @@ export type EvidenceGap = { code: typeof gapCodes[number]; agent_type?: "HISTORY
 export type NormalizedEvidence = {
   source_ref: string; source_id: string; source_type: "VOC_REVIEW" | "TRANSACTION" | "INVENTORY"; rank: number;
   retrieved_at: string; source_at: string | null; agent_run_id: string; step_name: "history_investigation" | "investigation_fan_in";
-  provenance: ("lexical" | "vector" | "hybrid" | "legacy_reference" | "synthetic_operational")[];
+  provenance: ("lexical" | "vector" | "hybrid" | "legacy_reference" | "synthetic_operational" | "file_imported_operational")[];
   stance: "SUPPORTING" | "CONTRADICTING" | "NEUTRAL";
   observation_code: "RELATED_HISTORY_MATCH" | "REFERENCE_ONLY" | "REFUND_SIGNAL" | "CANCEL_SIGNAL" | "STOCK_SHORTAGE" | "STOCK_ADJUSTMENT";
 };
@@ -30,7 +30,7 @@ export function decodeEvidenceTrace(v: Record<string, unknown>): EvidenceTrace |
   if (!Array.isArray(items) || items.length > 20 || !items.every((e) => object(e) && refs([e.source_ref]) &&
     e.source_ref === `${e.source_type === "VOC_REVIEW" ? "review" : String(e.source_type).toLowerCase()}:${e.source_id}` && ["VOC_REVIEW", "TRANSACTION", "INVENTORY"].includes(String(e.source_type)) && e.agent_run_id === v.agent_run_id && ["history_investigation", "investigation_fan_in"].includes(String(e.step_name)) &&
     Number.isSafeInteger(e.rank) && Number(e.rank) >= 1 && Number(e.rank) <= 20 && date(e.retrieved_at) && (e.source_at === null || date(e.source_at)) &&
-    strings(e.provenance) && e.provenance.length > 0 && e.provenance.every((p) => ["lexical", "vector", "hybrid", "legacy_reference", "synthetic_operational"].includes(p)) &&
+    strings(e.provenance) && e.provenance.length > 0 && e.provenance.every((p) => ["lexical", "vector", "hybrid", "legacy_reference", "synthetic_operational", "file_imported_operational"].includes(p)) &&
     ["SUPPORTING", "CONTRADICTING", "NEUTRAL"].includes(String(e.stance)) && ["RELATED_HISTORY_MATCH", "REFERENCE_ONLY", "REFUND_SIGNAL", "CANCEL_SIGNAL", "STOCK_SHORTAGE", "STOCK_ADJUSTMENT"].includes(String(e.observation_code)))) return null;
   const available = new Map((items as NormalizedEvidence[]).map((e) => [e.source_ref, e]));
   const actualRefs = (value: unknown): value is string[] => refs(value) && value.every((r) => available.has(r));

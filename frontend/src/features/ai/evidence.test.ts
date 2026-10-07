@@ -2,6 +2,12 @@ import { expect, it } from "vitest";
 import { decodeRun } from "./api";
 import { evidenceFixture } from "../../test/evidenceFixture";
 
+it("파일 Import 근거의 출처를 보존하고 알 수 없는 출처는 거부한다", () => {
+  const imported = { ...evidenceFixture, normalized_evidence: evidenceFixture.normalized_evidence!.map((e) => ({ ...e, provenance: ["file_imported_operational"] })) };
+  expect(decodeRun(imported).normalized_evidence?.[0].provenance).toEqual(["file_imported_operational"]);
+  expect(() => decodeRun({ ...imported, normalized_evidence: imported.normalized_evidence.map((e) => ({ ...e, provenance: ["untrusted"] })) })).toThrow("응답 형식");
+});
+
 it("실제 서버 근거·충분성·RCA 응답을 계산 없이 디코딩한다", () => {
   const result = decodeRun(evidenceFixture);
   expect(result.sufficiency?.status).toBe("SUFFICIENT");
