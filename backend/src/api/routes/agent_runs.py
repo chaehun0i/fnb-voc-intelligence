@@ -5,7 +5,8 @@ import psycopg
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.ai.ax.service import AgentRunQueries
+from src.ai.ax.models import IncidentAX
+from src.ai.ax.service import AgentRunQueries, IncidentAXQueries
 from src.api.dependencies.auth import request_context
 from src.api.schemas.agent_runs import AgentRunDetailResponse, AgentRunHistoryResponse
 from src.application.agent_controls import AgentControls
@@ -16,6 +17,11 @@ router = APIRouter(prefix="/api/v1/incidents", tags=["history-agent-runs"])
 
 def query(request):
     return AgentRunQueries(request.app.state.access_persistence, request_context(request).principal)
+
+
+@router.get("/{incident_id}/ax", response_model=IncidentAX)
+def incident_ax(incident_id: str, request: Request):
+    return IncidentAXQueries(request.app.state.access_persistence, request_context(request)).get(incident_id)
 
 
 @router.get("/{incident_id}/agent-runs", response_model=AgentRunHistoryResponse)

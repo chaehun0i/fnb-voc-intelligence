@@ -1,6 +1,7 @@
 """ai/ax/service: 통합된 기능 책임, 기존 실행 계약 유지."""
 import psycopg
 
+from src.ai.ax.projector import project_incident
 from src.ai.workflow.controller import control_state
 from src.ai.workflow.policy import AGENT_REGISTRY
 from src.application.incidents.service import IncidentNotFound
@@ -140,5 +141,37 @@ class AgentRunQueries:
                 runs = uow.agent_runs.history(incident_id, limit+1, offset)
                 return {"runs": [projected_run(uow, r, self.principal, incident.store) for r in runs[:limit]], "limit": limit,
                         "offset": offset, "has_more": len(runs)>limit}
+        except psycopg.Error as error:
+            raise AgentRunsUnavailable() from error
+
+
+class IncidentAXQueries:
+    """Tenant-scoped read projection; commands and technical checkpoints stay separate."""
+
+    def __init__(self, persistence, context):
+        self.persistence, self.context = persistence, context
+
+    def get(self, incident_id):
+        principal = self.context.principal
+        require(principal, "read")
+        try:
+            with self.persistence.transaction(principal.tenant_id) as uow:
+                incident = uow.incidents.get(incident_id)
+                if incident is None:
+                    raise IncidentNotFound()
+                require(principal, "read", incident.store)
+                runs = uow.agent_runs.history(incident_id, 1, 0)
+                run = runs[0] if runs else None
+                investigation = projected_run(uow, run)["investigation"] if run else None
+                view = project_incident(incident, run, investigation)
+                decisions = uow.decisions.history(incident_id, 1, 0)
+                updates = {}
+                if view.decision_reference is None and decisions:
+                    updates["decision_reference"] = decisions[0].decision_id
+                if run and run.state.approval:
+                    approval = uow.approvals.get(run.state.approval.approval_id)
+                    if approval and approval.incident_id == incident_id and approval.agent_run_id == run.agent_run_id:
+                        updates["approval_status"] = approval.status
+                return view.model_copy(update=updates)
         except psycopg.Error as error:
             raise AgentRunsUnavailable() from error
