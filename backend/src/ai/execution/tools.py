@@ -9,6 +9,45 @@ from src.ai.models import SafeModel
 
 TOOL_BUNDLE_VERSION = "read-tools-1"
 
+ToolErrorCategory = Literal["TOOL_TEMPORARY", "TOOL_PERMANENT", "CONTRACT_ERROR",
+    "AUTHORIZATION_DENIED", "APPROVAL_REQUIRED", "DATA_NOT_AVAILABLE", "UNKNOWN_EXTERNAL_RESULT"]
+
+
+class ToolError(SafeModel):
+    code: Literal["SOURCE_TIMEOUT", "SOURCE_UNAVAILABLE", "INVALID_CONTRACT", "ACCESS_DENIED",
+        "APPROVAL_REQUIRED", "NO_DATA", "OUTCOME_UNKNOWN", "POLICY_DENIED", "BUDGET_EXHAUSTED"]
+    category: ToolErrorCategory
+    retryable: bool
+    safe_message: str = Field(max_length=200)
+    suggested_action: Literal["BOUNDED_RETRY", "FIX_INPUT", "REQUEST_ACCESS", "HUMAN_REVIEW", "ADD_EVIDENCE", "STOP"]
+    human_action: Literal["NONE", "MORE_EVIDENCE_REQUIRED", "POLICY_BLOCKED", "MANUAL_REVIEW_REQUIRED"]
+    details_ref: str | None = Field(default=None, pattern=r"^tool:[a-f0-9]{64}$")
+
+
+ERRORS = MappingProxyType({
+    "SOURCE_TIMEOUT": ("TOOL_TEMPORARY", True, "자료 확인 응답이 지연되고 있습니다.", "BOUNDED_RETRY", "NONE"),
+    "SOURCE_UNAVAILABLE": ("TOOL_TEMPORARY", True, "자료 저장소를 일시적으로 사용할 수 없습니다.", "BOUNDED_RETRY", "NONE"),
+    "INVALID_CONTRACT": ("CONTRACT_ERROR", False, "입력 또는 결과 계약을 확인해 주세요.", "FIX_INPUT", "MANUAL_REVIEW_REQUIRED"),
+    "ACCESS_DENIED": ("AUTHORIZATION_DENIED", False, "현재 권한으로 자료를 확인할 수 없습니다.", "REQUEST_ACCESS", "POLICY_BLOCKED"),
+    "APPROVAL_REQUIRED": ("APPROVAL_REQUIRED", False, "사람의 승인이 필요합니다.", "HUMAN_REVIEW", "MANUAL_REVIEW_REQUIRED"),
+    "NO_DATA": ("DATA_NOT_AVAILABLE", False, "필요한 자료가 없습니다.", "ADD_EVIDENCE", "MORE_EVIDENCE_REQUIRED"),
+    "OUTCOME_UNKNOWN": ("UNKNOWN_EXTERNAL_RESULT", False, "이전 요청의 결과를 확인할 수 없어 재호출하지 않습니다.", "HUMAN_REVIEW", "MANUAL_REVIEW_REQUIRED"),
+    "POLICY_DENIED": ("TOOL_PERMANENT", False, "현재 정책에서 자료 확인을 허용하지 않습니다.", "STOP", "POLICY_BLOCKED"),
+    "BUDGET_EXHAUSTED": ("TOOL_PERMANENT", False, "설정된 자료 확인 한도에 도달했습니다.", "STOP", "MANUAL_REVIEW_REQUIRED"),
+})
+
+
+def tool_error(code, details_ref=None):
+    category, retryable, message, action, human = ERRORS[code]
+    return ToolError(code=code, category=category, retryable=retryable, safe_message=message,
+        suggested_action=action, human_action=human, details_ref=details_ref)
+
+
+class ToolFailure(Exception):
+    def __init__(self, error):
+        self.error = error
+        super().__init__(error.code)
+
 
 class ToolInput(SafeModel):
     incident_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
@@ -49,6 +88,11 @@ class ToolContract(SafeModel):
     idempotency_mode: Literal["PINNED_READ_RESULT"] = "PINNED_READ_RESULT"
     approval_requirement: Literal["NOT_REQUIRED_READ_ONLY"] = "NOT_REQUIRED_READ_ONLY"
     evidence_semantics: Literal["SOURCE_REFERENCE_NOT_GENERATED_TEXT"] = "SOURCE_REFERENCE_NOT_GENERATED_TEXT"
+    when_to_use: str = Field(default="현재 사건의 조사 목적에 맞는 허용된 자료 참조를 확인할 때", min_length=1, max_length=200)
+    when_not_to_use: str = Field(default="원문 전체 조회, 다른 매장 조회, 원인 확정 또는 외부 변경에는 사용하지 않음", min_length=1, max_length=200)
+    preconditions: tuple[Literal["ACTIVE_RUN", "CURRENT_AUTHORIZATION", "FRESH_CAPABILITY", "BOUNDED_BUDGET"], ...] = ("ACTIVE_RUN", "CURRENT_AUTHORIZATION", "FRESH_CAPABILITY", "BOUNDED_BUDGET")
+    common_errors: tuple[str, ...] = tuple(ERRORS)
+    retry_guidance: Literal["TEMPORARY_ONLY_WITH_LOOP_BUDGET_NO_RETRY_ON_AUTH_OR_NO_DATA"] = "TEMPORARY_ONLY_WITH_LOOP_BUDGET_NO_RETRY_ON_AUTH_OR_NO_DATA"
 
     @model_validator(mode="after")
     def schemas(self):

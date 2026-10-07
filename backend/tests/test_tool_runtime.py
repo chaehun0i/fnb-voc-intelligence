@@ -30,3 +30,17 @@ def test_tool_schema_is_canonical_and_rejects_scope_or_unbounded_input():
     for extra in ({"tenant_id": "other"}, {"actor_id": "admin"}, {"limit": 21}):
         with pytest.raises(ValidationError):
             ToolInput(incident_id="a"*36, **extra)
+
+
+def test_errors_and_ax_are_machine_readable_without_raw_exception():
+    from src.ai.execution.tools import ERRORS, ToolFailure, tool_error
+    for code in ERRORS:
+        error = tool_error(code)
+        assert str(ToolFailure(error)) == code
+        assert error.safe_message and error.suggested_action
+        assert error.retryable == (error.category == "TOOL_TEMPORARY")
+        assert "password" not in error.model_dump_json()
+    for contract in READ_TOOLS.contracts():
+        assert contract.when_to_use and contract.when_not_to_use and contract.preconditions
+        assert "NO_DATA" in contract.common_errors
+        assert "NO_RETRY_ON_AUTH" in contract.retry_guidance
