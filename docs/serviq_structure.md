@@ -83,4 +83,6 @@ Day 28은 기존 Workflow/Execution 책임 안에 제한 Loop·Harness·Manifest
 
 Day 29의 `intelligence/node.py`·`prompts.py`, `execution/tools.py`·`runtime.py`, `application/tool_queries.py`, `mcp/server.py`는 좁은 composition/read Tool 경로를 담당합니다. MCP transport는 안전 정책을 소유하지 않습니다. 상세 책임·버전·검증·제한은 [LangChain/MCP](serviq_langchain_mcp.md)를 따릅니다.
 
-production OIDC/SSO·deployment, 전체 retention/migration engine, 고급 Context enrichment·동적 Registry·자율 planner, public MCP endpoint, 외부 Action reconciliation 전체는 후속 범위입니다. 승인된 내부 실행을 실제 외부 변경과 구분하며 Jev Shadow 전체를 자동 실행하지 않습니다. v0.6 MVP Next는 Day 30 AX/AI MVP RC입니다.
+Day 30은 기존 AX 영역의 `models.py`/`projector.py`/`actions.py`/`explanations.py`/`service.py`로 Incident 단위 업무 projection을 제공합니다. `releases.py`와 `measurement.py`는 per-run RC snapshot/Golden 비교 및 제한된 ProductEvent/지표를 담당합니다. 기존 Domain/Workflow/Execution 안전 경계는 유지합니다. additive migration은 `022_ax_product_events.sql`이며 상세 결과는 [AX/AI MVP RC](serviq_ax_mvp_rc.md)를 따릅니다.
+
+production OIDC/SSO·deployment, 전체 retention/migration engine, 고급 Context enrichment·동적 Registry·자율 planner, public MCP endpoint, 외부 Action reconciliation 전체는 후속 범위입니다. 승인된 내부 실행을 실제 외부 변경과 구분하며 Jev Shadow 전체를 자동 실행하지 않습니다. 현재는 AX/AI MVP RC이지 Production Ready가 아닙니다. 다음은 실제 사용자 과업 관찰·AX friction 개선·Golden 재검증과 필요한 Productionization입니다.

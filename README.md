@@ -119,3 +119,9 @@ Day 27 capability-aware Registry·최소 Context Pack·History/Transaction/Inven
 Day 28 제한 반복·종료·현재 정책 Harness·불변 Manifest·안전 Replay·Pause/Resume/Stop/수동 인계는 [Loop/Harness 문서](docs/serviq_loop_harness.md)를, 첫 실행·Excel Template·컬럼 매핑·확인 Import·Demo·첫 조사 체크리스트는 [온보딩 문서](docs/serviq_onboarding_import.md)를 참고하세요. MCP/LangChain 신규 Runtime과 실제 외부 write는 미구현입니다.
 
 Day 29 versioned Tool/Prompt Registry·LLM Gateway 기반 LangChain Node composition·공식 MCP in-memory read adapter·Harness·거래/재고 Tool branch와 안전한 Tool AX는 [LangChain/MCP 문서](docs/serviq_langchain_mcp.md)를 참고하세요. Day 28 당시 미구현이던 두 Runtime의 좁은 Vertical Slice이며, public MCP endpoint·실제 POS/ERP write·모든 Node migration·Day 30 RC를 의미하지 않습니다.
+
+Day 30 현재 MVP 단계는 **AX/AI MVP Release Candidate**입니다. Incident의 AI Brief·업무 진행·근거 범위·사람 행동·다음 행동·기존 Agent 제어, per-run RC Manifest/Golden 비교와 최소 Feedback/지표는 [AX/AI MVP RC 문서](docs/serviq_ax_mvp_rc.md)를 참고하세요. Production Ready가 아닙니다.
+
+### 처음 체험하는 순서
+
+실제 API 모드에서 로그인 → 매장 확인 → [샘플 또는 Excel/CSV 입력](docs/serviq_onboarding_import.md) → 시작 체크리스트의 Incident 열기 → 조사 시작 → AI Brief/근거/다음 행동 확인 → 기존 Review에서 승인/반려 → 내부 실행 기록/Verification 결과 확인 순서입니다. 승인 ≠ 실행이며 실행은 INTERNAL_RECORD_ONLY, 검증은 SIMULATED입니다. 서버 오류를 Mock으로 대체하지 않습니다. 후속은 사용자 과업 관찰과 AX friction 개선·Productionization입니다.
