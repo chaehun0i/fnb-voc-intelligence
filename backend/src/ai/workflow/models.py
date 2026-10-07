@@ -11,6 +11,7 @@ from src.ai.execution.models import (
     VerificationCandidate,
     VerificationEvidence,
 )
+from src.ai.execution.tools import ToolCall
 from src.ai.models import SafeModel
 
 InvestigationAgent = Literal["HISTORY", "TRANSACTION", "INVENTORY"]
@@ -380,6 +381,7 @@ class ApprovalTrace(SafeModel):
 
 
 class WorkflowState(SafeModel):
+    tool_calls: tuple[ToolCall, ...] = Field(default=(), max_length=50)
     loop: LoopTrace | None = None
     tenant_id: str = Field(min_length=1, max_length=128)
     incident_id: str = Field(min_length=1, max_length=128)

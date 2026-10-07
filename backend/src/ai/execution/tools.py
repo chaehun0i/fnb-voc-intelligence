@@ -50,7 +50,7 @@ class ToolFailure(Exception):
 
 
 class ToolInput(SafeModel):
-    incident_id: str = Field(pattern=r"^[a-f0-9-]{36}$")
+    incident_id: str = Field(pattern=r"^[A-Za-z0-9_.:-]{1,128}$")
     limit: int = Field(default=10, strict=True, ge=1, le=20)
 
 
@@ -68,6 +68,23 @@ class ToolResult(SafeModel):
     tool_name: str
     tool_version: Literal["1"] = "1"
     items: tuple[ToolItem, ...] = Field(default=(), max_length=20)
+
+
+class ToolCall(SafeModel):
+    """Reference-only effect receipt. A missing result is uncertain, never replayed."""
+    call_id: str = Field(pattern=r"^[a-f0-9]{64}$")
+    tool_name: str = Field(pattern=r"^[a-z_]{1,64}$")
+    tool_version: Literal["1"] = "1"
+    context_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    reservation: str = Field(default="direct", max_length=64)
+    result: ToolResult | None = None
+    error: ToolError | None = None
+
+    @model_validator(mode="after")
+    def receipt(self):
+        if self.result and (self.error or self.result.tool_name != self.tool_name):
+            raise ValueError("TOOL_RECEIPT_INVALID")
+        return self
 
 
 class ToolContract(SafeModel):

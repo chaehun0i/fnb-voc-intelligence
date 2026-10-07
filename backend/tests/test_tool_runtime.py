@@ -92,3 +92,23 @@ def test_four_business_queries_are_bounded_reference_only_and_scoped():
     restricted = Principal("store", "a", frozenset({Role.STORE_MANAGER}), frozenset({"다른 매장"}))
     with pytest.raises(AccessError):
         queries.read("get_incident", ToolInput(incident_id=incident.id), principal=restricted, context=packs[0])
+
+
+def test_tool_harness_rechecks_policy_scope_and_reuses_receipt():
+    from src.ai.execution.runtime import ToolHarness
+    from src.ai.execution.tools import ToolFailure
+    from tests.test_loop_harness import loop_setup
+    p, source, run, now = loop_setup()
+    harness = ToolHarness(p, source, tenant_id="t", run_id=run.agent_run_id,
+        agent_type="TRANSACTION", clock=lambda: now)
+    args = {"incident_id": run.incident_id, "limit": 1}
+    result = harness.execute("get_transactions", args)
+    assert result.tool_name == "get_transactions"
+    assert harness.execute("get_transactions", args) == result
+    with p.transaction("t") as uow:
+        saved = uow.agent_runs.get(run.agent_run_id)
+        assert saved.state.tool_call_count == 1 and len(saved.state.tool_calls) == 1
+    with pytest.raises(ToolFailure):
+        harness.execute("shell", args)
+    with pytest.raises(ToolFailure):
+        harness.execute("get_transactions", args | {"tenant_id": "other"})
