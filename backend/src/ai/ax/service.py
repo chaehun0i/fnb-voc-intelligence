@@ -2,6 +2,7 @@
 import psycopg
 
 from src.ai.ax.actions import next_action
+from src.ai.ax.explanations import explain
 from src.ai.ax.projector import project_incident
 from src.ai.workflow.controller import control_state
 from src.ai.workflow.policy import AGENT_REGISTRY
@@ -180,7 +181,8 @@ class IncidentAXQueries:
                 runtime = runtime_projection(uow, run, principal, incident.store) if run else None
                 uncertain = bool(run and any(c.error and c.error.code == "OUTCOME_UNKNOWN" or
                     not c.error and not c.result for c in run.state.tool_calls))
-                return next_action(view.model_copy(update=updates), operate=allowed(principal, "operate", incident.store),
+                view = explain(view.model_copy(update=updates), run)
+                return next_action(view, operate=allowed(principal, "operate", incident.store),
                     review=review, control=runtime["control_status"] if runtime else "RUNNING",
                     termination=runtime["termination_reason"] if runtime else None, uncertain_effect=uncertain)
         except psycopg.Error as error:

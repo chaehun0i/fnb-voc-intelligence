@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from src.ai.ax.actions import next_action
+from src.ai.ax.explanations import explain
 from src.ai.ax.models import AIBrief
 from src.ai.ax.projector import project_incident
 from src.api.app import create_app, demo_incidents
@@ -73,3 +74,20 @@ def test_pending_approval_uses_review_permission():
     view = project_incident(demo_incidents()[0]).model_copy(update={"approval_status": "PENDING"})
     assert not next_action(view, operate=True).next_action.permission
     assert next_action(view, review=True).next_action.permission
+
+
+@pytest.mark.parametrize("result,phase,message", [
+    ("PASS", "RESOLVED", "충족했습니다"), ("FAIL", "REOPENED", "재조사가 필요"),
+    ("INCONCLUSIVE", "VERIFYING", "검증 상태를 유지"),
+])
+def test_explanation_separates_verification_from_real_world_effect(result, phase, message):
+    view = project_incident(demo_incidents()[0]).model_copy(update={"current_phase": phase,
+        "execution_mode": "INTERNAL_RECORD_ONLY", "verification_result": result})
+    result = explain(view)
+    assert message in result.brief.summary and "외부 시스템은 변경하지 않았습니다" in result.brief.summary
+    assert result.explanation.cannot_verify and not result.explanation.technical_trace_available
+
+
+def test_brief_never_describes_approval_as_execution():
+    view = project_incident(demo_incidents()[0]).model_copy(update={"approval_status": "APPROVED"})
+    assert "실행 완료는 아닙니다" in explain(view).brief.summary

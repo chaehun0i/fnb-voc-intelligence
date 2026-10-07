@@ -1,4 +1,5 @@
 """Deterministic projection: no LLM, repository, command or provider effects."""
+from datetime import datetime
 from hashlib import sha256
 
 from src.ai.ax.models import (
@@ -38,4 +39,4 @@ def project_incident(incident, run=None, investigation=None):
         decision_reference=run.jev_decision_id if run else None,
         verification_result=result, execution_mode=state.execution.execution_mode if state and state.execution else None,
         approval_status=state.approval.status if state and state.approval else None,
-        updated_at=max(timestamps))
+        updated_at=max(datetime.fromisoformat(t) for t in timestamps))
