@@ -490,6 +490,13 @@ def verify_verification_http(client, fixture):
     check(not any(v in json.dumps(detail) for v in ("SYNTHETIC-RAW-SENTINEL", "raw_prompt", "raw_response", "delegated_roles")), "민감한 원문/권한 정보가 노출되면 안 됩니다.")
     jobs = client.api("GET", "/jobs?"+urlencode({"incident_id": identifier}))
     check(len([j for j in jobs if j["type"] == "incident.history_resume"]) == 1, "resume Job이 중복되면 안 됩니다.")
+    ax = client.api("GET", f"/incidents/{identifier}/ax")
+    check(ax["current_phase"] == expected and ax["verification_result"] == fixture["outcome"],
+          "AX는 실제 검증과 Domain 결과를 표시해야 합니다.")
+    check(ax["execution_mode"] == "INTERNAL_RECORD_ONLY" and ax["source_run_id"] == run_id,
+          "AX의 실행 의미와 Run lineage가 보존되어야 합니다.")
+    check(ax["brief"]["headline"] and ax["explanation"]["cannot_verify"] and ax["metrics"],
+          "Technical Trace 없이 업무 결과와 검증 한계·지표를 확인할 수 있어야 합니다.")
     print(f"[통과] nginx→Review 승인→실제 Worker/checkpoint→내부 실행→Verification {fixture['outcome']}→{expected} · 외부 변경 0")
 
 
@@ -587,6 +594,17 @@ def verify_jev_flow(client):
     client.api("GET", runs_path+"?limit=101", status=422, error_code="VALIDATION_ERROR")
     client.api("POST", runs_path, {}, status=405, error_code="HTTP_ERROR")
     print("[통과] nginx AgentRun 조회·상한·공개 실행 POST 금지·Shadow 자동 조사 없음")
+    ax_path = "/incidents/"+incident["id"]+"/ax"
+    ax = client.api("GET", ax_path)
+    check(ax["current_phase"] == incident["status"] and ax["source_run_id"] is None,
+          "실제 AX가 조사 없는 사건의 현재 상태를 정직하게 표시해야 합니다.")
+    check(ax["decision_reference"] == latest["decision_id"] and ax["brief"]["headline"], "AX에 실제 Jev 참조와 업무 요약이 필요합니다.")
+    event_key = str(uuid4())
+    event = client.api("POST", ax_path+"/events", {"event_type": "ai_brief_viewed"}, status=201, idempotency_key=event_key)
+    check(client.api("POST", ax_path+"/events", {"event_type": "ai_brief_viewed"}, status=201, idempotency_key=event_key) == event,
+          "AX 열람 이벤트 재전송은 중복 생성하면 안 됩니다.")
+    check(not any(word in str(ax) for word in ("raw_prompt", "checkpoint", "tenant_id", "delegated_roles")), "AX에 내부 자료를 노출하면 안 됩니다.")
+    print("[통과] nginx AX 업무 상태·Jev lineage·미측정 지표·Product Event 영속 멱등성")
 
 
 if __name__ == "__main__":

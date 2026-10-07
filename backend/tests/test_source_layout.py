@@ -78,6 +78,18 @@ def test_sdk_is_only_used_in_provider_adapters():
             assert not any(name.startswith(SDK) for name in imports), path
 
 
+def test_ax_projection_is_read_only_and_does_not_execute_ai_or_domain_commands():
+    pure_ax = {"models.py", "projector.py", "actions.py", "explanations.py", "releases.py"}
+    for path, tree, _, imports in modules():
+        if path.relative_to(SOURCE).parts[:2] != ("ai", "ax") or path.name not in pure_ax:
+            continue
+        assert not any(name.startswith(("src.infrastructure", "src.api", "fastapi", "psycopg", "langgraph",
+            "src.ai.intelligence.service", "src.ai.execution.runtime", *SDK)) for name in imports), path
+        assert not any(isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and node.func.attr in {"save", "transaction", "approve", "reject", "execute", "invoke", "call_tool"}
+            for node in ast.walk(tree)), path
+
+
 def test_intelligence_cannot_mutate_incident_or_authorize_tools():
     for path, tree, _, imports in modules():
         if path.relative_to(SOURCE).parts[:2] != ("ai", "intelligence"):
