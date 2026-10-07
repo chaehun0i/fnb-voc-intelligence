@@ -5,6 +5,16 @@ import { historyFixture } from "../../test/agentRunFixture";
 import { HistoryTracePanel, InvestigationProgressPanel, RuntimeControls } from "./HistoryTrace";
 import type { RuntimeAX } from "./api";
 
+it("Tool AX는 서버 업무 문구와 관측 자료 의미를 보존한다", async () => {
+  const fixture = { ...historyFixture, tools: [{ name: "get_transactions" as const, version: "1" as const,
+    status: "COMPLETED" as const, message: "거래 자료 확인 완료", evidence_count: 1, error_code: null, human_action: "NONE" }] };
+  render(<HistoryTracePanel incidentId="incident-1" api={{ list: async () => ({ runs: [fixture], limit: 20, offset: 0, has_more: false }),
+    detail: async () => fixture }} />);
+  expect(await screen.findByText(/거래 자료 확인 완료/)).toBeInTheDocument();
+  expect(screen.getByText(/실제 POS\/ERP 원장이 아닙니다/)).toBeInTheDocument();
+  expect(screen.queryByText(/외부 시스템 변경 성공/)).not.toBeInTheDocument();
+});
+
 it("부분 실패에서도 확보한 근거와 업무별 범위를 서버 결과로 표시한다", () => {
   render(<InvestigationProgressPanel progress={{ status: "PARTIAL", evidence_count: 3,
     uncertainty: "관측 근거이며 원인 확정은 아닙니다.", updated_at: "2026-10-07T00:00:00Z",
