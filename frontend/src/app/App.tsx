@@ -43,6 +43,6 @@ export function App() {
     {page.route === "onboarding" && <Onboarding />}
     {page.route === "incidents" && <IncidentList onSelect={selectIncident} refresh={refresh} />}
     {page.route === "reviews" && <ReviewQueue />}{page.route === "trace" && <AgentTrace />}{page.route === "settings" && <ControlPlaneSettings />}{page.route === "integrations" && <Integrations />}{page.route === "queue" && <Queue />}
-    {page.incidentId && <IncidentDetail key={page.incidentId} id={page.incidentId} onBack={() => { navigate(page.route); setRefresh((value) => value + 1); }} />}
+    {page.incidentId && <IncidentDetail key={page.incidentId} id={page.incidentId} onReview={() => navigate("reviews")} onBack={() => { navigate(page.route); setRefresh((value) => value + 1); }} />}
   </Suspense></PageErrorBoundary></AppShell>;
 }

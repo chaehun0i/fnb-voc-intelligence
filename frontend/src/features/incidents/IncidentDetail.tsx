@@ -12,10 +12,12 @@ import { IncidentCommandPanel } from "./IncidentCommandPanel";
 import { Badge } from "../../components/IncidentBadge";
 import { ShadowDecisionPanel } from "./ShadowDecisionPanel";
 import { HistoryTracePanel } from "../ai/HistoryTrace";
+import { IncidentAXPanel } from "../ai/IncidentAXPanel";
 
 const tabLabels = { timeline: "진행 이력", evidence: "증거", rca: "원인 분석", capa: "시정·예방 조치", tasks: "담당 작업", verification: "검증", trace: "실행 추적" };
-export function IncidentDetail({ id, onBack }: { id: string; onBack: () => void }) {
+export function IncidentDetail({ id, onBack, onReview }: { id: string; onBack: () => void; onReview?: () => void }) {
   const [revision, setRevision] = useState(0);
+  const [tab, setTab] = useState("timeline");
   const loader = useMemo(() => () => Promise.all([incidentApi.getIncident(id), incidentApi.getWorkspace(id), apiMode === "mock" ? mockApi.getAgentRunForIncident(id) : Promise.resolve(null)]), [id, revision]);
   const query = useQuery(loader);
   const [incident, workspace, trace] = query.data ?? [];
@@ -28,7 +30,11 @@ export function IncidentDetail({ id, onBack }: { id: string; onBack: () => void 
         {query.loading ? <StateMessage kind="loading" title="인시던트 상세 정보를 불러오는 중입니다" /> : query.error ? <StateMessage kind="error" title="상세 정보를 불러오지 못했습니다" onRetry={query.reload}>{query.error}</StateMessage> : !incident ? <StateMessage title="인시던트를 찾을 수 없습니다">삭제되었거나 접근할 수 없는 항목입니다.</StateMessage> : <>
           <div className="page-heading"><div><div className="mb-2 flex gap-2"><Badge value={incident.severity} /><Badge value={incident.status} kind="status" /><span className="tag status">{workspace?.priority ?? incident.priority ?? "P2"}</span></div><h1>{incident.title}</h1><p>{incident.display_id} · {incident.store} · 담당 {incident.owner}</p></div></div>
           <div className="metadata"><span className="metadata-item"><strong>발생 시각</strong>{dateTime(incident.created_at)}</span><span className="metadata-item"><strong>SLA 기한</strong>{dateTime(incident.sla_due_at)}</span>{incident.version !== undefined && <span className="metadata-item"><strong>데이터 버전</strong>{incident.version}</span>}</div>
-          <Tabs.Root defaultValue="timeline" className="mt-4"><Tabs.List aria-label="인시던트 정보 영역" className="detail-tabs">{Object.entries(tabLabels).map(([value, label]) => <Tabs.Trigger key={value} value={value}>{label}</Tabs.Trigger>)}</Tabs.List>
+          {apiMode === "http" && <IncidentAXPanel key={`${id}-${revision}`} incidentId={id} onAction={(action) => {
+            if (action === "OPEN_REVIEW" && onReview) onReview();
+            else setTab(({ TECHNICAL_TRACE: "trace", COLLECT_EVIDENCE: "evidence", VERIFY: "verification", OPEN_WORKSPACE: "capa", MANUAL_REVIEW: "rca" } as Record<string, string>)[action] ?? "timeline");
+          }} />}
+          <Tabs.Root value={tab} onValueChange={setTab} className="mt-4"><Tabs.List aria-label="인시던트 정보 영역" className="detail-tabs">{Object.entries(tabLabels).map(([value, label]) => <Tabs.Trigger key={value} value={value}>{label}</Tabs.Trigger>)}</Tabs.List>
             <Tabs.Content value="timeline" className="panel"><h2>상태 진행 이력</h2><p>서버에서 기록한 실제 전이 이력입니다. 화면에서 다음 상태를 결정하지 않습니다.</p><ol className="timeline">{incident.timeline.map((event, index) => <li key={`${event.occurred_at}-${index}`}><strong>{statusLabels[event.status]}</strong><small>{dateTime(event.occurred_at)}</small>{event.reason && <small>{event.reason}</small>}</li>)}</ol></Tabs.Content>
             <Tabs.Content value="evidence" className="panel"><h2>수집한 증거 · {incident.evidence.length}건</h2>{incident.evidence.length ? incident.evidence.map((item) => <article className="record-details" key={item.id}><strong>{item.source}</strong><p>{item.summary}</p><p>유형: {item.type} · 신뢰도: {percent(item.confidence)} · {item.status === "AVAILABLE" ? "사용 가능" : item.status === "PENDING" ? "수집 대기" : "사용 제외"}</p><small className="muted">증거 ID: {item.id}</small></article>) : <p>등록된 증거가 없습니다. 조사 단계에서 운영 명령으로 등록할 수 있습니다.</p>}</Tabs.Content>
             <Tabs.Content value="rca" className="panel"><h2>원인 후보</h2>{incident.root_cause_candidates.length ? incident.root_cause_candidates.map((item) => <article className="record-details" key={item.id}><strong>{item.summary}</strong><p>신뢰도: {percent(item.confidence)}</p><p>뒷받침 근거: {item.supporting_evidence_ids.map(evidenceName).join(", ") || "없음"}</p><p>반대 근거: {item.counter_evidence_ids.map(evidenceName).join(", ") || "없음"}</p></article>) : <p>증거를 바탕으로 등록한 원인 후보가 없습니다.</p>}</Tabs.Content>
