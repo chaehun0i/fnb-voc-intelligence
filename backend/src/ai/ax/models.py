@@ -1,6 +1,7 @@
 """SDK-independent user task projection, not a second Incident/Agent aggregate."""
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import Field
 
@@ -80,6 +81,12 @@ class ProductEvent(SafeModel):
     event_type: ProductEventType
     occurred_at: datetime
     feedback_stage: FeedbackStage | None = None
+    session_id: UUID | None = None
+    task_id: Literal["incident-understanding"] | None = None
+    milestone: Literal["ONBOARDING_STARTED", "DATA_READY", "INCIDENT_OPENED", "AI_BRIEF_VIEWED",
+        "EVIDENCE_REVIEWED", "HUMAN_ACTION_PRESENTED", "REVIEW_OPENED", "DECISION_SUBMITTED",
+        "VERIFICATION_VIEWED", "FINAL_STATUS_VIEWED", "FEEDBACK_SUBMITTED"] | None = None
+    feedback_decision: Literal["ACCEPT", "EDIT", "REJECT", "REQUEST_MORE_EVIDENCE", "MANUAL_TAKEOVER"] | None = None
 
 
 class AXMetric(SafeModel):

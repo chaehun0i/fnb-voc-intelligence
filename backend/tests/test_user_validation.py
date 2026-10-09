@@ -40,3 +40,30 @@ def test_terminal_session_requires_real_terminal_time():
     item = session()
     completed = session(status="COMPLETED", completed_at=item.started_at + timedelta(seconds=20))
     assert completed.completed_at > completed.started_at
+
+
+def test_journey_dedup_order_and_server_decision_receipt():
+    from src.ai.ax.models import ProductEvent
+    from src.ai.ax.validation import project_journey
+    s = session()
+    event = ProductEvent(event_id=str(uuid4()), tenant_id=s.tenant_id, incident_id="i", source_run_id=None,
+        event_type="ai_brief_viewed", occurred_at=s.started_at, session_id=s.session_id,
+        task_id="incident-understanding", milestone="DECISION_SUBMITTED")
+    empty = project_journey(s, [event, event])
+    assert not empty.milestones and not empty.task_success
+    decision_at = s.started_at + timedelta(seconds=15)
+    real = project_journey(s, [event], decision_at=decision_at)
+    assert len(real.milestones) == 1 and real.milestones[0].occurred_at == decision_at
+    wrong = event.model_copy(update={"tenant_id": "other"})
+    with pytest.raises(ValueError, match="SCOPE"):
+        project_journey(s, [wrong])
+
+
+def test_journey_preserves_final_domain_outcome_without_pageview_success():
+    from src.ai.ax.projector import project_incident
+    from src.ai.ax.validation import project_journey
+    from src.api.app import demo_incidents
+    ax = project_incident(demo_incidents()[0], None)
+    for status in ("RESOLVED", "REOPENED", "VERIFYING"):
+        result = project_journey(session(), [], ax.model_copy(update={"current_phase": status}))
+        assert result.incident_status == status and not result.task_success
