@@ -1,9 +1,11 @@
 """Actual source timestamps/usage only. Product feedback is not an Approval command."""
 from datetime import UTC, datetime
 from hashlib import sha256
+from statistics import median
 from uuid import NAMESPACE_URL, uuid5
 
 from src.ai.ax.models import AXMetric, ProductEvent
+from src.ai.ax.validation import ValidationMetric
 from src.application.incidents.service import IncidentNotFound
 from src.application.security.authorization import require
 from src.application.security.principal import AccessError
@@ -63,3 +65,53 @@ class ProductEvents:
             uow.product_events.append(event)
             uow.idempotency.complete(principal.principal_id, "ax_product_event", context.idempotency_key, event)
             return event
+
+
+# Explicit descriptive-sample policy, not a usability score or significance claim.
+MIN_VALIDATION_SAMPLE = 5
+
+
+def validation_metrics(observations, *, truncated=False):
+    """Bounded session aggregates. Observations contain only authorized server sources."""
+    values = {name: [] for name in (
+        "task_completion_rate", "time_to_first_useful_evidence", "time_to_human_action",
+        "time_to_decision", "human_intervention_rate", "accept_rate", "edit_rate", "reject_rate",
+        "request_more_evidence_rate", "manual_takeover_rate", "loop_abort_rate",
+        "end_to_end_completion_rate", "median_task_duration", "cost_per_completed_incident")}
+    for row in observations:
+        s, journey, events, ax = row["session"], row["journey"], row["events"], row["ax"]
+        values["task_completion_rate"].append(float(s.status == "COMPLETED" and journey.task_success))
+        if s.completed_at and s.status == "COMPLETED":
+            values["median_task_duration"].append((s.completed_at-s.started_at).total_seconds())
+        milestone_times = {m.milestone: m.occurred_at for m in journey.milestones}
+        for key, at in (("time_to_first_useful_evidence", row.get("first_evidence_at")),
+            ("time_to_human_action", milestone_times.get("HUMAN_ACTION_PRESENTED")),
+            ("time_to_decision", milestone_times.get("DECISION_SUBMITTED"))):
+            if at and at >= s.started_at:
+                values[key].append((at-s.started_at).total_seconds())
+        feedback = sorted((e for e in events if e.feedback_decision), key=lambda e: (e.occurred_at, e.event_id))
+        if feedback:
+            for key, decision in (("accept_rate", "ACCEPT"), ("edit_rate", "EDIT"), ("reject_rate", "REJECT"),
+                ("request_more_evidence_rate", "REQUEST_MORE_EVIDENCE")):
+                values[key].append(float(feedback[-1].feedback_decision == decision))
+        if ax and ax.source_run_id:
+            takeover = bool(ax.runtime and ax.runtime.control_status == "MANUAL_TAKEOVER")
+            values["manual_takeover_rate"].append(float(takeover))
+            values["human_intervention_rate"].append(float(takeover or "DECISION_SUBMITTED" in milestone_times))
+            actual = {m.name: m for m in ax.metrics}
+            for target, source in (("loop_abort_rate", "loop_abort"),
+                ("end_to_end_completion_rate", "end_to_end_completion"),
+                ("cost_per_completed_incident", "cost_per_completed_incident")):
+                m = actual.get(source)
+                if m and m.value is not None:
+                    values[target].append(m.value)
+    result = []
+    for name, samples in values.items():
+        count = len(samples)
+        unit = "seconds" if name.startswith("time_to_") or name == "median_task_duration" else "estimated_usd" if name.startswith("cost_") else "ratio"
+        partial = truncated or name in {"human_intervention_rate", "cost_per_completed_incident"}
+        availability = "UNAVAILABLE" if not count else "PARTIAL" if partial else "INSUFFICIENT_SAMPLE" if count < MIN_VALIDATION_SAMPLE else "AVAILABLE"
+        value = None if not count else median(samples) if unit == "seconds" else sum(samples)/count
+        result.append(ValidationMetric(name=name, value=value, sample_size=count,
+            availability=availability, unit=unit))
+    return tuple(result)

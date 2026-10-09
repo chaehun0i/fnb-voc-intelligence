@@ -1,11 +1,13 @@
 """Opt-in task observation; reuses AX, ProductEvent, security and transactional stores."""
 import hashlib
 import json
-from datetime import UTC, datetime
+from collections import Counter
+from datetime import UTC, datetime, timedelta
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from pydantic import Field, model_validator
 
+from src.ai.ax.measurement import validation_metrics
 from src.ai.ax.models import (
     Friction,
     ProductEvent,
@@ -94,11 +96,50 @@ class UserValidation:
     def get(self, identifier):
         with self.persistence.transaction(self.context.principal.tenant_id) as uow:
             item = self.load(uow, identifier)
-            events = uow.product_events.session_events(identifier)
-            decision_at = self.decision_time(uow, item)
-        ax = IncidentAXQueries(self.persistence, self.context, self.clock).get(item.incident_id) if item.incident_id else None
+        row = self.observation(item)
         return {"session": item, "task": validation_task(item.scenario_id),
-            "journey": project_journey(item, events, ax, decision_at), "event_limit_reached": len(events) >= 500}
+            "journey": row["journey"], "event_limit_reached": len(row["events"]) >= 500}
+
+    def observation(self, item):
+        with self.persistence.transaction(self.context.principal.tenant_id) as uow:
+            events = uow.product_events.session_events(item.session_id)
+            decision_at = self.decision_time(uow, item)
+            steps = uow.agent_runs.steps(item.agent_run_id) if item.agent_run_id else ()
+            evidence_times = [s.completed_at for s in steps if s.evidence_refs and s.completed_at >= item.started_at]
+        ax = IncidentAXQueries(self.persistence, self.context, self.clock).get(item.incident_id) if item.incident_id else None
+        return {"session": item, "events": events, "ax": ax,
+            "journey": project_journey(item, events, ax, decision_at),
+            "first_evidence_at": min(evidence_times, default=None)}
+
+    def summary(self, store, kind):
+        require(self.context.principal, "admin", store)
+        now = self.clock()
+        with self.persistence.transaction(self.context.principal.tenant_id) as uow:
+            items = uow.product_events.sessions(store)
+        scoped = [s for s in items[:100] if s.validation_kind == kind and s.started_at >= now-timedelta(days=7)]
+        rows = [self.observation(s) for s in scoped]
+        truncated = len(items) > 100 or any(len(row["events"]) >= 500 for row in rows)
+        friction = Counter(e.friction for row in rows for e in row["events"] if e.friction)
+        return {"validation_kind": kind, "window": "7d", "window_started_at": now-timedelta(days=7),
+            "window_ended_at": now, "sessions": len(scoped),
+            "completed": sum(s.status == "COMPLETED" for s in scoped),
+            "abandoned": sum(s.status == "ABANDONED" for s in scoped), "truncated": truncated,
+            "metrics": validation_metrics(rows, truncated=truncated),
+            "top_friction": [{"reason": name, "count": count} for name, count in sorted(friction.items(), key=lambda v: (-v[1], v[0]))],
+            "recent_sessions": [{"session_id": s.session_id, "scenario_id": s.scenario_id,
+                "status": s.status, "started_at": s.started_at} for s in scoped[:20]]}
+
+    def finish(self, identifier):
+        with self.persistence.transaction(self.context.principal.tenant_id) as uow:
+            item = self.load(uow, identifier, write=True)
+            cached = self.claim(uow, "validation_finish", [str(identifier)])
+            if cached is not None:
+                return cached
+            if item.status != "ACTIVE" or not self.observation(item)["journey"].task_success:
+                raise AccessError("VALIDATION_TASK_NOT_COMPLETE", 409)
+            item = item.model_copy(update={"status": "COMPLETED", "completed_at": self.clock()})
+            uow.product_events.save_session(item, self.owner())
+            return self.complete(uow, "validation_finish", item)
 
     def decision_time(self, uow, item):
         if not item.incident_id:

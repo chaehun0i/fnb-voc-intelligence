@@ -79,6 +79,18 @@ class ValidationJourney(SafeModel):
     status: SessionStatus
 
 
+class ValidationMetric(SafeModel):
+    name: Literal["task_completion_rate", "time_to_first_useful_evidence", "time_to_human_action",
+        "time_to_decision", "human_intervention_rate", "accept_rate", "edit_rate", "reject_rate",
+        "request_more_evidence_rate", "manual_takeover_rate", "loop_abort_rate",
+        "end_to_end_completion_rate", "median_task_duration", "cost_per_completed_incident"]
+    value: float | None = Field(default=None, ge=0)
+    sample_size: int = Field(ge=0, le=100)
+    availability: Literal["AVAILABLE", "PARTIAL", "INSUFFICIENT_SAMPLE", "UNAVAILABLE"]
+    unit: Literal["ratio", "seconds", "estimated_usd"]
+    window: Literal["7d"] = "7d"
+
+
 def project_journey(session, events, ax=None, decision_at=None):
     """Order-independent unique milestones; page views alone never mean success.
 

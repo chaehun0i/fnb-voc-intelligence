@@ -133,3 +133,37 @@ def test_abandon_is_not_task_success_and_events_cannot_restart(history_setup):
     assert svc.signal(item.session_id, body) == event
     view = svc.get(item.session_id)
     assert view["session"].status == "ABANDONED" and not view["journey"].task_success
+
+
+def test_validation_metrics_empty_small_sample_and_real_duration():
+    from src.ai.ax.measurement import validation_metrics
+    from src.ai.ax.validation import project_journey
+    assert all(m.value is None and m.sample_size == 0 and m.availability == "UNAVAILABLE"
+        for m in validation_metrics([]))
+    s = session(status="ABANDONED", completed_at=session().started_at + timedelta(seconds=30))
+    row = {"session": s, "journey": project_journey(s, []), "events": [], "ax": None}
+    result = {m.name: m for m in validation_metrics([row])}
+    assert result["task_completion_rate"].value == 0
+    assert result["task_completion_rate"].sample_size == 1
+    assert result["task_completion_rate"].availability == "INSUFFICIENT_SAMPLE"
+    assert result["median_task_duration"].value is None
+    assert result["time_to_first_useful_evidence"].value is None
+    row["first_evidence_at"] = s.started_at + timedelta(seconds=7)
+    measured = {m.name: m for m in validation_metrics([row])}
+    assert measured["time_to_first_useful_evidence"].value == 7
+    assert measured["time_to_first_useful_evidence"].unit == "seconds"
+
+
+def test_summary_requires_admin_and_separates_synthetic(history_setup):
+    from dataclasses import replace
+
+    from src.application.security.principal import Role
+    from src.application.user_validation import UserValidation
+    p, _, context, _ = history_setup
+    with p.transaction(context.principal.tenant_id) as uow:
+        store = uow.incidents.get("i").store
+    admin = replace(context, principal=replace(context.principal, roles=frozenset({Role.HQ_ADMIN})), idempotency_key="summary-start")
+    svc = UserValidation(p, admin)
+    svc.start(store, "happy_path", consent=True, kind="SYNTHETIC")
+    assert svc.summary(store, "SYNTHETIC")["sessions"] == 1
+    assert svc.summary(store, "USER_OBSERVATION")["sessions"] == 0
