@@ -53,6 +53,7 @@ class ValidationSession(SafeModel):
     consent_scope: Literal["TASK_EVENTS_ONLY"] = "TASK_EVENTS_ONLY"
     created_at: datetime
     validation_kind: Literal["SYNTHETIC", "USER_OBSERVATION"]
+    completed_phase: Literal["RESOLVED", "REOPENED", "VERIFYING", "INVESTIGATING", "PENDING_APPROVAL", "ACTION_PROPOSED", "RCA_READY"] | None = None
 
     @model_validator(mode="after")
     def coherent(self):
@@ -63,6 +64,8 @@ class ValidationSession(SafeModel):
             raise ValueError("VALIDATION_TERMINAL_TIMESTAMP_REQUIRED")
         if self.completed_at and self.completed_at < self.started_at:
             raise ValueError("VALIDATION_TIMESTAMP_ORDER")
+        if self.completed_phase and self.status != "COMPLETED":
+            raise ValueError("VALIDATION_COMPLETION_RECEIPT_REQUIRED")
         return self
 
 
@@ -106,20 +109,20 @@ def project_journey(session, events, ax=None, decision_at=None):
     for event in events:
         if event.session_id != session.session_id or event.tenant_id != session.tenant_id:
             raise ValueError("VALIDATION_EVENT_SCOPE")
-        if event.milestone and event.occurred_at >= session.started_at:
+        if event.milestone and event.occurred_at >= session.started_at and (event.milestone != "FEEDBACK_SUBMITTED" or event.feedback_decision and event.feedback_stage == "RAW"):
             previous = observed.get(event.milestone)
             observed[event.milestone] = min(previous, event.occurred_at) if previous else event.occurred_at
     observed.pop("DECISION_SUBMITTED", None)
     if decision_at and decision_at >= session.started_at:
         observed["DECISION_SUBMITTED"] = decision_at
-    if ax is None or ax.source_run_id is None:
+    if session.status != "COMPLETED" and (ax is None or ax.source_run_id is None):
         for name in ("AI_BRIEF_VIEWED", "EVIDENCE_REVIEWED", "HUMAN_ACTION_PRESENTED", "VERIFICATION_VIEWED"):
             observed.pop(name, None)
-    elif not ax.coverage.evidence_count:
+    elif session.status != "COMPLETED" and not ax.coverage.evidence_count:
         observed.pop("EVIDENCE_REVIEWED", None)
-    if ax is None or ax.verification_result is None:
+    if session.status != "COMPLETED" and (ax is None or ax.verification_result is None):
         observed.pop("VERIFICATION_VIEWED", None)
-    if ax is None or ax.current_phase not in {"RESOLVED", "REOPENED", "VERIFYING"}:
+    if session.status != "COMPLETED" and (ax is None or ax.current_phase not in {"RESOLVED", "REOPENED", "VERIFYING"}):
         observed.pop("FINAL_STATUS_VIEWED", None)
     required = {"AI_BRIEF_VIEWED", "FEEDBACK_SUBMITTED"}
     if session.scenario_id in {"happy_path", "reopen"}:
@@ -133,7 +136,8 @@ def project_journey(session, events, ax=None, decision_at=None):
         outcome = bool(ax and ax.runtime and ax.runtime.control_status == "MANUAL_TAKEOVER")
     else:
         outcome = False  # abandonment is a measured non-completion, not task success
-    success = session.status != "ABANDONED" and outcome and required <= observed.keys()
+    # COMPLETED is a server-issued task receipt; later Incident changes do not revoke history.
+    success = bool(session.status == "COMPLETED" and session.completed_phase) or session.status != "ABANDONED" and outcome and required <= observed.keys()
     return ValidationJourney(session_id=session.session_id,
         milestones=tuple(JourneyMilestone(milestone=name, occurred_at=at) for name, at in sorted(observed.items())),
-        incident_status=ax.current_phase if ax else None, task_success=bool(success), status=session.status)
+        incident_status=session.completed_phase or (ax.current_phase if ax else None), task_success=bool(success), status=session.status)

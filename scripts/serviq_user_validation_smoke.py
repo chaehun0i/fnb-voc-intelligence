@@ -62,9 +62,15 @@ def run_scenario(dsn, scenario):
         assert worker.run_once() and worker.run_once()
     with p.transaction(principal.tenant_id) as uow:
         run = uow.agent_runs.by_job(job.job_id)
+    for milestone in ("AI_BRIEF_VIEWED", "HUMAN_ACTION_PRESENTED"):
+        UserValidation(p, replace(context, idempotency_key=milestone)).signal(session.session_id,
+            ValidationSignal(surface="INCIDENT", milestone=milestone))
     if scenario == "manual_takeover":
         AgentControls(p).execute(context, incident.id, run.agent_run_id, "takeover", 0)
     elif scenario in {"happy_path", "reopen"}:
+        for milestone in ("EVIDENCE_REVIEWED", "REVIEW_OPENED"):
+            UserValidation(p, replace(context, idempotency_key=milestone)).signal(session.session_id,
+                ValidationSignal(surface="REVIEW", milestone=milestone))
         from fastapi.testclient import TestClient
 
         from src.api.app import create_app
@@ -87,9 +93,18 @@ def run_scenario(dsn, scenario):
             assert worker.run_once() and not worker.run_once()
         current = p.incidents.get(incident.id, tenant_id=principal.tenant_id)
         assert current.status.value == ("RESOLVED" if scenario == "happy_path" else "REOPENED")
-    for milestone in ("AI_BRIEF_VIEWED", "HUMAN_ACTION_PRESENTED"):
-        UserValidation(p, replace(context, idempotency_key=milestone)).signal(session.session_id,
-            ValidationSignal(surface="INCIDENT", milestone=milestone))
+        for milestone in ("DECISION_SUBMITTED", "VERIFICATION_VIEWED", "FINAL_STATUS_VIEWED"):
+            UserValidation(p, replace(context, idempotency_key=milestone)).signal(session.session_id,
+                ValidationSignal(surface="VERIFICATION", milestone=milestone))
+    decision = {"more_evidence": "REQUEST_MORE_EVIDENCE", "manual_takeover": "MANUAL_TAKEOVER"}.get(scenario, "ACCEPT")
+    svc = UserValidation(p, replace(context, idempotency_key="feedback"))
+    body = ValidationSignal(surface="INCIDENT", feedback_decision=decision)
+    event = svc.signal(session.session_id, body)
+    assert event == svc.signal(session.session_id, body)
+    assert event.feedback_stage == "RAW" and event.source_run_id == run.agent_run_id and event.run_manifest_ref
+    assert svc.get(session.session_id)["journey"].task_success
+    finished = UserValidation(p, replace(context, idempotency_key="complete")).finish(session.session_id)
+    assert finished.status == "COMPLETED"
     print("[PASS] Synthetic scenario "+scenario+" · 실제 사용자 검증 아님 · external write 0")
     return p, context, incident, session
 

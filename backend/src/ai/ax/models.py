@@ -95,6 +95,9 @@ class ProductEvent(SafeModel):
     friction: Friction | None = None
     surface: ValidationSurface | None = None
     safe_reason_code: ValidationReason | None = None
+    run_manifest_ref: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    artifact_type: Literal["RCA", "CAPA", "INCIDENT"] | None = None
+    artifact_id: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class AXMetric(SafeModel):

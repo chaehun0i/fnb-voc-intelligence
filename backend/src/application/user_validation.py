@@ -3,6 +3,7 @@ import hashlib
 import json
 from collections import Counter
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from pydantic import Field, model_validator
@@ -35,11 +36,15 @@ class ValidationSignal(SafeModel):
     surface: ValidationSurface
     safe_reason_code: ValidationReason | None = None
     incident_id: str | None = Field(default=None, min_length=1, max_length=128)
+    feedback_decision: Literal["ACCEPT", "EDIT", "REJECT", "REQUEST_MORE_EVIDENCE", "MANUAL_TAKEOVER"] | None = None
+    artifact_type: Literal["RCA", "CAPA", "INCIDENT"] = "INCIDENT"
 
     @model_validator(mode="after")
     def not_empty(self):
-        if self.milestone is None and self.friction is None:
+        if self.milestone is None and self.friction is None and self.feedback_decision is None:
             raise ValueError("VALIDATION_SIGNAL_REQUIRED")
+        if self.milestone == "FEEDBACK_SUBMITTED" and not self.feedback_decision:
+            raise ValueError("VALIDATION_FEEDBACK_REQUIRED")
         return self
 
 
@@ -107,6 +112,8 @@ class UserValidation:
             steps = uow.agent_runs.steps(item.agent_run_id) if item.agent_run_id else ()
             evidence_times = [s.completed_at for s in steps if s.evidence_refs and s.completed_at >= item.started_at]
         ax = IncidentAXQueries(self.persistence, self.context, self.clock).get(item.incident_id) if item.incident_id else None
+        if ax and item.agent_run_id and ax.source_run_id != item.agent_run_id:
+            ax = None  # Do not attribute a newer investigation to this pinned observation.
         return {"session": item, "events": events, "ax": ax,
             "journey": project_journey(item, events, ax, decision_at),
             "first_evidence_at": min(evidence_times, default=None)}
@@ -116,7 +123,7 @@ class UserValidation:
         now = self.clock()
         with self.persistence.transaction(self.context.principal.tenant_id) as uow:
             items = uow.product_events.sessions(store)
-        scoped = [s for s in items[:100] if s.validation_kind == kind and s.started_at >= now-timedelta(days=7)]
+        scoped = [s for s in items[:100] if s.validation_kind == kind and now-timedelta(days=7) <= s.started_at <= now]
         rows = [self.observation(s) for s in scoped]
         truncated = len(items) > 100 or any(len(row["events"]) >= 500 for row in rows)
         friction = Counter(e.friction for row in rows for e in row["events"] if e.friction)
@@ -135,17 +142,20 @@ class UserValidation:
             cached = self.claim(uow, "validation_finish", [str(identifier)])
             if cached is not None:
                 return cached
-            if item.status != "ACTIVE" or not self.observation(item)["journey"].task_success:
+            row = self.observation(item)
+            if item.status != "ACTIVE" or not row["journey"].task_success:
                 raise AccessError("VALIDATION_TASK_NOT_COMPLETE", 409)
-            item = item.model_copy(update={"status": "COMPLETED", "completed_at": self.clock()})
+            item = ValidationSession.model_validate(item.model_dump() | {"status": "COMPLETED", "completed_at": self.clock(), "completed_phase": row["journey"].incident_status})
             uow.product_events.save_session(item, self.owner())
             return self.complete(uow, "validation_finish", item)
 
     def decision_time(self, uow, item):
         if not item.incident_id:
             return None
+        # Business decision receipt, possibly by a separate reviewer (separation of duties).
+        # This does not claim that the observing participant was the approver.
         dates = [datetime.fromisoformat(a.decided_at) for a in uow.approvals.list(item.incident_id)
-            if a.decided_at and a.decided_by == self.context.principal.principal_id]
+            if a.decided_at and item.agent_run_id and a.agent_run_id == item.agent_run_id]
         return min((at for at in dates if at >= item.started_at), default=None)
 
     def signal(self, identifier, body):
@@ -186,12 +196,44 @@ class UserValidation:
                     raise AccessError("VALIDATION_DATA_NOT_READY", 409)
             if body.milestone in {"INCIDENT_OPENED", "REVIEW_OPENED", "FINAL_STATUS_VIEWED"} and not item.incident_id:
                 raise AccessError("VALIDATION_INCIDENT_REQUIRED", 409)
+            ax = IncidentAXQueries(self.persistence, self.context, self.clock).get(item.incident_id) if item.incident_id else None
+            milestone, friction = body.milestone, body.friction
+            if milestone == "HUMAN_ACTION_PRESENTED" and (not ax or ax.human_action == "NONE"):
+                raise AccessError("VALIDATION_HUMAN_ACTION_NOT_AVAILABLE", 409)
+            if milestone == "EVIDENCE_REVIEWED" and (not ax or not ax.coverage.evidence_count):
+                raise AccessError("VALIDATION_EVIDENCE_NOT_AVAILABLE", 409)
+            if milestone == "VERIFICATION_VIEWED" and (not ax or ax.verification_result is None):
+                raise AccessError("VALIDATION_VERIFICATION_NOT_AVAILABLE", 409)
+            if milestone == "FINAL_STATUS_VIEWED" and (not ax or ax.current_phase not in {"RESOLVED", "REOPENED", "VERIFYING"}):
+                raise AccessError("VALIDATION_FINAL_STATUS_NOT_AVAILABLE", 409)
+            artifact_id = None
+            event_type = "user_validation"
+            if body.feedback_decision:
+                if not run or not ax:
+                    raise AccessError("VALIDATION_FEEDBACK_NOT_AVAILABLE", 409)
+                if body.feedback_decision in {"ACCEPT", "EDIT", "REJECT"}:
+                    if not ax.feedback_allowed:
+                        raise AccessError("AX_FEEDBACK_NOT_AVAILABLE", 409)
+                    event_type = {"ACCEPT": "recommendation_accepted", "EDIT": "recommendation_edited", "REJECT": "recommendation_rejected"}[body.feedback_decision]
+                if body.feedback_decision == "REQUEST_MORE_EVIDENCE" and ax.human_action != "MORE_EVIDENCE_REQUIRED":
+                    raise AccessError("VALIDATION_EVIDENCE_REQUEST_NOT_AVAILABLE", 409)
+                if body.feedback_decision == "MANUAL_TAKEOVER" and (not ax.runtime or ax.runtime.control_status != "MANUAL_TAKEOVER"):
+                    raise AccessError("VALIDATION_TAKEOVER_NOT_RECORDED", 409)
+                artifacts = run.state.rca_candidates if body.artifact_type == "RCA" else run.state.capa_proposals if body.artifact_type == "CAPA" else ()
+                if body.artifact_type != "INCIDENT" and not artifacts:
+                    raise AccessError("VALIDATION_ARTIFACT_NOT_AVAILABLE", 409)
+                artifact_id = (artifacts[0].candidate_id if body.artifact_type == "RCA" else artifacts[0].capa_proposal_id) if artifacts else item.incident_id
+                milestone = "FEEDBACK_SUBMITTED"
+                friction = {"REJECT": "ACTION_REJECTED", "REQUEST_MORE_EVIDENCE": "REQUEST_MORE_EVIDENCE", "MANUAL_TAKEOVER": "MANUAL_TAKEOVER"}.get(body.feedback_decision, friction)
             now = self.clock()
             event = ProductEvent(event_id=str(uuid5(NAMESPACE_URL, self.owner()+":validation:"+self.context.idempotency_key)),
                 tenant_id=p.tenant_id, incident_id=item.incident_id or "", source_run_id=item.agent_run_id,
-                event_type="user_validation", session_id=item.session_id, task_id="incident-understanding",
-                occurred_at=now, milestone=body.milestone, friction=body.friction,
-                surface=body.surface, safe_reason_code=body.safe_reason_code)
+                event_type=event_type, session_id=item.session_id, task_id="incident-understanding",
+                occurred_at=now, milestone=milestone, friction=friction,
+                surface=body.surface, safe_reason_code=body.safe_reason_code,
+                feedback_decision=body.feedback_decision, feedback_stage="RAW" if body.feedback_decision else None,
+                run_manifest_ref=hashlib.sha256(run.manifest.model_dump_json().encode()).hexdigest() if run and run.manifest else None,
+                artifact_type=body.artifact_type if body.feedback_decision else None, artifact_id=artifact_id)
             if body.friction == "TASK_ABANDONED":
                 item = item.model_copy(update={"status": "ABANDONED", "completed_at": now})
             uow.product_events.save_session(item, self.owner())

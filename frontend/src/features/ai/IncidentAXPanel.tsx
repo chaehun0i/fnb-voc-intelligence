@@ -33,7 +33,11 @@ export function IncidentAXPanel({ incidentId, onAction, load = getIncidentAX, re
     if (!record || pending) return;
     const key = retry.current?.type === type ? retry.current.key : crypto.randomUUID();
     retry.current = { type, key }; setPending(true);
-    try { await record(incidentId, type, key); retry.current = null; setFeedback("의견을 기록했습니다. 승인이나 조치 실행은 변경하지 않았습니다."); }
+    try {
+      if (validation.active) await validation.signal({ surface: "INCIDENT", incident_id: incidentId,
+        feedback_decision: ({ recommendation_accepted: "ACCEPT", recommendation_edited: "EDIT", recommendation_rejected: "REJECT" } as const)[type as "recommendation_accepted" | "recommendation_edited" | "recommendation_rejected"] }, key);
+      else await record(incidentId, type, key);
+      retry.current = null; setFeedback("의견을 기록했습니다. 승인이나 조치 실행은 변경하지 않았습니다."); }
     catch { setFeedback("피드백을 기록하지 못했습니다. 같은 버튼으로 다시 시도할 수 있습니다."); }
     finally { setPending(false); }
   }
@@ -63,6 +67,13 @@ export function IncidentAXPanel({ incidentId, onAction, load = getIncidentAX, re
     </article>
     {view.feedback_allowed && record && <article className="panel !min-h-0"><h3>제안에 대한 의견</h3><p>의견은 RAW 피드백으로만 저장됩니다. 승인·반려 결정이나 조치안 수정은 기존 업무 화면에서 진행합니다.</p>
       <div className="flex flex-wrap gap-2">{([["recommendation_accepted", "제안 수용 의견"], ["recommendation_edited", "수정 필요 의견"], ["recommendation_rejected", "비수용 의견"]] as const).map(([type, label]) => <Button key={type} disabled={pending} onClick={() => void send(type)}>{label}</Button>)}</div></article>}
+    {validation.active && (view.human_action === "MORE_EVIDENCE_REQUIRED" || view.runtime?.control_status === "MANUAL_TAKEOVER") && <article className="panel !min-h-0"><h3>과업 의견</h3><p>기존 업무 상태를 확인한 RAW 의견입니다. 상태를 변경하거나 정답으로 승격하지 않습니다.</p><Button disabled={pending} onClick={() => {
+      setPending(true); void validation.signal({ surface: "INCIDENT", incident_id: incidentId,
+        feedback_decision: view.runtime?.control_status === "MANUAL_TAKEOVER" ? "MANUAL_TAKEOVER" : "REQUEST_MORE_EVIDENCE" }, `${viewKey.current}:task-feedback`)
+        .then(() => setFeedback("의견을 기록했습니다. 승인이나 조치 실행은 변경하지 않았습니다."))
+        .catch(() => setFeedback("과업 의견을 기록하지 못했습니다. 다시 시도해 주세요."))
+        .finally(() => setPending(false));
+    }}>{view.runtime?.control_status === "MANUAL_TAKEOVER" ? "담당자 인계 확인 의견" : "추가 근거 필요 의견"}</Button></article>}
     {feedback && <p role="status">{feedback}</p>}
     {!!view.metrics?.length && <details><summary>측정 가능한 업무 지표</summary><p>현재 실행 기준 · 일부 지표만 관측되며 비용은 실제 청구액이 아닙니다.</p><dl>{view.metrics.map((m) => <div key={m.name}><dt>{{ end_to_end_completion: "전체 흐름 완료", time_to_first_useful_evidence: "첫 유효 근거까지", time_to_decision: "승인 결정까지", human_intervention: "사람 개입", manual_takeover: "수동 인계", loop_abort: "자동 조사 종료", cost_per_completed_incident: "완료 실행의 추정 비용" }[m.name] ?? m.name}</dt><dd>{m.value === null ? "측정 불가" : `${m.value} ${m.unit}`} · {m.status === "PARTIAL" ? "일부 관측" : m.status === "UNAVAILABLE" ? "자료 없음" : "관측됨"}</dd></div>)}</dl></details>}
   </section>;

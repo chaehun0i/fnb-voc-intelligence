@@ -174,3 +174,35 @@ def test_synthetic_fixture_refuses_operating_database(name):
     from src.ai.ax.validation import validate_synthetic_database_name
     with pytest.raises(ValueError, match="EXPLICIT_TEST_DATABASE"):
         validate_synthetic_database_name(name)
+
+
+def test_feedback_is_raw_bound_to_existing_artifact_and_no_domain_mutation():
+    from src.application.security.principal import Principal, RequestContext
+    from src.application.user_validation import UserValidation, ValidationSignal
+    from tests.test_capa_application import prepared
+    p, run, state, _, _ = prepared()
+    principal = Principal(run.requested_by, run.tenant_id, frozenset(run.delegated_roles), frozenset(run.delegated_store_scope))
+    ctx = RequestContext(principal, "test", "validation", "start")
+    with p.transaction(run.tenant_id) as uow:
+        before = uow.incidents.get(run.incident_id)
+    item = UserValidation(p, ctx).start(before.store, "happy_path", consent=True)
+    from dataclasses import replace
+    svc = UserValidation(p, replace(ctx, idempotency_key="feedback"))
+    body = ValidationSignal(surface="INCIDENT", incident_id=run.incident_id, feedback_decision="EDIT", artifact_type="RCA")
+    event = svc.signal(item.session_id, body)
+    assert svc.signal(item.session_id, body) == event
+    assert event.feedback_stage == "RAW" and event.feedback_decision == "EDIT"
+    assert event.artifact_id == state.rca_candidates[0].candidate_id
+    assert event.source_run_id == run.agent_run_id and event.session_id == item.session_id
+    with p.transaction(run.tenant_id) as uow:
+        assert uow.incidents.get(run.incident_id) == before
+        assert len(uow.product_events.session_events(item.session_id)) == 1
+    with pytest.raises(ValidationError):
+        ValidationSignal(surface="INCIDENT", milestone="FEEDBACK_SUBMITTED")
+
+
+def test_completed_receipt_survives_later_incident_changes():
+    from src.ai.ax.validation import project_journey
+    s = session(status="COMPLETED", completed_at=session().started_at + timedelta(seconds=30), completed_phase="RESOLVED")
+    result = project_journey(s, [])
+    assert result.task_success and result.incident_status == "RESOLVED"
