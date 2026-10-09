@@ -4,6 +4,7 @@ import { PageErrorBoundary } from "../components/PageErrorBoundary";
 import { StateMessage } from "../components/ui";
 import { apiMode } from "../shared/api";
 import { intakeStatus } from "../features/data/api";
+import { ValidationMode } from "../features/ai/ValidationMode";
 
 const Dashboard = lazy(() => import("../features/dashboard/Dashboard").then((module) => ({ default: module.Dashboard })));
 const IncidentList = lazy(() => import("../features/incidents/IncidentList").then((module) => ({ default: module.IncidentList })));
@@ -38,11 +39,12 @@ export function App() {
     window.location.hash = `/${route}${incidentId ? `?incident=${encodeURIComponent(incidentId)}` : ""}`;
   }
   const selectIncident = (id: string) => navigate(page.route, id);
-  return <AppShell route={page.route} onNavigate={(route) => navigate(route)}><PageErrorBoundary key={page.route}><Suspense fallback={<section className="page"><StateMessage kind="loading" title="화면을 준비하는 중입니다" /></section>}>
+  const content = <PageErrorBoundary key={page.route}><Suspense fallback={<section className="page"><StateMessage kind="loading" title="화면을 준비하는 중입니다" /></section>}>
     {page.route === "dashboard" && <Dashboard onIncidents={() => navigate("incidents")} onReviews={() => navigate("reviews")} onQueue={() => navigate("queue")} onIncident={selectIncident} />}
     {page.route === "onboarding" && <Onboarding />}
     {page.route === "incidents" && <IncidentList onSelect={selectIncident} refresh={refresh} />}
     {page.route === "reviews" && <ReviewQueue />}{page.route === "trace" && <AgentTrace />}{page.route === "settings" && <ControlPlaneSettings />}{page.route === "integrations" && <Integrations />}{page.route === "queue" && <Queue />}
     {page.incidentId && <IncidentDetail key={page.incidentId} id={page.incidentId} onReview={() => navigate("reviews")} onBack={() => { navigate(page.route); setRefresh((value) => value + 1); }} />}
-  </Suspense></PageErrorBoundary></AppShell>;
+  </Suspense></PageErrorBoundary>;
+  return <AppShell route={page.route} onNavigate={(route) => navigate(route)}>{apiMode === "http" ? <ValidationMode route={page.route} incidentId={page.incidentId}>{content}</ValidationMode> : content}</AppShell>;
 }

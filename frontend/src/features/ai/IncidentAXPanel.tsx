@@ -5,6 +5,7 @@ import { getIncidentAX, recordAXEvent, type IncidentAX, type ProductEventType } 
 import { apiMode } from "../../shared/api";
 import { agentRunApi } from "./api";
 import { RuntimeControls } from "./HistoryTrace";
+import { useValidation } from "./ValidationMode";
 
 const dimensions = { HISTORY: "과거 사례", TRANSACTION: "거래 내역", INVENTORY: "재고" };
 const progress = { RUNNING: "조사 중", SUCCESS: "확인 완료", FAILED: "확인 실패 · 확보 근거 유지", UNAVAILABLE: "데이터 부족", NO_EVIDENCE: "관련 근거 부족", STALE: "최신 근거 필요" };
@@ -17,11 +18,17 @@ export function IncidentAXPanel({ incidentId, onAction, load = getIncidentAX, re
   const { data: view, loading, error, reload } = useQuery(loader);
   const viewKey = useRef(crypto.randomUUID());
   const [feedback, setFeedback] = useState("");
+  const validation = useValidation();
   const [pending, setPending] = useState(false);
   const retry = useRef<{ type: ProductEventType; key: string } | null>(null);
   useEffect(() => {
     if (view && !loading && !error && record) void record(incidentId, "ai_brief_viewed", viewKey.current).catch(() => setFeedback("요약 열람 기록을 저장하지 못했습니다. 업무 결과는 유지됩니다."));
   }, [view, loading, error, incidentId, record]);
+  useEffect(() => {
+    if (!view || loading || error || !validation.active || !view.source_run_id) return;
+    const milestones = ["AI_BRIEF_VIEWED", ...(view.human_action !== "NONE" ? ["HUMAN_ACTION_PRESENTED"] : []), ...(["RESOLVED", "REOPENED", "VERIFYING"].includes(view.current_phase) ? ["FINAL_STATUS_VIEWED"] : [])] as const;
+    for (const milestone of milestones) void validation.signal({ surface: "INCIDENT", incident_id: incidentId, milestone: milestone as "AI_BRIEF_VIEWED" | "HUMAN_ACTION_PRESENTED" | "FINAL_STATUS_VIEWED" }).catch(() => {});
+  }, [view, loading, error, incidentId, validation.active, validation.signal]);
   async function send(type: ProductEventType) {
     if (!record || pending) return;
     const key = retry.current?.type === type ? retry.current.key : crypto.randomUUID();
@@ -51,7 +58,7 @@ export function IncidentAXPanel({ incidentId, onAction, load = getIncidentAX, re
       <h3>불확실성</h3>{view.uncertainties.map((text) => <p key={text}>{text}</p>)}
       {view.execution_mode && <p>내부 실행 기록 · 외부 시스템 변경 없음</p>}
       {view.verification_result && <p>검증: {{ PASS: "검증 기준 충족", FAIL: "검증 실패 · 재조사 필요", INCONCLUSIVE: "판정 보류 · 검증 상태 유지" }[view.verification_result]}</p>}
-      <details onToggle={(event) => { if (event.currentTarget.open && record) void record(incidentId, "explanation_opened", crypto.randomUUID()).catch(() => setFeedback("설명 열람 기록을 저장하지 못했습니다.")); }}><summary>판단 근거와 한계 확인</summary><p>지지 근거: {view.explanation.supporting_refs.join(" · ") || "없음"}</p><p>반대 근거: {view.explanation.contradicting_refs.join(" · ") || "없음"}</p><p>부족 근거: {view.explanation.missing_codes.join(" · ") || "보고된 항목 없음"}</p>{[...view.explanation.assumptions, ...view.explanation.cannot_verify].map((text) => <p key={text}>{text}</p>)}
+      <details onToggle={(event) => { if (event.currentTarget.open) { if (validation.active) void validation.signal({ surface: "EXPLANATION", incident_id: incidentId, friction: "EXPLANATION_EXPANDED" }).catch(() => {}); if (record) void record(incidentId, "explanation_opened", crypto.randomUUID()).catch(() => setFeedback("설명 열람 기록을 저장하지 못했습니다.")); } }}><summary>판단 근거와 한계 확인</summary><p>지지 근거: {view.explanation.supporting_refs.join(" · ") || "없음"}</p><p>반대 근거: {view.explanation.contradicting_refs.join(" · ") || "없음"}</p><p>부족 근거: {view.explanation.missing_codes.join(" · ") || "보고된 항목 없음"}</p>{[...view.explanation.assumptions, ...view.explanation.cannot_verify].map((text) => <p key={text}>{text}</p>)}
         {view.explanation.technical_trace_available && <Button onClick={() => onAction("TECHNICAL_TRACE")}>기술 실행 상세 열기</Button>}</details>
     </article>
     {view.feedback_allowed && record && <article className="panel !min-h-0"><h3>제안에 대한 의견</h3><p>의견은 RAW 피드백으로만 저장됩니다. 승인·반려 결정이나 조치안 수정은 기존 업무 화면에서 진행합니다.</p>
