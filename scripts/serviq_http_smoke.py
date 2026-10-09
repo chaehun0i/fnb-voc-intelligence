@@ -366,6 +366,10 @@ def main() -> None:
         raise SystemExit("로컬 테스트 스택의 SERVIQ_TEST_API_BASE_URL을 명시해 주세요.")
     client = SmokeClient(base_url)
     verify_frontend(client)
+    validation_fixture = os.getenv("SERVIQ_VALIDATION_HTTP_FIXTURE")
+    if validation_fixture:
+        verify_user_validation_http(client, json.loads(validation_fixture))
+        return
     loop_fixture = os.getenv("SERVIQ_LOOP_HARNESS_HTTP_FIXTURE")
     if loop_fixture:
         verify_loop_harness_http(client, json.loads(loop_fixture))
@@ -388,6 +392,41 @@ def main() -> None:
     verify_settings_flow(client)
     verify_jev_flow(client)
     verify_data_intake_http(client)
+
+
+def verify_user_validation_http(client, fixture):
+    identifier, sid = fixture["incident_id"], fixture["session_id"]
+    path = "/validation/sessions/"+sid
+    view = client.api("GET", path)
+    check(view["session"]["validation_kind"] == "SYNTHETIC", "자동 HTTP 검증을 실제 사용자 관찰로 기록하면 안 됩니다.")
+    for milestone in ("INCIDENT_OPENED", "AI_BRIEF_VIEWED", "EVIDENCE_REVIEWED", "HUMAN_ACTION_PRESENTED", "REVIEW_OPENED"):
+        body = {"surface": "INCIDENT", "milestone": milestone, "incident_id": identifier}
+        key = sid+":"+milestone
+        event = client.api("POST", path+"/events", body, status=201, idempotency_key=key)
+        check(client.api("POST", path+"/events", body, status=201, idempotency_key=key) == event, "관측 재전송은 중복되면 안 됩니다.")
+    ax = client.api("GET", "/incidents/"+identifier+"/ax")
+    check(ax["human_action"] == "APPROVAL_REQUIRED" and ax["coverage"]["evidence_count"] > 0, "실제 근거와 승인 대기 상태가 필요합니다.")
+    review_path = "/reviews/"+fixture["approval_id"]
+    review = client.api("GET", review_path)
+    client.api("POST", review_path+"/approve", {"expected_version": review["approval"]["version"], "reason": "Synthetic HTTP 업무 검토"})
+    for _ in range(30):
+        ax = client.api("GET", "/incidents/"+identifier+"/ax")
+        if ax["current_phase"] == "RESOLVED":
+            break
+        time.sleep(.5)
+    check(ax["current_phase"] == "RESOLVED" and ax["verification_result"] == "PASS", "실제 Worker와 내부 실행·검증이 연결되어야 합니다.")
+    check(ax["execution_mode"] == "INTERNAL_RECORD_ONLY", "외부 실행을 주장하면 안 됩니다.")
+    for milestone in ("DECISION_SUBMITTED", "VERIFICATION_VIEWED", "FINAL_STATUS_VIEWED"):
+        client.api("POST", path+"/events", {"surface": "VERIFICATION", "milestone": milestone}, status=201)
+    feedback = client.api("POST", path+"/events", {"surface": "INCIDENT", "feedback_decision": "ACCEPT", "artifact_type": "CAPA"}, status=201)
+    check(feedback["feedback_stage"] == "RAW" and feedback["run_manifest_ref"] and feedback["artifact_id"], "RAW feedback lineage가 필요합니다.")
+    complete = client.api("POST", path+"/complete", {}, idempotency_key=sid+":complete")
+    check(complete["status"] == "COMPLETED", "page view가 아니라 실제 업무 결과로 완료해야 합니다.")
+    check(client.api("POST", path+"/complete", {}, idempotency_key=sid+":complete") == complete, "완료 재전송은 동일해야 합니다.")
+    report = client.api("GET", "/validation/summary?"+urlencode({"store": fixture["store"], "kind": "SYNTHETIC"}))
+    check(report["sessions"] == 1 and report["completed"] == 1, "Synthetic 집계가 필요합니다.")
+    check(all(m["sample_size"] <= 1 for m in report["metrics"]), "표본 수를 부풀리면 안 됩니다.")
+    print("[통과] nginx→Synthetic Session→AX/Review→Worker→Verification→RAW Feedback→Metric Summary · 실제 사용자 검증 아님")
 
 
 def verify_data_intake_http(client):

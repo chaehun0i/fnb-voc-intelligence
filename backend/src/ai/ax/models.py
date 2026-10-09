@@ -1,6 +1,7 @@
 """SDK-independent user task projection, not a second Incident/Agent aggregate."""
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import Field
 
@@ -68,8 +69,13 @@ class AgentControlView(SafeModel):
 
 
 ProductEventType = Literal["ai_brief_viewed", "evidence_opened", "explanation_opened",
-    "recommendation_accepted", "recommendation_edited", "recommendation_rejected"]
+    "recommendation_accepted", "recommendation_edited", "recommendation_rejected", "user_validation"]
 FeedbackStage = Literal["RAW", "REVIEWED", "GOLDEN_CANDIDATE", "GOLDEN_APPROVED"]
+Friction = Literal["BACKTRACK", "REPEATED_ACTION", "HELP_OPENED", "EXPLANATION_EXPANDED",
+    "MANUAL_TAKEOVER", "ACTION_REJECTED", "REQUEST_MORE_EVIDENCE", "TASK_ABANDONED",
+    "ERROR_RECOVERED", "NO_CLEAR_NEXT_ACTION"]
+ValidationSurface = Literal["ONBOARDING", "DASHBOARD", "INCIDENT", "EVIDENCE", "REVIEW", "VERIFICATION", "EXPLANATION"]
+ValidationReason = Literal["NOT_CLEAR", "DATA_MISSING", "PERMISSION", "NETWORK", "NEEDS_REVIEW", "USER_CHOICE"]
 
 
 class ProductEvent(SafeModel):
@@ -80,6 +86,18 @@ class ProductEvent(SafeModel):
     event_type: ProductEventType
     occurred_at: datetime
     feedback_stage: FeedbackStage | None = None
+    session_id: UUID | None = None
+    task_id: Literal["incident-understanding"] | None = None
+    milestone: Literal["ONBOARDING_STARTED", "DATA_READY", "INCIDENT_OPENED", "AI_BRIEF_VIEWED",
+        "EVIDENCE_REVIEWED", "HUMAN_ACTION_PRESENTED", "REVIEW_OPENED", "DECISION_SUBMITTED",
+        "VERIFICATION_VIEWED", "FINAL_STATUS_VIEWED", "FEEDBACK_SUBMITTED"] | None = None
+    feedback_decision: Literal["ACCEPT", "EDIT", "REJECT", "REQUEST_MORE_EVIDENCE", "MANUAL_TAKEOVER"] | None = None
+    friction: Friction | None = None
+    surface: ValidationSurface | None = None
+    safe_reason_code: ValidationReason | None = None
+    run_manifest_ref: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    artifact_type: Literal["RCA", "CAPA", "INCIDENT"] | None = None
+    artifact_id: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class AXMetric(SafeModel):

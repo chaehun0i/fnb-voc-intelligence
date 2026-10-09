@@ -5,6 +5,7 @@ import { Button, PageHeading, PreviewNotice, StateMessage, StatCard } from "../.
 import { dateTime } from "../../lib/display";
 import { useQuery } from "../../lib/useQuery";
 import { Badge } from "../../components/IncidentBadge";
+import { ValidationSummary } from "../ai/ValidationSummary";
 
 const load = () => dashboardApi.getSnapshot();
 export function Dashboard({ onIncidents, onReviews, onQueue, onIncident }: { onIncidents: () => void; onReviews: () => void; onQueue: () => void; onIncident: (id: string) => void }) {
@@ -22,6 +23,7 @@ export function Dashboard({ onIncidents, onReviews, onQueue, onIncident }: { onI
       <Button variant="primary" onClick={onIncidents}>인시던트 보기 <ArrowUpRight size={15} /></Button>
     </PageHeading>
     {apiMode === "mock" ? <PreviewNotice /> : <p className="preview-notice">실제 서버 운영 현황 · 예시 데이터를 섞지 않습니다.</p>}
+    {apiMode === "http" && <ValidationSummary />}
     <p className="muted">정보 기준 시각: {dateTime(snapshot.as_of)} · 추세 날짜 기준: UTC · 조회 기간: 최근 7일</p>
     {empty && <><StateMessage title="현재 조회 범위에 운영 기록이 없습니다.">분석할 데이터가 없다면 샘플 데이터로 체험하거나 운영 파일을 가져올 수 있습니다.</StateMessage><a className="text-link" href="#/onboarding">샘플 데이터 추가 / 파일 가져오기</a></>}
     <div className="summary-grid">

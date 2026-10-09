@@ -122,6 +122,10 @@ Day 29 versioned Tool/Prompt Registry·LLM Gateway 기반 LangChain Node composi
 
 Day 30 현재 MVP 단계는 **AX/AI MVP Release Candidate**입니다. Incident의 AI Brief·업무 진행·근거 범위·사람 행동·다음 행동·기존 Agent 제어, per-run RC Manifest/Golden 비교와 최소 Feedback/지표는 [AX/AI MVP RC 문서](docs/serviq_ax_mvp_rc.md)를 참고하세요. Production Ready가 아닙니다.
 
+Day 31은 **실제 사용자 검증을 수행하고 AX friction을 측정할 수 있는 기반**입니다. 동의 기반 과업 Session·서버 상태와 결합한 Journey·선택형 RAW Feedback·표본 수/측정 가능성을 표시하는 지표는 [User Validation 가이드](docs/serviq_user_validation.md)를 참고하세요. Synthetic 검증과 실제 사용자 관찰을 별도로 집계하며, 실제 사용자 검증은 **NOT YET PERFORMED**입니다.
+
 ### 처음 체험하는 순서
 
 실제 API 모드에서 로그인 → 매장 확인 → [샘플 또는 Excel/CSV 입력](docs/serviq_onboarding_import.md) → 시작 체크리스트의 Incident 열기 → 조사 시작 → AI Brief/근거/다음 행동 확인 → 기존 Review에서 승인/반려 → 내부 실행 기록/Verification 결과 확인 순서입니다. 승인 ≠ 실행이며 실행은 INTERNAL_RECORD_ONLY, 검증은 SIMULATED입니다. 서버 오류를 Mock으로 대체하지 않습니다. 후속은 사용자 과업 관찰과 AX friction 개선·Productionization입니다.
+
+사용자 과업 관찰은 HTTP 모드의 **사용자 과업 검증 참여**에서 매장·과업을 선택하고 동의한 뒤 시작합니다. 기존 화면에서 스스로 판단하고 의견을 남긴 뒤 **과업 완료 확인**을 요청하세요. 서버가 실제 결정/검증 결과를 확인하며 페이지 조회만으로 완료하지 않습니다. 관리자는 Dashboard의 **사용자 검증 지표 조회**에서 매장과 사용자 관찰/Synthetic 자료를 구분해 볼 수 있습니다. 이름·원문 입력을 수집하지 않으며 자동화 smoke는 사용자 참여로 집계하지 않습니다.

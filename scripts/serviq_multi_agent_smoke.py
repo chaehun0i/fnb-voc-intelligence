@@ -47,13 +47,13 @@ from src.infrastructure.repositories.postgres_incident_repository import (
 )
 
 
-def seed(dsn, *, inventory=True, tenant=None, closed_loop=False, loop=False, max_operations=20):
+def seed(dsn, *, inventory=True, tenant=None, closed_loop=False, loop=False, max_operations=20, sample_dataset=False):
     migrate(dsn)
     now, suffix = datetime.now(UTC), uuid4().hex
     tenant = tenant or "multi-"+suffix
     principal = Principal("multi-operator", tenant, frozenset({Role.HQ_ADMIN}))
     persistence = AccessPersistence(PostgresIncidentRepository(dsn))
-    incident = persistence.incidents.save(Incident(str(uuid4()), "MULTI-SMOKE", "quality", Severity.MEDIUM,
+    incident = persistence.incidents.save(Incident(str(uuid4()), "MULTI-SMOKE", "품질" if sample_dataset else "quality", Severity.MEDIUM,
         IncidentStatus.INVESTIGATING, "multi-store-"+suffix, "담당", now.isoformat(), now.isoformat(),
         tenant_id=tenant, evidence=[Evidence("history-ref", "synthetic", "HISTORY", "참조", .9)]))
     with psycopg.connect(dsn) as connection:
@@ -65,10 +65,10 @@ def seed(dsn, *, inventory=True, tenant=None, closed_loop=False, loop=False, max
         reviews = [Review(review_id="multi-review-"+suffix+str(i), product_id=product, rating=1,
             review_text="quality MULTI-RAW-SENTINEL", review_date=now.date(), source="synthetic") for i in (1, 2)]
         bulk_insert_reviews(cursor, reviews)
-        for review in reviews:
+        for review in (() if sample_dataset else reviews):
             connection.execute("INSERT INTO serviq_history_sources(tenant_id,store,review_id) VALUES(%s,%s,%s)",
                 (tenant, incident.store, review.review_id))
-        for agent in (("TRANSACTION", "INVENTORY") if inventory else ("TRANSACTION",)):
+        for agent in (() if sample_dataset else ("TRANSACTION", "INVENTORY") if inventory else ("TRANSACTION",)):
             observation = OperationalObservation(tenant_id=tenant, store=incident.store, agent_type=agent,
                 source_ref=agent.lower()+":"+suffix, observed_at=now,
                 signal="REFUND_SIGNAL" if agent == "TRANSACTION" else "STOCK_SHORTAGE")

@@ -11,7 +11,7 @@ PURE = ("fastapi", "psycopg", "langgraph", "src.api", "src.infrastructure",
         "src.ai.execution.service", "src.ai.decision.service", *SDK)
 ROLES = {
     "decision": {"DecisionContext", "DecisionResult", "JevEngine", "safety_and_risk", "select_profile", "build_context"},
-    "contracts": {"WorkflowState", "SafeModel", "VerificationCandidate", "LLMIntent", "LLMProvider", "LLMError", "AgentDefinition", "AgentContextPack", "InvestigationResult", "LoopPolicy", "AgentRunManifest", "HarnessIntent", "HarnessDecision", "RuntimeEvent", "ToolContract", "ToolInput", "ToolResult", "ToolCall", "ToolError", "ToolExecutionContext", "PromptContract", "PromptReference"},
+    "contracts": {"WorkflowState", "SafeModel", "VerificationCandidate", "LLMIntent", "LLMProvider", "LLMError", "AgentDefinition", "AgentContextPack", "InvestigationResult", "LoopPolicy", "AgentRunManifest", "HarnessIntent", "HarnessDecision", "RuntimeEvent", "ToolContract", "ToolInput", "ToolResult", "ToolCall", "ToolError", "ToolExecutionContext", "PromptContract", "PromptReference", "ValidationSession", "ValidationTask", "ValidationJourney", "ValidationMetric", "ProductEvent"},
     "nodes": {"HistoryInvestigation", "RCAInvestigation", "CAPAInvestigation", "OperationalInvestigation", "ToolInvestigation"},
 }
 
