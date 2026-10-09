@@ -11,6 +11,11 @@ Scenario = Literal["happy_path", "more_evidence", "reopen", "manual_takeover", "
 SessionStatus = Literal["ACTIVE", "COMPLETED", "ABANDONED"]
 
 
+def validate_synthetic_database_name(name):
+    if name == "fnb_voc" or not any(marker in name.lower() for marker in ("test", "validation", "_ci", "ci_")):
+        raise ValueError("USER_VALIDATION_REQUIRES_EXPLICIT_TEST_DATABASE")
+
+
 class ValidationTask(SafeModel):
     task_id: Literal["incident-understanding"] = "incident-understanding"
     task_version: Literal["1"] = "1"

@@ -167,3 +167,10 @@ def test_summary_requires_admin_and_separates_synthetic(history_setup):
     svc.start(store, "happy_path", consent=True, kind="SYNTHETIC")
     assert svc.summary(store, "SYNTHETIC")["sessions"] == 1
     assert svc.summary(store, "USER_OBSERVATION")["sessions"] == 0
+
+
+@pytest.mark.parametrize("name", ["fnb_voc", "customer_prod", ""])
+def test_synthetic_fixture_refuses_operating_database(name):
+    from src.ai.ax.validation import validate_synthetic_database_name
+    with pytest.raises(ValueError, match="EXPLICIT_TEST_DATABASE"):
+        validate_synthetic_database_name(name)
