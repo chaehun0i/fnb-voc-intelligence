@@ -30,3 +30,13 @@ export const validationApi = {
   async signal(id: string, body: ValidationSignal, key: string) { await validationRequest(`/sessions/${encodeURIComponent(id)}/events`, "POST", body, key); },
   async finish(id: string, key: string) { await validationRequest(`/sessions/${encodeURIComponent(id)}/complete`, "POST", {}, key); },
 };
+
+export type ValidationMetric = { name: string; value: number | null; sample_size: number; availability: "AVAILABLE" | "PARTIAL" | "INSUFFICIENT_SAMPLE" | "UNAVAILABLE"; unit: "ratio" | "seconds" | "estimated_usd"; window: "7d" };
+export type ValidationSummary = { validation_kind: "SYNTHETIC" | "USER_OBSERVATION"; window: "7d"; sessions: number; completed: number; abandoned: number; truncated: boolean; metrics: ValidationMetric[]; top_friction: { reason: Friction; count: number }[] };
+export function decodeValidationSummary(value: unknown): ValidationSummary {
+  const v = value as ValidationSummary;
+  const count = (n: unknown) => Number.isSafeInteger(n) && Number(n) >= 0 && Number(n) <= 50000;
+  if (!v || !["SYNTHETIC", "USER_OBSERVATION"].includes(v.validation_kind) || v.window !== "7d" || ![v.sessions, v.completed, v.abandoned].every(count) || typeof v.truncated !== "boolean" || !Array.isArray(v.metrics) || v.metrics.length > 14 || !v.metrics.every((m) => typeof m.name === "string" && count(m.sample_size) && (m.value === null || typeof m.value === "number" && Number.isFinite(m.value) && m.value >= 0) && ["AVAILABLE", "PARTIAL", "INSUFFICIENT_SAMPLE", "UNAVAILABLE"].includes(m.availability) && ["ratio", "seconds", "estimated_usd"].includes(m.unit)) || !Array.isArray(v.top_friction) || v.top_friction.length > 10 || !v.top_friction.every((f) => typeof f.reason === "string" && count(f.count))) throw new Error("검증 요약 응답 형식을 확인해 주세요.");
+  return v;
+}
+export const getValidationSummary = async (store: string, kind: ValidationSummary["validation_kind"]) => decodeValidationSummary(await validationRequest(`/summary?store=${encodeURIComponent(store)}&kind=${kind}`));
