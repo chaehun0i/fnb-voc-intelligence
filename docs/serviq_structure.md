@@ -48,7 +48,7 @@ Job Worker의 `src.infrastructure.jobs.runtime` 진입점과 Outbox dispatch·cl
 
 ## 실행·검증
 
-`backend/`는 루트 Python 프로젝트를 editable dependency로 사용하며 실제 구현은 `backend/src/`의 `src` 패키지입니다. 루트와 backend lockfile, 기존 CLI/RAG/Streamlit을 유지합니다. `src.infrastructure.migrations`는 현재 `db/migrations/001`~`021`을 패키지 리소스로 읽습니다. 구조 리팩토링 당시에는 018까지였으며 Day 29는 새 DB schema/migration 없이 기존 AgentRun document에 안전한 Tool receipt를 추가합니다.
+`backend/`는 루트 Python 프로젝트를 editable dependency로 사용하며 실제 구현은 `backend/src/`의 `src` 패키지입니다. 루트와 backend lockfile, 기존 CLI/RAG/Streamlit을 유지합니다. `src.infrastructure.migrations`는 현재 `db/migrations/001`~`023`을 패키지 리소스로 읽습니다. 구조 리팩토링 당시에는 018까지였으며 Day 29는 새 DB schema/migration 없이 기존 AgentRun document에 안전한 Tool receipt를 추가합니다.
 
 ```bash
 # backend 디렉터리
@@ -84,5 +84,7 @@ Day 28은 기존 Workflow/Execution 책임 안에 제한 Loop·Harness·Manifest
 Day 29의 `intelligence/node.py`·`prompts.py`, `execution/tools.py`·`runtime.py`, `application/tool_queries.py`, `mcp/server.py`는 좁은 composition/read Tool 경로를 담당합니다. MCP transport는 안전 정책을 소유하지 않습니다. 상세 책임·버전·검증·제한은 [LangChain/MCP](serviq_langchain_mcp.md)를 따릅니다.
 
 Day 30은 기존 AX 영역의 `models.py`/`projector.py`/`actions.py`/`explanations.py`/`service.py`로 Incident 단위 업무 projection을 제공합니다. `releases.py`와 `measurement.py`는 per-run RC snapshot/Golden 비교 및 제한된 ProductEvent/지표를 담당합니다. 기존 Domain/Workflow/Execution 안전 경계는 유지합니다. additive migration은 `022_ax_product_events.sql`이며 상세 결과는 [AX/AI MVP RC](serviq_ax_mvp_rc.md)를 따릅니다.
+
+Day 31의 `ai/ax/validation.py`는 순수 과업/Session/Journey 계약, 기존 `measurement.py`는 표본·availability를 가진 지표 projection입니다. `application/user_validation.py`가 권한·동의·실제 Incident/Approval/AgentRun 상태·영속 멱등성을 연결하고 `api/routes/user_validation.py`는 bounded HTTP 경계를 제공합니다. 기존 ProductEvent repository와 UoW를 확장하며 additive `023_user_validation.sql`만 추가합니다. `features/ai/ValidationMode.tsx`와 `ValidationSummary.tsx`는 기존 화면의 선택형 관찰 모드와 관리자 요약입니다. 별도 Analytics framework나 Incident 상태 머신은 없습니다. [User Validation](serviq_user_validation.md)의 Synthetic 결과는 실제 사용자 검증이 아닙니다.
 
 production OIDC/SSO·deployment, 전체 retention/migration engine, 고급 Context enrichment·동적 Registry·자율 planner, public MCP endpoint, 외부 Action reconciliation 전체는 후속 범위입니다. 승인된 내부 실행을 실제 외부 변경과 구분하며 Jev Shadow 전체를 자동 실행하지 않습니다. 현재는 AX/AI MVP RC이지 Production Ready가 아닙니다. 다음은 실제 사용자 과업 관찰·AX friction 개선·Golden 재검증과 필요한 Productionization입니다.
