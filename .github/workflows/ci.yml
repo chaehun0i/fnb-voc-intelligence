@@ -144,6 +144,8 @@ jobs:
         run: uv run --extra dev python -m scripts.serviq_tool_runtime_smoke
       - name: Day 30 실제 Closed Loop·AX·Feedback·RC Golden 검증
         run: uv run --extra dev python -m scripts.serviq_ax_rc_smoke
+      - name: 사용자 과업·Synthetic Journey·RAW Feedback·AX Friction 검증
+        run: uv run --extra dev python -m scripts.serviq_user_validation_smoke
 
   docker:
     name: 이미지와 Compose 운영 흐름 검증
@@ -215,9 +217,17 @@ jobs:
           docker compose --project-name serviq-ci --profile serviq exec -T --workdir /app api sh -c 'SERVIQ_TEST_DATABASE_URL="$SERVIQ_DATABASE_URL" python -m scripts.serviq_onboarding_import_smoke'
           docker compose --project-name serviq-ci --profile serviq exec -T --workdir /app api sh -c 'SERVIQ_TEST_DATABASE_URL="$SERVIQ_DATABASE_URL" python -m scripts.serviq_tool_runtime_smoke'
           docker compose --project-name serviq-ci --profile serviq exec -T -e SERVIQ_RC_CODE_SHA="$GITHUB_SHA" --workdir /app api sh -c 'SERVIQ_TEST_DATABASE_URL="$SERVIQ_DATABASE_URL" python -m scripts.serviq_ax_rc_smoke'
+          docker compose --project-name serviq-ci --profile serviq exec -T --workdir /app api sh -c 'SERVIQ_TEST_DATABASE_URL="$SERVIQ_DATABASE_URL" python -m scripts.serviq_user_validation_smoke'
           fixture=$(docker compose --project-name serviq-ci --profile serviq exec -T --workdir /app api sh -c 'SERVIQ_TEST_DATABASE_URL="$SERVIQ_DATABASE_URL" python -m scripts.serviq_loop_harness_smoke --seed-http')
           docker compose --project-name serviq-ci --profile serviq start worker
           SERVIQ_LOOP_HARNESS_HTTP_FIXTURE="$fixture" python -m scripts.serviq_http_smoke
+      - name: nginx Synthetic 사용자 과업·Review·Worker·Feedback·지표 검증
+        shell: bash
+        run: |
+          docker compose --project-name serviq-ci --profile serviq stop worker
+          fixture=$(docker compose --project-name serviq-ci --profile serviq exec -T --workdir /app api sh -c 'SERVIQ_TEST_DATABASE_URL="$SERVIQ_DATABASE_URL" python -m scripts.serviq_user_validation_smoke --seed-http')
+          docker compose --project-name serviq-ci --profile serviq start worker
+          SERVIQ_VALIDATION_HTTP_FIXTURE="$fixture" python -m scripts.serviq_http_smoke
       - name: Worker의 실제 Outbox 완료 기록 확인
         shell: bash
         run: |

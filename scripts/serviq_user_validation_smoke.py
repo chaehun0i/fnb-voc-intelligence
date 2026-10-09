@@ -1,4 +1,6 @@
 """Explicit isolated synthetic task fixture; never automatically seeds an operating tenant."""
+import argparse
+import json
 import os
 from dataclasses import replace
 from uuid import uuid4
@@ -16,8 +18,12 @@ from src.application.agent_controls import AgentControls
 from src.application.data_intake import DataIntake
 from src.application.security.principal import RequestContext, Role
 from src.application.user_validation import UserValidation, ValidationSignal
+from src.infrastructure.access_unit_of_work import AccessPersistence
 from src.infrastructure.jobs.job_worker import JobWorker
 from src.infrastructure.jobs.runtime import snapshot_processor
+from src.infrastructure.repositories.postgres_incident_repository import (
+    PostgresIncidentRepository,
+)
 
 SCENARIOS = ("happy_path", "more_evidence", "reopen", "manual_takeover", "abandon")
 
@@ -113,8 +119,84 @@ def main():
     dsn = os.environ.get("SERVIQ_TEST_DATABASE_URL")
     if not dsn:
         raise SystemExit("격리된 SERVIQ_TEST_DATABASE_URL을 지정해 주세요.")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed-http", action="store_true")
+    if parser.parse_args().seed_http:
+        print(json.dumps(seed_http(dsn)))
+        return
     for scenario in SCENARIOS:
-        run_scenario(dsn, scenario)
+        _, context, incident, session = run_scenario(dsn, scenario)
+        verify_observation(dsn, context, incident, session)
+
+
+def verify_observation(dsn, context, incident, session):
+    """Fresh repository + real HTTP contracts, not an in-memory analytics substitute."""
+    from fastapi.testclient import TestClient
+
+    from src.api.app import create_app
+    from src.infrastructure.auth.local_identity_provider import LocalIdentityProvider
+    restored = AccessPersistence(PostgresIncidentRepository(dsn))
+    principal = context.principal
+    identities = {"owner": principal,
+        "admin": replace(principal, roles=frozenset({Role.HQ_ADMIN})),
+        "other": replace(principal, tenant_id="other-validation"),
+        "store": replace(principal, store_scope=frozenset({"other-store"})),
+        "auditor": replace(principal, roles=frozenset({Role.AUDITOR}))}
+    app = create_app(restored.incidents, identity_provider=LocalIdentityProvider(identities, environment="test"))
+    app.state.access_persistence = restored
+    client = TestClient(app)
+    path = f"/api/v1/validation/sessions/{session.session_id}"
+    view = client.get(path, headers={"Authorization": "Bearer owner"})
+    assert view.status_code == 200, view.text
+    expected = "ABANDONED" if session.scenario_id == "abandon" else "COMPLETED"
+    assert view.json()["session"]["status"] == expected
+    assert view.json()["journey"]["task_success"] == (expected == "COMPLETED")
+    for token, status in (("other", 404), ("store", 403)):
+        assert client.get(path, headers={"Authorization": "Bearer "+token}).status_code == status
+    assert client.get("/api/v1/validation/summary", params={"store": incident.store}, headers={"Authorization": "Bearer auditor"}).status_code == 403
+    query = {"store": incident.store, "kind": "SYNTHETIC"}
+    report = client.get("/api/v1/validation/summary", params=query, headers={"Authorization": "Bearer admin"})
+    assert report.status_code == 200, report.text
+    values = report.json()
+    assert values["sessions"] == 1 and values["completed"] == (expected == "COMPLETED")
+    assert all(m["sample_size"] <= 1 for m in values["metrics"])
+    assert client.get("/api/v1/validation/summary", params=query | {"kind": "USER_OBSERVATION"}, headers={"Authorization": "Bearer admin"}).json()["sessions"] == 0
+    assert not any(s in report.text for s in ("participant_ref", "principal_id", "raw_prompt", "checkpoint", "credential"))
+    with restored.transaction(principal.tenant_id) as uow:
+        events = uow.product_events.session_events(session.session_id)
+        assert len({e.event_id for e in events}) == len(events)
+        assert all(e.feedback_stage == "RAW" for e in events if e.feedback_decision)
+        assert not uow.llm_calls.history(incident.id)
+    print("[PASS] Session/Journey/RAW feedback/summary HTTP + PG restart/scope/dedup "+session.scenario_id)
+
+
+def seed_http(dsn):
+    """Only explicit isolated smoke DB; automated HTTP sessions remain SYNTHETIC."""
+    require_isolated_database(dsn)
+    p, source, principal, job, incident = seed(dsn, tenant="legacy-local", loop=True, closed_loop=True)
+    observer = replace(principal, principal_id="local-operator", authentication_source="local-compatibility")
+    context = RequestContext(observer, "synthetic-http", job.correlation_id, "session-"+job.job_id)
+    session = UserValidation(p, context).start(incident.store, "happy_path", consent=True, kind="SYNTHETIC")
+    processor = HistoryProcessor(p, CountHistory(dsn), lambda: postgres_checkpoint(dsn), source=source, dsn=dsn)
+    with psycopg.connect(dsn, autocommit=True) as connection:
+        worker = JobWorker(connection, snapshot_processor(p.incidents, history=processor), tenant_id=principal.tenant_id)
+        # Bounded fixture preparation; production Worker semantics are not changed.
+        for _ in range(10):
+            assert worker.run_once()
+            with p.transaction(principal.tenant_id) as uow:
+                current = uow.agent_runs.by_job(job.job_id)
+            if current and current.status == "WAITING_APPROVAL":
+                break
+    with p.transaction(principal.tenant_id) as uow:
+        run = uow.agent_runs.by_job(job.job_id)
+    assert run and run.status == "WAITING_APPROVAL"
+    VerificationCommands(p, run.agent_run_id, principal.tenant_id).prepare_simulation(
+        RequestContext(principal, "synthetic-http", job.correlation_id),
+        InternalReviewSimulation(tenant_id=principal.tenant_id, store=incident.store,
+            agent_run_id=run.agent_run_id, source_ref="internal-review:"+str(uuid4()),
+            review_record_present=True, additional_evidence_refs=run.state.evidence_refs))
+    return {"session_id": str(session.session_id), "incident_id": incident.id, "store": incident.store,
+        "approval_id": run.state.approval.approval_id}
 
 
 if __name__ == "__main__":

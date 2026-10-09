@@ -206,3 +206,123 @@ def test_completed_receipt_survives_later_incident_changes():
     s = session(status="COMPLETED", completed_at=session().started_at + timedelta(seconds=30), completed_phase="RESOLVED")
     result = project_journey(s, [])
     assert result.task_success and result.incident_status == "RESOLVED"
+
+
+@pytest.mark.parametrize("field,value", [("tenant_id", "other"), ("agent_run_id", "fabricated"),
+    ("participant_ref", "person@example.com"), ("raw_voc", "PII-SENTINEL"),
+    ("raw_prompt", "SECRET-SENTINEL"), ("credential", "TOKEN-SENTINEL"),
+    ("run_manifest_ref", "fabricated"), ("feedback_stage", "GOLDEN_APPROVED")])
+def test_event_payload_rejects_scope_elevation_and_raw_content(history_setup, field, value):
+    client, p, context = validation_client(history_setup)
+    with p.transaction(context.principal.tenant_id) as uow:
+        store = uow.incidents.get("i").store
+    headers = {"Authorization": "Bearer owner", "Idempotency-Key": "start"}
+    sid = client.post("/api/v1/validation/sessions", headers=headers,
+        json={"store": store, "scenario_id": "happy_path", "consent": True}).json()["session_id"]
+    response = client.post(f"/api/v1/validation/sessions/{sid}/events", headers=headers | {"Idempotency-Key": "unsafe"},
+        json={"surface": "INCIDENT", "friction": "BACKTRACK", field: value})
+    assert response.status_code == 422
+    assert value not in response.text
+    with p.transaction(context.principal.tenant_id) as uow:
+        assert not uow.product_events.session_events(sid)
+
+
+def test_forged_incident_and_unauthorized_write_rollback(history_setup):
+    client, p, context = validation_client(history_setup)
+    with p.transaction(context.principal.tenant_id) as uow:
+        store = uow.incidents.get("i").store
+    headers = {"Authorization": "Bearer owner", "Idempotency-Key": "start"}
+    sid = client.post("/api/v1/validation/sessions", headers=headers,
+        json={"store": store, "scenario_id": "happy_path", "consent": True}).json()["session_id"]
+    path = f"/api/v1/validation/sessions/{sid}/events"
+    body = {"surface": "INCIDENT", "milestone": "INCIDENT_OPENED", "incident_id": "fabricated"}
+    assert client.post(path, headers=headers | {"Idempotency-Key": "bad"}, json=body).status_code == 404
+    for token, status in (("other", 404), ("store", 403), ("auditor", 403), ("peer", 403)):
+        assert client.post(path, headers=headers | {"Authorization": "Bearer "+token, "Idempotency-Key": "deny"}, json=body).status_code == status
+    assert client.post(f"/api/v1/validation/sessions/{sid}/complete", headers=headers | {"Idempotency-Key": "finish"}).status_code == 409
+    assert client.post("/api/v1/incidents/i/ax/events", headers=headers, json={"event_type": "user_validation"}).status_code == 422
+    assert client.get(f"/api/v1/validation/sessions/{sid}", headers=headers).json()["session"]["incident_id"] is None
+
+
+def test_metrics_completed_incomplete_duplicate_order_and_partial():
+    from src.ai.ax.measurement import validation_metrics
+    from src.ai.ax.models import ProductEvent
+    from src.ai.ax.validation import project_journey
+    s = session(status="COMPLETED", completed_at=session().started_at + timedelta(seconds=60), completed_phase="RESOLVED")
+    events = [ProductEvent(event_id=str(uuid4()), tenant_id=s.tenant_id, incident_id="i", source_run_id=None,
+        event_type="user_validation", occurred_at=s.started_at + timedelta(seconds=t), session_id=s.session_id,
+        milestone="HUMAN_ACTION_PRESENTED") for t in (9, 4)]
+    j = project_journey(s, events + [events[0]])
+    assert j == project_journey(s, list(reversed(events)))
+    row = {"session": s, "journey": j, "events": events, "ax": None}
+    result = {m.name: m for m in validation_metrics([row])}
+    assert result["median_task_duration"].value == 60
+    assert result["time_to_human_action"].value == 4
+    assert result["task_completion_rate"].value == 1 and result["task_completion_rate"].sample_size == 1
+    assert result["time_to_decision"].value is None
+    assert all(m.availability in {"UNAVAILABLE", "PARTIAL"} for m in validation_metrics([row], truncated=True))
+
+
+def test_signal_bound_and_terminal_session(history_setup):
+    from dataclasses import replace
+
+    from src.ai.ax.models import ProductEvent
+    from src.application.security.principal import AccessError
+    from src.application.user_validation import UserValidation, ValidationSignal
+    p, _, context, _ = history_setup
+    with p.transaction(context.principal.tenant_id) as uow:
+        store = uow.incidents.get("i").store
+    svc = UserValidation(p, replace(context, idempotency_key="start"))
+    s = svc.start(store, "abandon", consent=True)
+    with p.transaction(context.principal.tenant_id) as uow:
+        for _ in range(500):
+            uow.product_events.append(ProductEvent(event_id=str(uuid4()), tenant_id=s.tenant_id, incident_id="i",
+                source_run_id=None, session_id=s.session_id, event_type="user_validation", occurred_at=s.started_at))
+    with pytest.raises(AccessError, match="VALIDATION_EVENT_LIMIT"):
+        UserValidation(p, replace(context, idempotency_key="over")).signal(s.session_id,
+            ValidationSignal(surface="INCIDENT", friction="BACKTRACK"))
+
+
+def test_summary_query_bound_and_session_no_consent_no_scope_forgery(history_setup):
+    client, _, _ = validation_client(history_setup)
+    headers = {"Authorization": "Bearer owner", "Idempotency-Key": "start"}
+    assert client.get("/api/v1/validation/summary", params={"store": "x"*101}, headers=headers).status_code == 422
+    response = client.post("/api/v1/validation/sessions", headers=headers,
+        json={"store": "store", "scenario_id": "happy_path", "consent": True, "validation_kind": "SYNTHETIC"})
+    assert response.status_code == 422
+
+
+def test_successful_journey_requires_real_raw_feedback():
+    from src.ai.ax.models import ProductEvent
+    from src.ai.ax.validation import project_journey
+    s = session()
+    fake = ProductEvent(event_id=str(uuid4()), tenant_id=s.tenant_id, incident_id="i", source_run_id=None,
+        event_type="user_validation", occurred_at=s.started_at, session_id=s.session_id, milestone="FEEDBACK_SUBMITTED")
+    assert not project_journey(s, [fake]).milestones
+
+
+def test_before_investigation_page_click_cannot_become_future_result_view(history_setup):
+    client, _, _ = validation_client(history_setup)
+    headers = {"Authorization": "Bearer owner", "Idempotency-Key": "start"}
+    sid = client.post("/api/v1/validation/sessions", headers=headers,
+        json={"store": "store", "scenario_id": "happy_path", "consent": True}).json()["session_id"]
+    for milestone in ("AI_BRIEF_VIEWED", "REVIEW_OPENED", "VERIFICATION_VIEWED", "FINAL_STATUS_VIEWED"):
+        response = client.post(f"/api/v1/validation/sessions/{sid}/events", headers=headers | {"Idempotency-Key": milestone},
+            json={"surface": "INCIDENT", "milestone": milestone, "incident_id": "i"})
+        assert response.status_code == 409
+    assert not client.get(f"/api/v1/validation/sessions/{sid}", headers=headers).json()["journey"]["milestones"]
+
+
+def test_pause_or_stop_counts_as_observed_human_intervention_not_only_takeover():
+    from src.ai.ax.measurement import validation_metrics
+    from src.ai.ax.projector import project_incident
+    from src.ai.ax.validation import project_journey
+    from src.api.app import demo_incidents
+    s = session()
+    ax = project_incident(demo_incidents()[0], None).model_copy(update={"source_run_id": "run"})
+    row = {"session": s, "journey": project_journey(s, [], ax), "events": [], "ax": ax,
+        "human_intervention": True, "manual_takeover": False}
+    result = {m.name: m for m in validation_metrics([row])}
+    assert result["human_intervention_rate"].value == 1
+    assert result["manual_takeover_rate"].value == 0
+    assert result["human_intervention_rate"].availability == "PARTIAL"

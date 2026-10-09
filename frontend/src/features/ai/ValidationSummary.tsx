@@ -16,7 +16,7 @@ function SummaryData({ store, kind, load }: { store: string; kind: Summary["vali
   const v = query.data;
   if (!v) return null;
   return <div className="space-y-3"><p>최근 7일 · 시작 {v.sessions} · 완료 {v.completed} · 중단 {v.abandoned}</p><Button onClick={query.reload}>검증 지표 새로고침</Button>
-    {kind === "SYNTHETIC" ? <p className="preview-notice">Synthetic Validation · 실제 사용자 검증 결과가 아닙니다.</p> : <p>참여 관찰 기록만 집계합니다. 표본 수는 고유 사용자 수나 통계적 유의성을 뜻하지 않습니다.</p>}
+    {v.validation_kind === "SYNTHETIC" ? <p className="preview-notice">Synthetic Validation · 실제 사용자 검증 결과가 아닙니다.</p> : <p>참여 관찰 기록만 집계합니다. 표본 수는 고유 사용자 수나 통계적 유의성을 뜻하지 않습니다.</p>}
     {!v.sessions && <p>관측된 검증 과업이 없습니다. 측정 자료 없음은 0%와 다릅니다.</p>}
     {v.sessions > 0 && v.sessions < 5 && <p>표본이 부족합니다. 개별 과업의 막힌 지점을 확인하는 참고 자료로 사용해 주세요.</p>}
     {v.truncated && <p>조회 한도에 도달해 일부 자료만 집계했습니다.</p>}

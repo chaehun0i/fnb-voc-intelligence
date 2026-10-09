@@ -23,10 +23,10 @@ export function ValidationMode({ children, route, incidentId, api = validationAp
   const active = view?.session.status === "ACTIVE";
   const signal = useCallback(async (body: ValidationSignal, key?: string) => {
     if (!active || !id) return;
-    const eventKey = key ?? (body.milestone ? `${id}:${body.milestone}:${body.incident_id ?? view?.session.incident_id ?? ""}` : crypto.randomUUID());
+    const eventKey = key ?? (body.milestone ? `${id}:${body.milestone}` : crypto.randomUUID());
     try { await api.signal(id, body, eventKey); await refresh(); }
     catch (e) { setError(e instanceof Error ? e.message : "검증 관찰을 저장하지 못했습니다."); throw e; }
-  }, [active, id, api, refresh, view?.session.incident_id]);
+  }, [active, id, api, refresh]);
   useEffect(() => {
     if (!active) return;
     const body: ValidationSignal | null = incidentId ? { milestone: "INCIDENT_OPENED", surface: "INCIDENT", incident_id: incidentId } : route === "onboarding" ? { milestone: "ONBOARDING_STARTED", surface: "ONBOARDING" } : route === "reviews" && view?.session.incident_id ? { milestone: "REVIEW_OPENED", surface: "REVIEW" } : null;

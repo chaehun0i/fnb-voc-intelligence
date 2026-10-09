@@ -3,7 +3,7 @@ from typing import Literal
 from uuid import UUID
 
 import psycopg
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from pydantic import Field
 
 from src.ai.ax.models import SafeModel
@@ -26,7 +26,7 @@ class StartInput(SafeModel):
 
 
 @router.get("/summary")
-def summary(request: Request, store: str, kind: Literal["USER_OBSERVATION", "SYNTHETIC"] = "USER_OBSERVATION"):
+def summary(request: Request, store: str = Query(min_length=1, max_length=100), kind: Literal["USER_OBSERVATION", "SYNTHETIC"] = "USER_OBSERVATION"):
     try:
         return service(request).summary(store, kind)
     except psycopg.Error as error:

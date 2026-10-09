@@ -95,9 +95,9 @@ def validation_metrics(observations, *, truncated=False):
                 ("request_more_evidence_rate", "REQUEST_MORE_EVIDENCE")):
                 values[key].append(float(feedback[-1].feedback_decision == decision))
         if ax and ax.source_run_id:
-            takeover = bool(ax.runtime and ax.runtime.control_status == "MANUAL_TAKEOVER")
-            values["manual_takeover_rate"].append(float(takeover))
-            values["human_intervention_rate"].append(float(takeover or "DECISION_SUBMITTED" in milestone_times))
+            for name, field in (("manual_takeover_rate", "manual_takeover"), ("human_intervention_rate", "human_intervention")):
+                if row.get(field) is not None:
+                    values[name].append(float(row[field]))
             actual = {m.name: m for m in ax.metrics}
             for target, source in (("loop_abort_rate", "loop_abort"),
                 ("end_to_end_completion_rate", "end_to_end_completion"),

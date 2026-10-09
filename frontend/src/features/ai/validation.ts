@@ -39,4 +39,8 @@ export function decodeValidationSummary(value: unknown): ValidationSummary {
   if (!v || !["SYNTHETIC", "USER_OBSERVATION"].includes(v.validation_kind) || v.window !== "7d" || ![v.sessions, v.completed, v.abandoned].every(count) || typeof v.truncated !== "boolean" || !Array.isArray(v.metrics) || v.metrics.length > 14 || !v.metrics.every((m) => typeof m.name === "string" && count(m.sample_size) && (m.value === null || typeof m.value === "number" && Number.isFinite(m.value) && m.value >= 0) && ["AVAILABLE", "PARTIAL", "INSUFFICIENT_SAMPLE", "UNAVAILABLE"].includes(m.availability) && ["ratio", "seconds", "estimated_usd"].includes(m.unit)) || !Array.isArray(v.top_friction) || v.top_friction.length > 10 || !v.top_friction.every((f) => typeof f.reason === "string" && count(f.count))) throw new Error("검증 요약 응답 형식을 확인해 주세요.");
   return v;
 }
-export const getValidationSummary = async (store: string, kind: ValidationSummary["validation_kind"]) => decodeValidationSummary(await validationRequest(`/summary?store=${encodeURIComponent(store)}&kind=${kind}`));
+export const getValidationSummary = async (store: string, kind: ValidationSummary["validation_kind"]) => {
+  const value = decodeValidationSummary(await validationRequest(`/summary?store=${encodeURIComponent(store)}&kind=${kind}`));
+  if (value.validation_kind !== kind) throw new Error("요청한 검증 자료 구분과 서버 응답이 다릅니다.");
+  return value;
+};

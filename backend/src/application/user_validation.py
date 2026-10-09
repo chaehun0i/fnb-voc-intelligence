@@ -111,12 +111,16 @@ class UserValidation:
             decision_at = self.decision_time(uow, item)
             steps = uow.agent_runs.steps(item.agent_run_id) if item.agent_run_id else ()
             evidence_times = [s.completed_at for s in steps if s.evidence_refs and s.completed_at >= item.started_at]
+            controls = [e for e in uow.agent_runs.events(item.agent_run_id) if e.kind == "CONTROL"
+                and item.started_at <= e.created_at <= (item.completed_at or self.clock())] if item.agent_run_id else ()
         ax = IncidentAXQueries(self.persistence, self.context, self.clock).get(item.incident_id) if item.incident_id else None
         if ax and item.agent_run_id and ax.source_run_id != item.agent_run_id:
             ax = None  # Do not attribute a newer investigation to this pinned observation.
         return {"session": item, "events": events, "ax": ax,
             "journey": project_journey(item, events, ax, decision_at),
-            "first_evidence_at": min(evidence_times, default=None)}
+            "first_evidence_at": min(evidence_times, default=None),
+            "human_intervention": bool(controls or decision_at) if item.agent_run_id else None,
+            "manual_takeover": any(e.control == "MANUAL_TAKEOVER" for e in controls) if item.agent_run_id else None}
 
     def summary(self, store, kind):
         require(self.context.principal, "admin", store)
@@ -198,6 +202,10 @@ class UserValidation:
                 raise AccessError("VALIDATION_INCIDENT_REQUIRED", 409)
             ax = IncidentAXQueries(self.persistence, self.context, self.clock).get(item.incident_id) if item.incident_id else None
             milestone, friction = body.milestone, body.friction
+            if milestone == "AI_BRIEF_VIEWED" and (not ax or not ax.source_run_id):
+                raise AccessError("VALIDATION_BRIEF_NOT_AVAILABLE", 409)
+            if milestone == "REVIEW_OPENED" and (not run or not run.state.approval):
+                raise AccessError("VALIDATION_REVIEW_NOT_AVAILABLE", 409)
             if milestone == "HUMAN_ACTION_PRESENTED" and (not ax or ax.human_action == "NONE"):
                 raise AccessError("VALIDATION_HUMAN_ACTION_NOT_AVAILABLE", 409)
             if milestone == "EVIDENCE_REVIEWED" and (not ax or not ax.coverage.evidence_count):
