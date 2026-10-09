@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.errors import register_error_handlers
+from src.api.errors import error_response, register_error_handlers
 from src.api.routes.agent_runs import router as agent_runs_router
 from src.api.routes.dashboard import router as dashboard_router
 from src.api.routes.data_intake import router as data_intake_router
@@ -19,6 +19,7 @@ from src.api.routes.jobs import router as job_router
 from src.api.routes.llm_calls import router as llm_calls_router
 from src.api.routes.reviews import router as review_router
 from src.api.routes.settings import router as settings_router
+from src.api.routes.user_validation import router as user_validation_router
 from src.application.dashboard.queries import DashboardQueries
 from src.application.incidents.service import IncidentService
 from src.application.ports.identity_provider import IdentityProvider
@@ -87,6 +88,7 @@ def create_app(
     app = FastAPI(title="ServIQ API", version="0.4.1")
     app.include_router(llm_calls_router)
     app.include_router(agent_runs_router)
+    app.include_router(user_validation_router)
     app.include_router(data_intake_router)
     app.state.identity_provider = identity_provider or configured_identity_provider()
     repo = repository if repository is not None else configured_repository()
@@ -115,6 +117,14 @@ def create_app(
             if re.fullmatch(r"[A-Za-z0-9._-]{1,80}", supplied)
             else str(uuid4())
         )
+        if request.url.path.startswith("/api/v1/validation/") and request.method == "POST":
+            payload = bytearray()
+            async for chunk in request.stream():
+                if len(payload) + len(chunk) > 4096:
+                    return error_response(request, 413, "VALIDATION_PAYLOAD_TOO_LARGE", "검증 이벤트 크기 한도를 초과했습니다.")
+                payload.extend(chunk)
+            # Starlette's cached body lets downstream FastAPI parse only bounded bytes.
+            request._body = bytes(payload)
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
         return response

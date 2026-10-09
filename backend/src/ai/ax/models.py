@@ -69,8 +69,13 @@ class AgentControlView(SafeModel):
 
 
 ProductEventType = Literal["ai_brief_viewed", "evidence_opened", "explanation_opened",
-    "recommendation_accepted", "recommendation_edited", "recommendation_rejected"]
+    "recommendation_accepted", "recommendation_edited", "recommendation_rejected", "user_validation"]
 FeedbackStage = Literal["RAW", "REVIEWED", "GOLDEN_CANDIDATE", "GOLDEN_APPROVED"]
+Friction = Literal["BACKTRACK", "REPEATED_ACTION", "HELP_OPENED", "EXPLANATION_EXPANDED",
+    "MANUAL_TAKEOVER", "ACTION_REJECTED", "REQUEST_MORE_EVIDENCE", "TASK_ABANDONED",
+    "ERROR_RECOVERED", "NO_CLEAR_NEXT_ACTION"]
+ValidationSurface = Literal["ONBOARDING", "DASHBOARD", "INCIDENT", "EVIDENCE", "REVIEW", "VERIFICATION", "EXPLANATION"]
+ValidationReason = Literal["NOT_CLEAR", "DATA_MISSING", "PERMISSION", "NETWORK", "NEEDS_REVIEW", "USER_CHOICE"]
 
 
 class ProductEvent(SafeModel):
@@ -87,6 +92,9 @@ class ProductEvent(SafeModel):
         "EVIDENCE_REVIEWED", "HUMAN_ACTION_PRESENTED", "REVIEW_OPENED", "DECISION_SUBMITTED",
         "VERIFICATION_VIEWED", "FINAL_STATUS_VIEWED", "FEEDBACK_SUBMITTED"] | None = None
     feedback_decision: Literal["ACCEPT", "EDIT", "REJECT", "REQUEST_MORE_EVIDENCE", "MANUAL_TAKEOVER"] | None = None
+    friction: Friction | None = None
+    surface: ValidationSurface | None = None
+    safe_reason_code: ValidationReason | None = None
 
 
 class AXMetric(SafeModel):

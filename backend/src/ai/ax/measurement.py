@@ -34,6 +34,8 @@ class ProductEvents:
         self.persistence, self.clock = persistence, clock or (lambda: datetime.now(UTC))
 
     def record(self, context, incident_id, event_type):
+        if event_type == "user_validation":
+            raise AccessError("VALIDATION_SESSION_REQUIRED", 422)
         principal = context.principal
         require(principal, "read")
         if not context.idempotency_key:
